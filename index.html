@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+
+  <title>심연 로그 | Abyss Rogue</title>
+
+  <meta name="description" content="끝없이 내려가는 심연, 죽음조차 성장의 일부가 되는 웹 로그라이크 RPG">
+
+  <meta property="og:title" content="심연 로그 | Abyss Rogue">
+  <meta property="og:description" content="끝없이 내려가는 심연, 죽음조차 성장의 일부가 되는 웹 로그라이크 RPG">
+  <meta property="og:image" content="./끝없이_내려가는_심연의_모험.png">
+  <meta property="og:type" content="website">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="심연 로그 | Abyss Rogue">
+  <meta name="twitter:description" content="끝없이 내려가는 심연, 죽음조차 성장의 일부가 되는 웹 로그라이크 RPG">
+  <meta name="twitter:image" content="./끝없이_내려가는_심연의_모험.png">
+
+  <link rel="icon" href="./심연_로그_마법의_세계로의_초대.png">
+  <link rel="apple-touch-icon" href="./심연_로그_마법의_세계로의_초대.png">
+
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #090b10;
+      color: #eef3ff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .loading {
+      text-align: center;
+      opacity: .86;
+      line-height: 1.5;
+      padding: 24px;
+    }
+
+    .title {
+      font-size: 22px;
+      font-weight: 900;
+      letter-spacing: -.4px;
+    }
+
+    .sub {
+      margin-top: 8px;
+      color: #aebbd6;
+      font-size: 13px;
+    }
+
+    .link {
+      display: inline-block;
+      margin-top: 18px;
+      color: #d8c6ff;
+      text-decoration: none;
+      border: 1px solid rgba(216,198,255,.35);
+      border-radius: 999px;
+      padding: 8px 14px;
+      background: rgba(124,58,237,.16);
+    }
+  </style>
+</head>
+<body>
+  <div class="loading">
+    <div class="title">심연 로그</div>
+    <div class="sub">게임을 실행하는 중...</div>
+    <a class="link" href="./index8_4_auto_skill_priority.html">바로 실행</a>
+  </div>
+
+  <script>
+    const target = new URL('./index8_4_auto_skill_priority.html', location.href);
+    target.search = location.search;
+    target.hash = location.hash;
+    location.replace(target.href);
+  </script>
+
+  <noscript>
+    <div class="loading">
+      <div class="title">심연 로그</div>
+      <div class="sub">자바스크립트를 켜야 게임을 실행할 수 있습니다.</div>
+      <a class="link" href="./index8_4_auto_skill_priority.html">심연 로그 실행</a>
+    </div>
+  </noscript>
+</body>
+</html>
