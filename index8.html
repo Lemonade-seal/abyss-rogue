@@ -437,6 +437,7 @@
 
 <div id="modal" class="modal"><div id="modalCard" class="card"></div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (() => {
 'use strict';
@@ -523,25 +524,168 @@ function normalizeMeta(m){
   m.upgrades = Object.assign({hp:0, atk:0, def:0, crit:0, xp:0, gold:0}, m.upgrades||{});
   return m;
 }
-function saveMeta(){localStorage.setItem(META_KEY, JSON.stringify(meta));}
-function saveRun(){ if(S && !S.dead) localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }
+const CLOUD_CONFIG_KEY = 'abyss_rogue_supabase_config_v1';
+const DEFAULT_SUPABASE_URL = 'https://wcxojajbxspvxubvyfbc.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjeG9qYWpieHNwdnh1YnZ5ZmJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MDA0MTksImV4cCI6MjA5NzQ3NjQxOX0.sSqwoxJG2s0TvgLlf2s9cKRMsAWDdnx6NBXT0vntyq0';
+let cloudConfig = loadCloudConfig();
+let cloudClient = null;
+let cloudClientSignature = '';
+let cloudSaveTimer = null;
+
+function loadCloudConfig(){
+  try{
+    const raw = localStorage.getItem(CLOUD_CONFIG_KEY);
+    const cfg = raw ? JSON.parse(raw) : {};
+    return {
+      url: String(cfg.url || DEFAULT_SUPABASE_URL || '').trim(),
+      key: String(cfg.key || DEFAULT_SUPABASE_ANON_KEY || '').trim()
+    };
+  }catch(e){
+    return {
+      url: String(DEFAULT_SUPABASE_URL || '').trim(),
+      key: String(DEFAULT_SUPABASE_ANON_KEY || '').trim()
+    };
+  }
+}
+function saveCloudConfig(cfg){
+  cloudConfig = {url:String(cfg.url||'').trim(), key:String(cfg.key||'').trim()};
+  if(cloudConfig.url && cloudConfig.key) localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
+  else localStorage.removeItem(CLOUD_CONFIG_KEY);
+  cloudClient = null;
+  cloudClientSignature = '';
+}
+function cloudConfigured(){ return !!(cloudConfig.url && cloudConfig.key); }
+function cloudStatusText(){ return cloudConfigured() ? 'Supabase 설정됨' : 'Supabase 미설정'; }
+function getCloudClient(){
+  if(!cloudConfigured() || !window.supabase || !window.supabase.createClient) return null;
+  const sig = cloudConfig.url + '|' + cloudConfig.key;
+  if(!cloudClient || cloudClientSignature !== sig){
+    cloudClient = window.supabase.createClient(cloudConfig.url, cloudConfig.key, {
+      auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:false}
+    });
+    cloudClientSignature = sig;
+  }
+  return cloudClient;
+}
+async function currentCloudUser(){
+  const client = getCloudClient();
+  if(!client) return null;
+  const {data} = await client.auth.getUser();
+  return data && data.user ? data.user : null;
+}
+async function ensureCloudUser(opts={}){
+  const client = getCloudClient();
+  if(!client) throw new Error('Supabase 설정이 필요하다.');
+  let user = await currentCloudUser();
+  if(user) return user;
+  if(opts.anonymous){
+    const {data,error} = await client.auth.signInAnonymously();
+    if(error) throw error;
+    return data.user;
+  }
+  return null;
+}
+async function signInCloud(email, password){
+  const client = getCloudClient();
+  if(!client) throw new Error('Supabase 설정이 필요하다.');
+  const {data,error} = await client.auth.signInWithPassword({email, password});
+  if(error) throw error;
+  return data.user;
+}
+async function signUpCloud(email, password){
+  const client = getCloudClient();
+  if(!client) throw new Error('Supabase 설정이 필요하다.');
+  const {data,error} = await client.auth.signUp({email, password});
+  if(error) throw error;
+  return data.user;
+}
+async function signOutCloud(){
+  const client = getCloudClient();
+  if(!client) return;
+  await client.auth.signOut();
+}
+function queueCloudSave(){
+  if(!cloudConfigured()) return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(()=>{ saveCloud().catch(e=>console.warn('Supabase save error:', e.message)); }, 1500);
+}
+function readLocalRunForCloud(){
+  if(S && !S.dead) return deepClone(S);
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){ return {}; }
+}
+function saveMeta(){
+  localStorage.setItem(META_KEY, JSON.stringify(meta));
+  queueCloudSave();
+}
+function saveRun(){
+  if(S && !S.dead){
+    localStorage.setItem(SAVE_KEY, JSON.stringify(S));
+    queueCloudSave();
+  }
+}
 function hasSave(){return !!localStorage.getItem(SAVE_KEY);}
+function hydrateLoadedRun(message){
+  if(!S || !S.player) return false;
+  S.modalQueue = [];
+  S.auto = false;
+  S.player.effects = Object.assign({guard:0,fury:0,smoke:0,shadow:0,focus:0}, S.player.effects||{});
+  S.player.cd = Object.assign({smash:0,dash:0,heal:0,potion:0}, S.player.cd||{});
+  S.fx = [];
+  ensureRunFields();
+  mapPanelMode = S.mapPanelMode || 'log';
+  addLog(message || '저장된 원정을 불러왔다.');
+  renderAll();
+  return true;
+}
 function loadRun(){
   try{
     const raw = localStorage.getItem(SAVE_KEY);
     if(!raw) return false;
     S = JSON.parse(raw);
-    S.modalQueue = [];
-    S.auto = false;
-    S.player.effects = Object.assign({guard:0,fury:0,smoke:0,shadow:0,focus:0}, S.player.effects||{});
-    S.player.cd = Object.assign({smash:0,dash:0,heal:0,potion:0}, S.player.cd||{});
-    S.fx = [];
-    ensureRunFields();
-    mapPanelMode = S.mapPanelMode || 'log';
-    addLog('저장된 원정을 불러왔다.');
-    renderAll();
-    return true;
+    return hydrateLoadedRun('저장된 원정을 불러왔다.');
   }catch(e){ return false; }
+}
+async function saveCloud(){
+  if(!cloudConfigured()) return false;
+  const client = getCloudClient();
+  if(!client) return false;
+  const user = await ensureCloudUser({anonymous:true});
+  const saveData = readLocalRunForCloud();
+  const {error} = await client.from('game_saves').upsert({
+    user_id:user.id,
+    nickname:(S && S.player && (S.player.name || S.player.className)) || null,
+    save_data:saveData || {},
+    meta_data:meta || {},
+    updated_at:new Date().toISOString()
+  });
+  if(error) throw error;
+  return true;
+}
+async function loadCloud(){
+  if(!cloudConfigured()) return false;
+  const client = getCloudClient();
+  if(!client) return false;
+  const user = await ensureCloudUser({anonymous:true});
+  const {data,error} = await client.from('game_saves').select('save_data, meta_data, updated_at').eq('user_id', user.id).maybeSingle();
+  if(error) throw error;
+  if(!data) return false;
+  if(data.meta_data){
+    meta = normalizeMeta(data.meta_data || {});
+    localStorage.setItem(META_KEY, JSON.stringify(meta));
+  }
+  if(data.save_data && data.save_data.player){
+    S = data.save_data;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(S));
+    return hydrateLoadedRun('Supabase 저장 데이터를 불러왔다.');
+  }
+  S = null;
+  startMenuResumeClassId = null;
+  showStart();
+  toast('Supabase 영혼 강화 데이터만 불러왔다.');
+  return true;
 }
 function clearRun(){localStorage.removeItem(SAVE_KEY);}
 
@@ -2146,11 +2290,91 @@ function showMerchant(){
   const out=$('merchantCloseHintBtn'); if(out) out.onclick=()=>{ hideModal(); renderAll(); };
 }
 
+
+function cloudEscape(v){
+  return String(v||'').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+async function refreshCloudStatusLine(){
+  const el = $('cloudStatusLine');
+  if(!el) return;
+  if(!cloudConfigured()){ el.innerHTML = 'Supabase 미설정'; return; }
+  if(!getCloudClient()){ el.innerHTML = 'Supabase SDK 로드 실패'; return; }
+  try{
+    const user = await currentCloudUser();
+    el.innerHTML = user ? `로그인됨: <b>${cloudEscape(user.email || user.id)}</b>` : '설정됨 · 로그인 안 됨';
+  }catch(e){ el.textContent = '상태 확인 실패: ' + e.message; }
+}
+function showCloudMenu(){
+  if(S) pauseAutoForChoice(); else stopAuto();
+  const cfg = cloudConfig || {url:'', key:''};
+  showModal(`<h2>Supabase 연결</h2>
+    <p class="muted">Project URL과 anon/publishable key만 넣는다. service_role 또는 secret key는 넣지 않는다. 저장 데이터는 <b>game_saves</b> 테이블에 저장된다.</p>
+    <div class="metaRow"><div><h4>상태</h4><p id="cloudStatusLine">${cloudEscape(cloudStatusText())}</p></div><button class="btn smallbtn" id="cloudCheckBtn">확인</button></div>
+    <div class="grid2" style="margin-top:10px;grid-template-columns:1fr">
+      <input id="cloudUrlInput" placeholder="https://프로젝트ID.supabase.co" value="${cloudEscape(cfg.url)}" style="caret-color:auto;-webkit-user-select:text;user-select:text" />
+      <input id="cloudKeyInput" placeholder="anon / publishable key" value="${cloudEscape(cfg.key)}" style="caret-color:auto;-webkit-user-select:text;user-select:text" />
+    </div>
+    <div class="grid2" style="margin-top:8px"><button class="btn good" id="cloudSaveCfgBtn">설정 저장</button><button class="btn bad" id="cloudClearCfgBtn">설정 삭제</button></div>
+    <div class="grid2" style="margin-top:12px;grid-template-columns:1fr">
+      <input id="cloudEmailInput" type="email" placeholder="이메일 로그인용 이메일" style="caret-color:auto;-webkit-user-select:text;user-select:text" />
+      <input id="cloudPwInput" type="password" placeholder="비밀번호" style="caret-color:auto;-webkit-user-select:text;user-select:text" />
+    </div>
+    <div class="grid2" style="margin-top:8px"><button class="btn good" id="cloudLoginBtn">로그인</button><button class="btn" id="cloudSignupBtn">가입</button></div>
+    <div class="grid2" style="margin-top:8px"><button class="btn" id="cloudAnonBtn">익명 로그인</button><button class="btn bad" id="cloudLogoutBtn">로그아웃</button></div>
+    <div class="grid2" style="margin-top:12px"><button class="btn good" id="cloudSaveNowBtn">클라우드 저장</button><button class="btn warn" id="cloudLoadNowBtn">클라우드 불러오기</button></div>
+    <div class="grid2" style="margin-top:12px"><button class="btn" id="cloudBackBtn">뒤로</button><button class="btn" id="cloudCloseBtn">닫기</button></div>`, false);
+  $('cloudSaveCfgBtn').onclick=()=>{
+    saveCloudConfig({url:$('cloudUrlInput').value, key:$('cloudKeyInput').value});
+    toast(cloudConfigured() ? 'Supabase 설정을 저장했다.' : 'Supabase 설정을 비웠다.');
+    showCloudMenu();
+  };
+  $('cloudClearCfgBtn').onclick=()=>{ saveCloudConfig({url:'',key:''}); toast('Supabase 설정을 삭제했다.'); showCloudMenu(); };
+  $('cloudCheckBtn').onclick=refreshCloudStatusLine;
+  $('cloudLoginBtn').onclick=async()=>{
+    try{
+      const email=$('cloudEmailInput').value.trim(), pw=$('cloudPwInput').value;
+      if(!email || !pw){ toast('이메일과 비밀번호를 입력해라.'); return; }
+      await signInCloud(email,pw); toast('Supabase 로그인 완료.'); refreshCloudStatusLine();
+    }catch(e){ toast('로그인 실패: '+e.message); }
+  };
+  $('cloudSignupBtn').onclick=async()=>{
+    try{
+      const email=$('cloudEmailInput').value.trim(), pw=$('cloudPwInput').value;
+      if(!email || !pw){ toast('이메일과 비밀번호를 입력해라.'); return; }
+      await signUpCloud(email,pw); toast('가입 요청 완료. 이메일 확인이 필요할 수 있다.'); refreshCloudStatusLine();
+    }catch(e){ toast('가입 실패: '+e.message); }
+  };
+  $('cloudAnonBtn').onclick=async()=>{
+    try{ await ensureCloudUser({anonymous:true}); toast('익명 로그인 완료.'); refreshCloudStatusLine(); }
+    catch(e){ toast('익명 로그인 실패: '+e.message); }
+  };
+  $('cloudLogoutBtn').onclick=async()=>{ await signOutCloud(); toast('Supabase 로그아웃 완료.'); refreshCloudStatusLine(); };
+  $('cloudSaveNowBtn').onclick=async()=>{
+    try{ const ok=await saveCloud(); toast(ok?'클라우드 저장 완료.':'클라우드 저장 실패. 설정을 확인해라.'); }
+    catch(e){ toast('클라우드 저장 실패: '+e.message); }
+  };
+  $('cloudLoadNowBtn').onclick=async()=>{
+    try{ const ok=await loadCloud(); if(ok){ hideModal(); toast('클라우드 불러오기 완료.'); } else toast('클라우드 저장 데이터가 없다.'); }
+    catch(e){ toast('클라우드 불러오기 실패: '+e.message); }
+  };
+  $('cloudBackBtn').onclick=()=>{ if(S) showSystemMenu(); else showStart(); };
+  $('cloudCloseBtn').onclick=()=>{ hideModal(); renderAll(); };
+  refreshCloudStatusLine();
+}
+
 function showSystemMenu(){
   if(!S) return;
   pauseAutoForChoice();
-  showModal(`<h2>메뉴</h2><div class="grid2" style="margin-top:10px"><button class="btn" id="menuContinueBtn">메뉴로</button><button class="btn bad" id="menuResetBtn">초기화</button></div>`, false);
+  showModal(`<h2>메뉴</h2>
+    <div class="grid2" style="margin-top:10px"><button class="btn" id="menuContinueBtn">메뉴로</button><button class="btn bad" id="menuResetBtn">초기화</button></div>
+    <div class="grid2" style="margin-top:8px"><button class="btn" id="cloudMenuBtn">Supabase</button><button class="btn good" id="cloudQuickSaveBtn">클라우드 저장</button></div>
+    <p class="muted" style="margin-top:8px">${cloudEscape(cloudStatusText())}</p>`, false);
   $('menuContinueBtn').onclick=()=>{ startMenuResumeClassId = S?.player?.classId || null; hideModal(); showStart(); };
+  $('cloudMenuBtn').onclick=showCloudMenu;
+  $('cloudQuickSaveBtn').onclick=async()=>{
+    try{ const ok=await saveCloud(); toast(ok?'클라우드 저장 완료.':'클라우드 저장 실패. Supabase 설정을 확인해라.'); }
+    catch(e){ toast('클라우드 저장 실패: '+e.message); }
+  };
   $('menuResetBtn').onclick=()=>{
     if(confirm('저장 원정과 영혼 강화 데이터를 모두 초기화할까?')){
       localStorage.removeItem(SAVE_KEY);
@@ -2173,11 +2397,13 @@ function showStart(){
     const note = same ? '<p class="goodtxt">현재 직업: 선택 시 이어하기</p>' : (resumeClassId ? '<p class="badtxt">다른 직업: 새 원정 시작</p>' : '');
     return `<button class="choice" data-class="${id}"><h4>${c.name}</h4><p>${c.desc}</p><p class="warntxt">${c.skill}</p>${note}</button>`;
   }).join('');
+  const cloudPart = `<button class="btn warn" id="cloudLoadBtn">클라우드 불러오기</button><button class="btn" id="cloudSetupBtn">Supabase 설정</button>`;
   showModal(`<h1>심연 로그</h1>
     <p class="muted">턴제 웹 로그라이크. 랜덤 던전, 장비 상자, 유물 조합, 영혼 강화가 누적된다. 왼쪽 아날로그 패드와 키보드/WASD로 이동하고, 직업마다 서로 다른 기술 3개를 사용한다.</p>
     <div class="grid2" style="margin:10px 0">${classButtons}</div>
     <div class="grid2">${savePart}<button class="btn warn" id="metaBtn">영혼 강화</button></div>
-    <p class="muted" style="margin-top:10px">현재 영혼: <b class="legend">${meta.souls}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b></p>`, true);
+    <div class="grid2" style="margin-top:8px">${cloudPart}</div>
+    <p class="muted" style="margin-top:10px">현재 영혼: <b class="legend">${meta.souls}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b> · ${cloudEscape(cloudStatusText())}</p>`, true);
   modalCard.querySelectorAll('[data-class]').forEach(btn=>btn.onclick=()=>{
     const selected = btn.dataset.class;
     if(resumeClassId && selected===resumeClassId && hasSave()){
@@ -2191,6 +2417,12 @@ function showStart(){
   });
   const cb=$('continueBtn'); if(cb) cb.onclick=()=>{startMenuResumeClassId=null; hideModal(); if(!loadRun()) showStart();};
   $('metaBtn').onclick=()=>{ startMenuResumeClassId=null; showMeta(); };
+  $('cloudSetupBtn').onclick=()=>{ startMenuResumeClassId=null; showCloudMenu(); };
+  $('cloudLoadBtn').onclick=async()=>{
+    startMenuResumeClassId=null;
+    try{ const ok=await loadCloud(); if(ok){ hideModal(); toast('클라우드 불러오기 완료.'); } else toast('클라우드 저장 데이터가 없다.'); }
+    catch(e){ toast('클라우드 불러오기 실패: '+e.message); }
+  };
 }
 function showMeta(){
   stopAuto();
