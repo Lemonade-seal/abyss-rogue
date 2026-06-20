@@ -378,7 +378,7 @@
   #modal.startPage{
     background:
       linear-gradient(180deg,rgba(2,6,23,.02) 0%,rgba(2,6,23,.08) 40%,rgba(2,6,23,.78) 100%),
-      url("./abyss_rogue_start_screen.png") center center / cover no-repeat!important;
+      url("./abyss_rogue_start_background.png") center center / cover no-repeat!important;
     backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
     padding:0!important;
   }
@@ -396,19 +396,59 @@
     display:flex!important;flex-direction:column!important;justify-content:flex-end!important;
   }
   #modal.startPage .startSplashShell{
-    position:relative;width:100%;min-height:100%;display:block;
+    width:100%;min-height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
+    padding-bottom:calc(26px + env(safe-area-inset-bottom));
   }
   #modal.startPage .startActionBtn{
-    position:absolute;left:50%;bottom:10.2%;transform:translateX(-50%);
-    width:min(72%,640px);height:8.3%;min-height:56px;max-height:116px;
-    border:0!important;border-radius:999px;background:transparent!important;color:transparent!important;
-    box-shadow:none!important;overflow:hidden;cursor:pointer;
+    position:relative;
+    width:min(86vw,720px);
+    aspect-ratio:807 / 184;
+    height:auto;
+    margin:0 auto calc(5.6vh + env(safe-area-inset-bottom));
+    padding:0;
+    border:0!important;
+    border-radius:0;
+    background:url("./abyss_rogue_start_button.png") center center / 100% 100% no-repeat!important;
+    box-shadow:0 0 18px rgba(129,140,248,.34),0 0 34px rgba(167,139,250,.28);
+    overflow:visible;
+    isolation:isolate;
+    cursor:pointer;
+    animation:startBtnGlow 1.28s ease-in-out infinite;
   }
-  #modal.startPage .startActionBtn span{position:absolute;inset:0;color:transparent;font-size:0;line-height:0}
-  #modal.startPage .startActionBtn:before,
-  #modal.startPage .startActionBtn:after,
+  #modal.startPage .startActionBtn span{
+    position:absolute;
+    width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;
+  }
+  #modal.startPage .startActionBtn:before{
+    content:"";
+    position:absolute;
+    inset:-1.5% -1.5%;
+    border-radius:999px;
+    background:inherit;
+    filter:blur(10px) brightness(1.15);
+    opacity:.42;
+    z-index:-1;
+    animation:startBtnAura 1.28s ease-in-out infinite;
+    pointer-events:none;
+  }
+  #modal.startPage .startActionBtn:after{
+    content:"";
+    position:absolute;
+    top:7%;bottom:7%;left:-24%;width:24%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),rgba(255,255,255,.72),rgba(255,255,255,.18),transparent);
+    transform:skewX(-20deg);
+    filter:blur(2px);
+    opacity:.85;
+    z-index:2;
+    animation:startBtnSweep 2.1s ease-in-out infinite;
+    pointer-events:none;
+  }
   #modal.startPage .startActionBtn .edgeGem{display:none!important}
-  #modal.startPage .startActionBtn:active{transform:translateX(-50%) scale(.985)}
+  #modal.startPage .startActionBtn:active{
+    transform:translateY(1px) scale(.99);
+    filter:brightness(1.08);
+  }
+  #modal.startPage .startActionBtn .edgeGem{display:none}
   #modal.startPage .startMenuPanel{
     width:min(560px,100%);margin:0 auto;padding:12px;border-radius:18px;
     border:1px solid rgba(203,213,225,.28);
@@ -433,26 +473,25 @@
   #modal.startPage .btn.good{background:rgba(20,83,45,.44)!important;border-color:rgba(74,222,128,.48)!important}
   #modal.startPage .btn.warn{background:rgba(88,61,16,.44)!important;border-color:rgba(250,204,21,.46)!important}
   #modal.startPage .startMetaLine{margin:9px 0 0!important;text-align:center;color:rgba(226,232,240,.88)!important;text-shadow:0 1px 3px rgba(0,0,0,.65)}
-  @keyframes startPulse{
-    0%,100%{box-shadow:0 0 12px rgba(96,165,250,.38),0 0 24px rgba(139,92,246,.34),inset 0 0 18px rgba(37,99,235,.34),inset 0 0 34px rgba(91,33,182,.26)}
-    50%{box-shadow:0 0 22px rgba(125,211,252,.60),0 0 40px rgba(168,85,247,.48),inset 0 0 22px rgba(59,130,246,.40),inset 0 0 40px rgba(124,58,237,.34)}
+  @keyframes startBtnGlow{
+    0%,100%{filter:brightness(.96) drop-shadow(0 0 4px rgba(255,255,255,.10));box-shadow:0 0 18px rgba(129,140,248,.32),0 0 34px rgba(167,139,250,.28)}
+    50%{filter:brightness(1.12) drop-shadow(0 0 10px rgba(196,181,253,.38));box-shadow:0 0 26px rgba(147,197,253,.46),0 0 48px rgba(168,85,247,.42)}
   }
-  @keyframes startBorderGlow{
-    0%{filter:hue-rotate(0deg) brightness(1);opacity:.92}
-    50%{filter:hue-rotate(18deg) brightness(1.25);opacity:1}
-    100%{filter:hue-rotate(0deg) brightness(1);opacity:.92}
+  @keyframes startBtnAura{
+    0%,100%{opacity:.34;transform:scale(.995)}
+    50%{opacity:.56;transform:scale(1.01)}
   }
-  @keyframes startSweep{
-    0%{left:-42%;opacity:0}
-    20%{opacity:.82}
-    55%{opacity:.96}
-    100%{left:112%;opacity:0}
+  @keyframes startBtnSweep{
+    0%{left:-28%;opacity:0}
+    18%{opacity:.72}
+    48%{opacity:.95}
+    100%{left:108%;opacity:0}
   }
   @media(max-width:820px){
-    #modal.startPage .startActionBtn{width:74%;height:8%;bottom:10%}
+    #modal.startPage .startActionBtn{width:88vw;margin-bottom:calc(5.2vh + env(safe-area-inset-bottom))}
   }
   @media(max-height:720px){
-    #modal.startPage .startActionBtn{height:8%;bottom:9.6%}
+    #modal.startPage .startActionBtn{width:min(84vw,660px);margin-bottom:calc(4.6vh + env(safe-area-inset-bottom))}
     #modal.startPage .startMenuPanel{padding:10px;border-radius:16px}
     #modal.startPage .choice{min-height:64px!important;padding:8px!important}
     #modal.startPage .choice h4{font-size:13px!important}
