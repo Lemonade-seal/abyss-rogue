@@ -368,6 +368,58 @@
   #autoBtn.menuBtn.good b,#autoBtn.menuBtn.good small{color:#ecfdf5!important}
   #autoBtn.menuBtn.full b,#autoBtn.menuBtn.full small{color:#fef2f2!important}
 
+
+  /* 시작페이지 전용 배경화면 적용 */
+  .srOnly{
+    position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
+    overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;
+  }
+  #modal.startPage{
+    background:
+      linear-gradient(180deg,rgba(2,6,23,.04) 0%,rgba(2,6,23,.10) 43%,rgba(2,6,23,.78) 100%),
+      url("심연의_방랑자_어둠_속의_전사들.png") center center / cover no-repeat!important;
+    backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+    padding:0!important;
+  }
+  #modal.startPage #modalCard.card{
+    width:100%!important;max-width:920px!important;height:100dvh!important;max-height:100dvh!important;
+    margin:0 auto!important;padding:0 14px calc(16px + env(safe-area-inset-bottom))!important;
+    border:0!important;border-radius:0!important;background:transparent!important;background-image:none!important;
+    box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+    display:flex!important;flex-direction:column!important;justify-content:flex-end!important;overflow:hidden!important;
+  }
+  #modal.startPage .startMenuPanel{
+    width:min(560px,100%);margin:0 auto;padding:12px;border-radius:18px;
+    border:1px solid rgba(203,213,225,.28);
+    background:linear-gradient(180deg,rgba(8,13,22,.40),rgba(8,13,22,.28));
+    box-shadow:0 18px 55px rgba(0,0,0,.42);
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  }
+  #modal.startPage .startIntro{display:none!important}
+  #modal.startPage .startClassGrid{margin:0 0 8px!important;gap:7px!important}
+  #modal.startPage .choice{
+    min-height:72px!important;padding:9px!important;border-radius:13px!important;
+    background:rgba(15,23,42,.32)!important;border-color:rgba(148,163,184,.34)!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 8px 18px rgba(0,0,0,.20)!important;
+  }
+  #modal.startPage .choice h4{font-size:14px!important;margin-bottom:4px!important}
+  #modal.startPage .choice p{font-size:11px!important;line-height:1.25!important}
+  #modal.startPage .btn{
+    background:rgba(15,23,42,.34)!important;background-image:none!important;
+    border-color:rgba(148,163,184,.38)!important;border-radius:12px!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 16px rgba(0,0,0,.24)!important;
+  }
+  #modal.startPage .btn.good{background:rgba(22,101,52,.34)!important;border-color:rgba(110,231,168,.46)!important}
+  #modal.startPage .btn.warn{background:rgba(107,81,27,.34)!important;border-color:rgba(251,191,36,.46)!important}
+  #modal.startPage .startMetaLine{margin:8px 0 0!important;text-align:center;font-size:11px!important;color:rgba(226,232,240,.86)!important}
+  @media(max-width:420px){
+    #modal.startPage #modalCard.card{padding-left:10px!important;padding-right:10px!important;padding-bottom:calc(10px + env(safe-area-inset-bottom))!important}
+    #modal.startPage .startMenuPanel{padding:10px;border-radius:16px}
+    #modal.startPage .choice{min-height:66px!important;padding:8px!important}
+    #modal.startPage .choice h4{font-size:13px!important}
+    #modal.startPage .choice p{font-size:10px!important}
+  }
+
 </style>
 </head>
 <body>
@@ -2398,12 +2450,15 @@ function showStart(){
     return `<button class="choice" data-class="${id}"><h4>${c.name}</h4><p>${c.desc}</p><p class="warntxt">${c.skill}</p>${note}</button>`;
   }).join('');
   const cloudPart = `<button class="btn warn" id="cloudLoadBtn">클라우드 불러오기</button><button class="btn" id="cloudSetupBtn">Supabase 설정</button>`;
-  showModal(`<h1>심연 로그</h1>
-    <p class="muted">턴제 웹 로그라이크. 랜덤 던전, 장비 상자, 유물 조합, 영혼 강화가 누적된다. 왼쪽 아날로그 패드와 키보드/WASD로 이동하고, 직업마다 서로 다른 기술 3개를 사용한다.</p>
-    <div class="grid2" style="margin:10px 0">${classButtons}</div>
-    <div class="grid2">${savePart}<button class="btn warn" id="metaBtn">영혼 강화</button></div>
-    <div class="grid2" style="margin-top:8px">${cloudPart}</div>
-    <p class="muted" style="margin-top:10px">현재 영혼: <b class="legend">${meta.souls}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b> · ${cloudEscape(cloudStatusText())}</p>`, true);
+  showModal(`<h1 class="srOnly">Abyss Rogue</h1>
+    <div class="startMenuPanel">
+      <p class="muted startIntro">턴제 웹 로그라이크. 랜덤 던전, 장비 상자, 유물 조합, 영혼 강화가 누적된다. 왼쪽 아날로그 패드와 키보드/WASD로 이동하고, 직업마다 서로 다른 기술 3개를 사용한다.</p>
+      <div class="grid2 startClassGrid">${classButtons}</div>
+      <div class="grid2">${savePart}<button class="btn warn" id="metaBtn">영혼 강화</button></div>
+      <div class="grid2" style="margin-top:8px">${cloudPart}</div>
+      <p class="muted startMetaLine">현재 영혼: <b class="legend">${meta.souls}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b> · ${cloudEscape(cloudStatusText())}</p>
+    </div>`, true);
+  modal.classList.add('startPage');
   modalCard.querySelectorAll('[data-class]').forEach(btn=>btn.onclick=()=>{
     const selected = btn.dataset.class;
     if(resumeClassId && selected===resumeClassId && hasSave()){
@@ -2459,6 +2514,7 @@ function modalAllowsX(html, locked){
   return !['심연 로그','영혼 강화','원정 종료','귀환 완료','장비 상자','유물 선택','심연 제단'].includes(title);
 }
 function showModal(html, locked){
+  modal.classList.remove('startPage');
   const x = modalAllowsX(html, locked) ? '<button class="modalCloseX" id="modalCloseX" aria-label="닫기">×</button>' : '';
   modalCard.innerHTML = x + html;
   const xb=$('modalCloseX'); if(xb) xb.onclick=()=>{ hideModal(); renderAll(); };
@@ -2466,7 +2522,7 @@ function showModal(html, locked){
   modalOpen = true;
   if(!locked){ modal.onclick = e=>{ if(e.target===modal){} }; }
 }
-function hideModal(){ modal.classList.remove('show'); modalOpen=false; modal.onclick=null; setTimeout(resumeAutoIfPaused,0); }
+function hideModal(){ modal.classList.remove('show','startPage'); modalOpen=false; modal.onclick=null; setTimeout(resumeAutoIfPaused,0); }
 
 function renderAll(){ render(); updateUi(); updateSkillButtons(); renderMiniMap(); }
 
