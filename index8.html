@@ -369,16 +369,15 @@
   #autoBtn.menuBtn.full b,#autoBtn.menuBtn.full small{color:#fef2f2!important}
 
 
-
-  /* 시작페이지 전용 배경화면: index8.html 과 같은 폴더의 abyss_rogue_start_background.png 사용 */
+  /* 시작페이지 전용 배경화면 적용 */
   .srOnly{
     position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
     overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;
   }
   #modal.startPage{
     background:
-      linear-gradient(180deg,rgba(2,6,23,.03) 0%,rgba(2,6,23,.10) 42%,rgba(2,6,23,.82) 100%),
-      url("./abyss_rogue_start_background.png") center center / cover no-repeat!important;
+      linear-gradient(180deg,rgba(2,6,23,.04) 0%,rgba(2,6,23,.10) 43%,rgba(2,6,23,.78) 100%),
+      url("심연의_방랑자_어둠_속의_전사들.png") center center / cover no-repeat!important;
     backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
     padding:0!important;
   }
@@ -392,33 +391,33 @@
   #modal.startPage .startMenuPanel{
     width:min(560px,100%);margin:0 auto;padding:12px;border-radius:18px;
     border:1px solid rgba(203,213,225,.28);
-    background:linear-gradient(180deg,rgba(8,13,22,.42),rgba(8,13,22,.30));
-    box-shadow:0 18px 55px rgba(0,0,0,.44);
+    background:linear-gradient(180deg,rgba(8,13,22,.40),rgba(8,13,22,.28));
+    box-shadow:0 18px 55px rgba(0,0,0,.42);
     backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
   }
   #modal.startPage .startIntro{display:none!important}
   #modal.startPage .startClassGrid{margin:0 0 8px!important;gap:7px!important}
   #modal.startPage .choice{
     min-height:72px!important;padding:9px!important;border-radius:13px!important;
-    background:rgba(15,23,42,.34)!important;border-color:rgba(148,163,184,.42)!important;
-    box-shadow:0 5px 14px rgba(0,0,0,.20)!important;backdrop-filter:blur(6px)!important;-webkit-backdrop-filter:blur(6px)!important;
+    background:rgba(15,23,42,.32)!important;border-color:rgba(148,163,184,.34)!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 8px 18px rgba(0,0,0,.20)!important;
   }
-  #modal.startPage .choice h4{font-size:14px!important;margin-bottom:5px!important}
-  #modal.startPage .choice p{font-size:12px!important;line-height:1.3!important}
+  #modal.startPage .choice h4{font-size:14px!important;margin-bottom:4px!important}
+  #modal.startPage .choice p{font-size:11px!important;line-height:1.25!important}
   #modal.startPage .btn{
-    min-height:42px!important;border-radius:14px!important;background:rgba(15,23,42,.38)!important;
-    border-color:rgba(148,163,184,.42)!important;box-shadow:0 6px 18px rgba(0,0,0,.24)!important;
-    backdrop-filter:blur(6px)!important;-webkit-backdrop-filter:blur(6px)!important;
+    background:rgba(15,23,42,.34)!important;background-image:none!important;
+    border-color:rgba(148,163,184,.38)!important;border-radius:12px!important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 6px 16px rgba(0,0,0,.24)!important;
   }
-  #modal.startPage .btn.good{background:rgba(20,83,45,.44)!important;border-color:rgba(74,222,128,.48)!important}
-  #modal.startPage .btn.warn{background:rgba(88,61,16,.44)!important;border-color:rgba(250,204,21,.46)!important}
-  #modal.startPage .startMetaLine{margin:9px 0 0!important;text-align:center;color:rgba(226,232,240,.88)!important;text-shadow:0 1px 3px rgba(0,0,0,.65)}
-  @media(max-height:720px){
+  #modal.startPage .btn.good{background:rgba(22,101,52,.34)!important;border-color:rgba(110,231,168,.46)!important}
+  #modal.startPage .btn.warn{background:rgba(107,81,27,.34)!important;border-color:rgba(251,191,36,.46)!important}
+  #modal.startPage .startMetaLine{margin:8px 0 0!important;text-align:center;font-size:11px!important;color:rgba(226,232,240,.86)!important}
+  @media(max-width:420px){
+    #modal.startPage #modalCard.card{padding-left:10px!important;padding-right:10px!important;padding-bottom:calc(10px + env(safe-area-inset-bottom))!important}
     #modal.startPage .startMenuPanel{padding:10px;border-radius:16px}
-    #modal.startPage .choice{min-height:64px!important;padding:8px!important}
+    #modal.startPage .choice{min-height:66px!important;padding:8px!important}
     #modal.startPage .choice h4{font-size:13px!important}
-    #modal.startPage .choice p{font-size:11px!important}
-    #modal.startPage .btn{min-height:38px!important}
+    #modal.startPage .choice p{font-size:10px!important}
   }
 
 </style>
@@ -511,18 +510,6 @@ const modalCard = $('modalCard');
 const toastEl = $('toast');
 const SAVE_KEY = 'abyss_rogue_save_v4';
 const META_KEY = 'abyss_rogue_meta_v1';
-const START_BG_FILE = 'abyss_rogue_start_background.png';
-const startBgImage = new Image();
-startBgImage.src = START_BG_FILE;
-startBgImage.onload = () => { if(!S) render(); };
-function drawCoverImage(img,x,y,w,h){
-  const iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
-  if(!iw || !ih) return false;
-  const s=Math.max(w/iw,h/ih);
-  const dw=iw*s, dh=ih*s;
-  ctx.drawImage(img, x+(w-dw)/2, y+(h-dh)/2, dw, dh);
-  return true;
-}
 
 const DIRS = [[1,0],[-1,0],[0,1],[0,-1]];
 const RARITY = ['일반','고급','희귀','영웅','전설'];
@@ -2653,12 +2640,10 @@ function render(){
   ctx.fillStyle=g; ctx.fillRect(0,0,canvas.width,canvas.height);
 }
 function drawTitle(){
-  if(startBgImage.complete && startBgImage.naturalWidth){
-    drawCoverImage(startBgImage,0,0,canvas.width,canvas.height);
-    ctx.fillStyle='rgba(2,6,23,.18)';ctx.fillRect(0,0,canvas.width,canvas.height);
-    return;
-  }
   ctx.fillStyle='#080a0f';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#dbeafe';ctx.font='bold 28px system-ui';ctx.textAlign='center';ctx.fillText('심연 로그',canvas.width/2,220);
+  ctx.font='14px system-ui';ctx.fillStyle='#9ba9c5';ctx.fillText('직업을 고르고 원정을 시작하세요',canvas.width/2,252);
+  drawSprite('warrior',canvas.width/2-80,290); drawSprite('rogue',canvas.width/2-24,290); drawSprite('mage',canvas.width/2+32,290); drawSprite('hunter',canvas.width/2+88,290);
 }
 function drawTile(px,py,type){
   if(type==='unknown'){ctx.fillStyle='#05070b';ctx.fillRect(px,py,TILE,TILE);return;}
