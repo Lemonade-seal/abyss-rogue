@@ -922,6 +922,16 @@
   }
   .rankingTable .rankTop{color:#fff3a3;font-weight:900}
 
+
+
+  /* 시작/로그인/캐릭터 생성 화면에서는 게임 HUD/능력치/장비/유물/로그 UI 숨김 */
+  body.startScreen #app{
+    display:none!important;
+  }
+  body.startScreen #modal.startPage{
+    z-index:999!important;
+  }
+
 </style>
 </head>
 <body>
@@ -4470,6 +4480,37 @@ if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
 if($('menuMenuBtn')) $('menuMenuBtn').onclick = showSystemMenu;
 
 
+
+/* 시작 화면 전용: 뒤쪽 게임 UI 완전 숨김 */
+function setStartScreenVisible(on){
+  document.body.classList.toggle('startScreen', !!on);
+}
+const originalHideModalForStartScreen = hideModal;
+hideModal = function(){
+  originalHideModalForStartScreen();
+  setStartScreenVisible(false);
+};
+const originalShowStartForCleanStartScreen = showStart;
+showStart = function(){
+  setStartScreenVisible(true);
+  originalShowStartForCleanStartScreen();
+};
+const originalShowLoginChoiceForCleanStartScreen = showLoginChoice;
+showLoginChoice = function(){
+  setStartScreenVisible(true);
+  originalShowLoginChoiceForCleanStartScreen();
+};
+const originalShowCharacterSlotsForCleanStartScreen = showCharacterSlots;
+showCharacterSlots = function(mode){
+  setStartScreenVisible(true);
+  originalShowCharacterSlotsForCleanStartScreen(mode);
+};
+const originalShowCharacterCreateForCleanStartScreen = showCharacterCreate;
+showCharacterCreate = function(mode, slotIndex){
+  setStartScreenVisible(true);
+  originalShowCharacterCreateForCleanStartScreen(mode, slotIndex);
+};
+
 function getOAuthRedirectUrl(){
   const projectUrl = 'https://lemonade-seal.github.io/abyss-rogue/index8.html?v=054';
   try{
@@ -4486,6 +4527,7 @@ function getOAuthRedirectUrl(){
   }
 }
 async function handleKakaoOAuthReturn(){
+  setStartScreenVisible(true);
   const u = new URL(location.href);
   const isAuthReturn =
     u.searchParams.has('code') ||
