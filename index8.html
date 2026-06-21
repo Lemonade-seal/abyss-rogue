@@ -5903,17 +5903,11 @@ updateUi = function(){
 window.addEventListener('resize', refreshNicknameMarquee);
 
 
-initStartPage();
-render();
 
-})();
-</script>
-</body>
-</html>
 
-/* 요청 반영: 새 원정은 캐릭터 삭제가 아니라 슬롯 유지 + 진행도 초기화 후 슬롯 선택으로 이동 */
+/* 검사 수정: 새 원정은 캐릭터 슬롯 삭제가 아니라 진행도 초기화 후 슬롯 화면으로 이동 */
 function deleteCharacterSlotOnly(mode, slotIndex){
-  const safeMode = mode || activeLoginMode || 'guest';
+  const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
   const idx = Number(slotIndex);
   if(!Number.isFinite(idx) || idx < 0) return;
   const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
@@ -5923,8 +5917,8 @@ function deleteCharacterSlotOnly(mode, slotIndex){
     activeCharacterSlot = null;
     S = null;
   }
-  if(safeMode === 'kakao') queueCharacterCloudSave();
   localStorage.removeItem(SAVE_KEY);
+  if(safeMode === 'kakao') queueCharacterCloudSave();
 }
 
 clearRun = function(){
@@ -5932,50 +5926,62 @@ clearRun = function(){
 };
 
 function resetCharacterSlotForNewExpedition(mode, slotIndex){
-  const safeMode = mode || activeLoginMode || 'guest';
+  const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
+  const limit = currentSlotLimit(safeMode);
   const idx = Number.isFinite(Number(slotIndex)) ? Number(slotIndex) : 0;
-  const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
-  const old = slots[idx] || null;
-  const oldPlayer = old?.run?.player || (S && S.player ? S.player : null);
-  const clsId = old?.classId || oldPlayer?.classId || S?.characterClassId || 'warrior';
-  const className = (classes[clsId] || classes.warrior).name;
-  const nickname = safeMode === 'guest' ? '게스트' : (old?.nickname || oldPlayer?.name || S?.characterNickname || className || '이름 없음');
+  const safeIdx = Math.max(0, Math.min(limit - 1, idx));
+  const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), limit);
+  const old = slots[safeIdx] || null;
+  const oldPlayer = (old && old.run && old.run.player) ? old.run.player : ((S && S.player) ? S.player : null);
+  const clsId = (old && old.classId) || (oldPlayer && oldPlayer.classId) || (S && S.characterClassId) || 'warrior';
+  const cls = classes[clsId] || classes.warrior;
+  const nickname = safeMode === 'guest'
+    ? '게스트'
+    : ((old && old.nickname) || (oldPlayer && oldPlayer.name) || (S && S.characterNickname) || cls.name || '이름 없음');
 
   activeLoginMode = safeMode;
-  activeCharacterSlot = idx;
+  activeCharacterSlot = safeIdx;
+
   const p = createPlayer(clsId);
   p.name = nickname;
   S = {
     map:[], seen:[], rooms:[], enemies:[], items:[], merchants:[], discovered:{}, fx:[],
     player:p, log:[], logOrder:'oldestFirst', chat:[], chatOrder:'oldestFirst',
     mapPanelMode:'log', dead:false, auto:false, modalQueue:[], floorMod:null, bounty:null, seed:Date.now(),
-    loginMode:safeMode, characterSlotIndex:idx, characterNickname:nickname, characterClassId:clsId
+    loginMode:safeMode, characterSlotIndex:safeIdx, characterNickname:nickname, characterClassId:clsId
   };
   mapPanelMode = 'log';
   ensureRunFields();
-  Object.values(p.equip).forEach(it=>recordInventory('equip', it.name, 1, `시작 장비 · ${SLOT_KO[it.slot]} · ${it.jobName||p.className||'직업 전용'} · ${RARITY[it.rarity]} · ${statLine(it)}`, {equip:it}));
+  Object.values(p.equip).forEach(it=>recordInventory(
+    'equip',
+    it.name,
+    1,
+    `시작 장비 · ${SLOT_KO[it.slot]} · ${it.jobName || p.className || '직업 전용'} · ${RARITY[it.rarity]} · ${statLine(it)}`,
+    {equip:it}
+  ));
   meta.runs++;
   saveMeta();
   generateFloor(1, true);
-  addLog(`${nickname} · ${p.className} 새 원정 준비 완료. 난이도: 심연. 기술: ${classes[clsId].skill}`);
-  saveRun();
-  S = null;
-  localStorage.removeItem(SAVE_KEY);
+  addLog(`${nickname} · ${p.className} 새 원정 시작 준비. 난이도: 심연. 기술: ${cls.skill}`);
+  syncActiveCharacterFromRun();
+  setSlotsForMode(safeMode, normalizeCharacterSlots(getSlotsForMode(safeMode), limit));
   if(safeMode === 'kakao') queueCharacterCloudSave();
+  localStorage.removeItem(SAVE_KEY);
+  S = null;
 }
 
 goNewExpeditionClassSelect = function(){
   stopAuto();
   const mode = activeLoginMode || (S && S.loginMode) || 'guest';
-  const slot = activeCharacterSlot != null ? activeCharacterSlot : (S && S.characterSlotIndex != null ? S.characterSlotIndex : 0);
+  const slot = activeCharacterSlot != null ? activeCharacterSlot : ((S && S.characterSlotIndex != null) ? S.characterSlotIndex : 0);
   resetCharacterSlotForNewExpedition(mode, slot);
-  toast('새 원정 준비가 완료되었습니다.');
+  toast('새 원정 진행도가 초기화되었습니다. 슬롯에서 다시 시작하세요.');
   showCharacterSlots(mode);
 };
 
 showDeleteCurrentCharacterConfirm = function(mode){
   const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
-  const slot = activeCharacterSlot != null ? activeCharacterSlot : (S && S.characterSlotIndex != null ? S.characterSlotIndex : 0);
+  const slot = activeCharacterSlot != null ? activeCharacterSlot : ((S && S.characterSlotIndex != null) ? S.characterSlotIndex : 0);
   const p = S && S.player ? S.player : null;
   const name = p ? (p.name || p.className || '현재 캐릭터') : '현재 캐릭터';
   showModal(`<h2>현재 캐릭터 삭제</h2>
@@ -5985,10 +5991,18 @@ showDeleteCurrentCharacterConfirm = function(mode){
       <button class="btn bad" id="deleteCurrentConfirmBtn">삭제하기</button>
       <button class="btn" id="deleteCurrentCancelBtn">취소</button>
     </div>`, true);
-  $('deleteCurrentCancelBtn').onclick=()=>showSystemMenu();
-  $('deleteCurrentConfirmBtn').onclick=()=>{
+  $('deleteCurrentCancelBtn').onclick = ()=>showSystemMenu();
+  $('deleteCurrentConfirmBtn').onclick = ()=>{
     deleteCharacterSlotOnly(safeMode, slot);
     toast('현재 캐릭터를 삭제했습니다.');
     showCharacterSlots(safeMode);
   };
 };
+
+initStartPage();
+render();
+
+})();
+</script>
+</body>
+</html>
