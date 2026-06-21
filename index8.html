@@ -5387,7 +5387,7 @@ showCharacterCreate = function(mode, slotIndex){
       <p class="muted" style="margin:8px 0">직업을 선택한 뒤 생성하세요.</p>
       <div class="grid2 startClassGrid">${classButtons}</div>
       <div class="grid2" style="margin-top:10px">
-        <button class="btn good" id="createCharacterBtn">생성하고 시작</button>
+        <button class="btn good" id="createCharacterBtn">${isGuest ? '생성하고 시작' : '캐릭생성'}</button>
         <button class="btn" id="createBackBtn">뒤로</button>
       </div>
       <p id="pickedClassLine" class="muted startMetaLine">선택 직업: 없음</p>
@@ -5431,6 +5431,14 @@ showCharacterCreate = function(mode, slotIndex){
         }
         return;
       }
+    }
+    if(mode === 'kakao'){
+      createBtn.disabled = true;
+      createBtn.textContent = '캐릭생성 중...';
+      startNewCharacter(mode, slotIndex, pickedClass, nick);
+      toast('캐릭터를 생성했습니다.');
+      showCharacterSlots(mode);
+      return;
     }
     startNewCharacter(mode, slotIndex, pickedClass, nick);
   };
