@@ -3452,7 +3452,7 @@ function resolveAimedSkill(dx,dy){
     addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#84cc16', dur:260}); p.effects.focus=3; addLog(moved?`구르기 ${moved}칸 이동. 다음 원거리 공격이 강화된다.`:'구를 공간이 없다.'); pickupCheck(); afterPlayerAction(); return;
   }
 }
-function showAimHint(msg){toast(msg);}
+function showAimHint(msg){toast(msg); setSkillRangePreview('dash', 2400);}
 
 
 function normalizeEquipDropSource(source){
@@ -4132,6 +4132,134 @@ function getSpriteDef(id){
   const key=(id||'').replace(/^elite_/, '');
   return SPRITES[key] || buildProcSprite(key) || SPRITES.slime;
 }
+
+/* 스킬 범위 미리보기 복구 */
+function skillPreviewNow(){
+  return (typeof nowMs === 'function') ? nowMs() : Date.now();
+}
+function setSkillRangePreview(key, dur=1100){
+  if(!S || !S.player) return;
+  S.player.skillPreview = {key, until:skillPreviewNow()+dur};
+  renderAll();
+  setTimeout(()=>{
+    if(!S || !S.player || !S.player.skillPreview) return;
+    if(skillPreviewNow() >= (S.player.skillPreview.until||0) && !S.player.awaitAim){
+      S.player.skillPreview = null;
+      renderAll();
+    }
+  }, dur+60);
+}
+function activeSkillPreviewKey(){
+  if(!S || !S.player) return null;
+  if(S.player.awaitAim) return 'dash';
+  const pr = S.player.skillPreview;
+  if(pr && skillPreviewNow() < (pr.until||0)) return pr.key;
+  return null;
+}
+function addPreviewCell(cells,x,y,kind='range'){
+  if(!inMap(x,y)) return;
+  if(S.map[y][x]==='#') return;
+  cells.push({x,y,kind});
+}
+function previewHasPath(x,y,key){
+  try{
+    if(x===S.player.x && y===S.player.y) return true;
+    if(typeof hasRangedPath === 'function') return hasRangedPath(S.player.x,S.player.y,x,y, typeof canPierceWalls === 'function' ? canPierceWalls(key) : false);
+  }catch(e){}
+  return true;
+}
+function linePreviewCells(range){
+  const p=S.player, cells=[];
+  [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+    for(let i=1;i<=range;i++){
+      const x=p.x+dx*i, y=p.y+dy*i;
+      if(!inMap(x,y) || S.map[y][x]==='#') break;
+      cells.push({x,y,kind:'line'});
+    }
+  });
+  return cells;
+}
+function radiusPreviewCells(range,key,includeSelf=false){
+  const p=S.player, cells=[];
+  for(let y=p.y-range;y<=p.y+range;y++){
+    for(let x=p.x-range;x<=p.x+range;x++){
+      if(!inMap(x,y) || S.map[y][x]==='#') continue;
+      const d=Math.abs(x-p.x)+Math.abs(y-p.y);
+      if(d>range || (!includeSelf && d===0)) continue;
+      if(previewHasPath(x,y,key)) cells.push({x,y,kind:'range'});
+    }
+  }
+  return cells;
+}
+function adjacentPreviewCells(){
+  const p=S.player, cells=[];
+  [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>addPreviewCell(cells,p.x+dx,p.y+dy,'melee'));
+  return cells;
+}
+function dashPreviewCells(){
+  const p=S.player, cells=[];
+  [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>{
+    for(let i=1;i<=2;i++){
+      const x=p.x+dx*i, y=p.y+dy*i;
+      if(!inMap(x,y) || S.map[y][x]==='#') break;
+      cells.push({x,y,kind:'dash'});
+      if(enemyAt(x,y)) break;
+    }
+  });
+  return cells;
+}
+function skillPreviewCells(key){
+  if(!S || !S.player) return [];
+  const p=S.player, cls=p.classId;
+  if(key==='smash'){
+    if(cls==='warrior' || cls==='rogue') return adjacentPreviewCells();
+    if(cls==='mage') return radiusPreviewCells(5+skillRangeBonus('smash'),'smash');
+    if(cls==='hunter') return linePreviewCells(6+skillRangeBonus('smash'));
+  }
+  if(key==='dash'){
+    if(cls==='mage') return radiusPreviewCells(2+Math.floor(skillLv('dash')/10),'dash');
+    return dashPreviewCells();
+  }
+  if(key==='heal'){
+    if(cls==='warrior' || cls==='rogue' || cls==='mage') return [{x:p.x,y:p.y,kind:'self'}];
+    if(cls==='hunter') return radiusPreviewCells(5+skillRangeBonus('heal'),'heal');
+  }
+  return [];
+}
+function renderSkillRangePreview(ox,oy){
+  const key = activeSkillPreviewKey();
+  if(!key) return;
+  const cells = skillPreviewCells(key);
+  if(!cells.length) return;
+  ctx.save();
+  for(const c of cells){
+    if(!inView(c.x,c.y,ox,oy)) continue;
+    if(S.seen && S.seen[c.y] && !S.seen[c.y][c.x]) continue;
+    const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+    let fill='rgba(96,165,250,.22)', stroke='rgba(147,197,253,.72)';
+    if(c.kind==='melee') { fill='rgba(248,113,113,.22)'; stroke='rgba(248,113,113,.86)'; }
+    if(c.kind==='line') { fill='rgba(163,230,53,.22)'; stroke='rgba(190,242,100,.86)'; }
+    if(c.kind==='dash') { fill='rgba(251,191,36,.22)'; stroke='rgba(251,191,36,.86)'; }
+    if(c.kind==='self') { fill='rgba(52,211,153,.24)'; stroke='rgba(110,231,183,.9)'; }
+    ctx.fillStyle=fill;
+    ctx.fillRect(px+2,py+2,TILE-4,TILE-4);
+    ctx.strokeStyle=stroke;
+    ctx.lineWidth=2;
+    ctx.strokeRect(px+3,py+3,TILE-6,TILE-6);
+  }
+  // 실제 사거리 안 몬스터는 한 번 더 표시
+  for(const e of S.enemies||[]){
+    if(e.hp<=0 || !inView(e.x,e.y,ox,oy)) continue;
+    if(!cells.some(c=>c.x===e.x && c.y===e.y)) continue;
+    const px=(e.x-ox)*TILE, py=(e.y-oy)*TILE;
+    ctx.strokeStyle='rgba(255,255,255,.92)';
+    ctx.lineWidth=2;
+    ctx.strokeRect(px+6,py+6,TILE-12,TILE-12);
+  }
+  ctx.restore();
+}
+
+
 function render(){
   if(!S){ drawTitle(); return; }
   const p=S.player;
@@ -4145,6 +4273,7 @@ function render(){
     drawTile(px,py,S.map[y][x]==='#'?'wall':'floor');
     if(S.map[y][x]==='>') drawSprite('exit',px,py);
   }
+  renderSkillRangePreview(ox,oy);
   for(const it of S.items){
     if(!inView(it.x,it.y,ox,oy) || !S.seen[it.y][it.x]) continue;
     drawSprite(it.type,(it.x-ox)*TILE,(it.y-oy)*TILE);
@@ -4846,7 +4975,20 @@ function bindShortLongPress(btn, shortFn, longFn, holdMs=520){
   btn.addEventListener('lostpointercapture', ()=>{ clear(); pointerId=null; });
   btn.onclick=e=>{ e.preventDefault(); e.stopPropagation(); };
 }
-$('skill1').onclick=skillSmash; $('skill2').onclick=skillDash; $('skill3').onclick=skillHeal; $('potionBtn').onclick=usePotion; $('attackBtn').onclick=basicAttackButton; bindShortLongPress($('autoBtn'), startSafeAuto, startFullAuto); $('statMenuBtn').onclick=showStatsMenu; bindShortLongPress($('mapMenuBtn'), toggleMiniMap, showMapMenu); $('codexMenuBtn').onclick=showCodexMenu; $('logChatBtn').onclick=toggleLogChatPanel; $('equipMenuBtn').onclick=showEquipMenu; $('bagMenuBtn').onclick=showBagMenu; $('skillMenuBtn').onclick=showSkillMenu; $('rankingMenuBtn').onclick=showRankingMenu; $('menuMenuBtn').onclick=showSystemMenu;
+function bindSkillWithPreview(id,key,fn){
+  const btn=$(id);
+  if(!btn) return;
+  btn.addEventListener('pointerdown',()=>setSkillRangePreview(key,900),{passive:true});
+  btn.onclick=(e)=>{
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    setSkillRangePreview(key,1200);
+    fn();
+  };
+}
+bindSkillWithPreview('skill1','smash',skillSmash);
+bindSkillWithPreview('skill2','dash',skillDash);
+bindSkillWithPreview('skill3','heal',skillHeal);
+$('potionBtn').onclick=usePotion; $('attackBtn').onclick=basicAttackButton; bindShortLongPress($('autoBtn'), startSafeAuto, startFullAuto); $('statMenuBtn').onclick=showStatsMenu; bindShortLongPress($('mapMenuBtn'), toggleMiniMap, showMapMenu); $('codexMenuBtn').onclick=showCodexMenu; $('logChatBtn').onclick=toggleLogChatPanel; $('equipMenuBtn').onclick=showEquipMenu; $('bagMenuBtn').onclick=showBagMenu; $('skillMenuBtn').onclick=showSkillMenu; $('rankingMenuBtn').onclick=showRankingMenu; $('menuMenuBtn').onclick=showSystemMenu;
 
 document.addEventListener('keydown',e=>{
   if(e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
