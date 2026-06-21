@@ -3269,38 +3269,6 @@ function clearLine(x1,y1,x2,y2){
   while(x!==x2 || y!==y2){ if(S.map[y][x]==='#') return false; x+=dx; y+=dy; }
   return true;
 }
-
-function autoHasLineOfSight(x1,y1,x2,y2){
-  if(!S || !S.map) return false;
-  if(x1===x2 && y1===y2) return true;
-  const steps = Math.max(Math.abs(x2-x1), Math.abs(y2-y1));
-  if(steps<=0) return true;
-  let lastKey = key(x1,y1);
-  for(let i=1;i<steps;i++){
-    const x = Math.round(x1 + (x2-x1) * i / steps);
-    const y = Math.round(y1 + (y2-y1) * i / steps);
-    const k = key(x,y);
-    if(k===lastKey) continue;
-    lastKey = k;
-    if(!inMap(x,y) || S.map[y][x]==='#') return false;
-  }
-  return true;
-}
-function autoCanSenseCell(x,y, radius=8){
-  if(!S || !S.player || !inMap(x,y)) return false;
-  const p = S.player;
-  if(Math.abs(p.x-x)+Math.abs(p.y-y)<=1) return true;
-  if(dist({x,y}, p) > radius) return false;
-  if(!S.seen?.[y]?.[x]) return false;
-  return autoHasLineOfSight(p.x,p.y,x,y);
-}
-function autoVisibleEnemies(enemies, radius=8){
-  const list = enemies || (S?.enemies || []);
-  return list.filter(e=>e.hp>0 && autoCanSenseCell(e.x,e.y,radius));
-}
-function autoVisibleItems(radius=8){
-  return (S?.items || []).filter(i=>autoCanSenseCell(i.x,i.y,radius));
-}
 function moveEnemyToward(e,tx,ty){
   const opts = DIRS.map(([dx,dy])=>({dx,dy,d:Math.abs(e.x+dx-tx)+Math.abs(e.y+dy-ty)})).sort((a,b)=>a.d-b.d);
   for(const o of opts){
@@ -3540,42 +3508,51 @@ function makeEquip(){
   const tier = Math.floor(floor/2)+1;
   const prefix = ['낡은','단단한','빛나는','심연의','고대의'][r];
   const baseType = one(classEquipPool(cls,slot));
-  let it = {slot, baseType, job:cls, jobName:(classes[cls]||classes.warrior).name, rarity:r, atk:0, def:0, maxHp:0, maxMp:0, crit:0, eva:0, value:Math.floor((8+tier*4)*mult)};
+  const it = {slot, baseType, job:cls, jobName:(classes[cls]||classes.warrior).name, rarity:r, atk:0, def:0, maxHp:0, maxMp:0, crit:0, eva:0, value:Math.floor((8+tier*4)*mult)};
   it.name = `${prefix} ${baseType} +${tier}`;
-  if(slot==='weapon'){
-    it.atk=Math.floor((3+tier*1.65)*mult);
-    if(cls==='warrior'){ it.def = r>=2 ? 1+Math.floor(r/2) : 0; }
-    if(cls==='rogue'){ it.crit = 4+r*2+rand(3); it.eva = r>=2?2+r:0; }
-    if(cls==='mage'){ it.maxMp = Math.floor((4+tier*1.8)*mult); it.crit = 2+r*2; }
-    if(cls==='hunter'){ it.crit = 3+r*2+rand(3); }
-    if(cls==='warrior' || cls==='hunter') it.crit += r>=2 ? 2+r : rand(2);
+
+  const addStat=(k,v)=>{ it[k] = Math.max(0, Math.floor((it[k]||0) + v)); };
+  const baseStatBySlot={weapon:'atk', armor:'def', gloves:'atk', boots:'eva'};
+  const accessoryBaseByClass={warrior:'maxHp', rogue:'crit', mage:'maxMp', hunter:'crit'};
+  const baseStat = slot==='accessory' ? (accessoryBaseByClass[cls]||'maxHp') : (baseStatBySlot[slot]||'atk');
+  const baseValue=(k)=>{
+    if(k==='atk') return Math.max(1, Math.floor((3+tier*1.35)*mult));
+    if(k==='def') return Math.max(1, Math.floor((2+tier*.85)*mult));
+    if(k==='maxHp') return Math.max(4, Math.floor((10+tier*3.2)*mult));
+    if(k==='maxMp') return Math.max(4, Math.floor((9+tier*3.0)*mult));
+    if(k==='crit') return Math.max(1, Math.floor((3+tier*.45)*mult));
+    if(k==='eva') return Math.max(1, Math.floor((2+tier*.38)*mult));
+    return 1;
+  };
+  const optionValue=(k)=>{
+    const gradeBoost = 1 + r*.10;
+    if(k==='atk') return Math.max(1, Math.floor((1+tier*.50)*gradeBoost));
+    if(k==='def') return Math.max(1, Math.floor((1+tier*.38)*gradeBoost));
+    if(k==='maxHp') return Math.max(3, Math.floor((5+tier*1.75)*gradeBoost));
+    if(k==='maxMp') return Math.max(3, Math.floor((4+tier*1.65)*gradeBoost));
+    if(k==='crit') return Math.max(1, Math.floor((1+tier*.18+r*.55)*gradeBoost));
+    if(k==='eva') return Math.max(1, Math.floor((1+tier*.16+r*.50)*gradeBoost));
+    return 1;
+  };
+  const classPools={
+    warrior:['maxHp','def','atk','crit','eva','maxMp'],
+    rogue:['crit','eva','atk','maxHp','def','maxMp'],
+    mage:['maxMp','crit','atk','eva','def','maxHp'],
+    hunter:['crit','eva','atk','maxHp','maxMp','def']
+  };
+
+  // 등급별 수치 구조: 일반=기본, 고급=기본+옵션1, 희귀=기본+옵션2, 영웅=기본+옵션3, 전설=기본+옵션4
+  addStat(baseStat, baseValue(baseStat));
+  const used = new Set([baseStat]);
+  const pool = (classPools[cls]||classPools.warrior).filter(k=>!used.has(k));
+  for(let i=0;i<r;i++){
+    if(!pool.length) break;
+    const idx=rand(pool.length);
+    const k=pool.splice(idx,1)[0];
+    used.add(k);
+    addStat(k, optionValue(k));
   }
-  if(slot==='armor'){
-    it.def=Math.floor((2+tier*.95)*mult);
-    if(cls==='warrior'){ it.maxHp=Math.floor((14+tier*4.4)*mult); it.def += r; }
-    if(cls==='rogue'){ it.maxHp=Math.floor((7+tier*2.3)*mult); it.eva=3+r*2; it.crit=r>=2?2+r:0; }
-    if(cls==='mage'){ it.maxMp=Math.floor((12+tier*4.2)*mult); it.def += r>=2?1:0; it.eva=r>=2?2+r:0; }
-    if(cls==='hunter'){ it.maxHp=Math.floor((9+tier*3.2)*mult); it.eva=2+r*2; it.crit=r>=2?2+r:0; }
-  }
-  if(slot==='gloves'){
-    it.atk=Math.floor((1+tier*.95)*mult);
-    if(cls==='warrior'){ it.def=1+r; it.crit=r>=2?2+r:0; }
-    if(cls==='rogue'){ it.crit=5+r*3; it.eva=2+r; }
-    if(cls==='mage'){ it.maxMp=Math.floor((5+tier*2.2)*mult); it.crit=3+r*2; }
-    if(cls==='hunter'){ it.crit=5+r*3; it.atk+=Math.floor(r/2); }
-  }
-  if(slot==='boots'){
-    if(cls==='warrior'){ it.def=1+r; it.maxHp=Math.floor((7+tier*2.2)*mult); it.eva=r>=3?1+r:0; }
-    if(cls==='rogue'){ it.eva=5+r*3; it.crit=2+r; }
-    if(cls==='mage'){ it.eva=2+r*2; it.maxMp=Math.floor((5+tier*2)*mult); }
-    if(cls==='hunter'){ it.eva=4+r*3; it.maxHp=Math.floor((5+tier*1.8)*mult); }
-  }
-  if(slot==='accessory'){
-    if(cls==='warrior'){ it.atk=Math.floor((1+tier*.85)*mult); it.def=1+r; it.maxHp=Math.floor((8+tier*2.1)*mult); }
-    if(cls==='rogue'){ it.atk=Math.floor((1+tier*.9)*mult); it.crit=6+r*3; it.eva=3+r; }
-    if(cls==='mage'){ it.atk=Math.floor((1+tier*.75)*mult); it.maxMp=Math.floor((10+tier*3.3)*mult); it.crit=5+r*2; }
-    if(cls==='hunter'){ it.atk=Math.floor((1+tier*.9)*mult); it.crit=5+r*3; it.eva=2+r; it.maxMp=Math.floor((4+tier*1.5)*mult); }
-  }
+
   Object.keys(it).forEach(k=>{if(typeof it[k]==='number') it[k]=Math.floor(it[k]);});
   return it;
 }
@@ -4518,7 +4495,7 @@ function autoBasicAttack(){
 }
 function tryAutoSkillPriority(opts={}){
   const p=S.player, st=calcStats();
-  const enemies=(opts.enemies || S.enemies.filter(e=>e.hp>0)).filter(e=>e.hp>0);
+  const enemies=S.enemies.filter(e=>e.hp>0);
   if(!enemies.length) return false;
   const allowGapClose = !!opts.allowGapClose;
   const nearest=autoSelectEnemy(enemies, {keepCurrent:true});
@@ -4549,66 +4526,14 @@ function tryAutoSkillPriority(opts={}){
 
   return false;
 }
-
-function autoSafeStopSenseRange(){
-  if(!S || !S.player) return 4;
-  const p=S.player;
-  let range = Math.max(1, basicRangedRange ? basicRangedRange() : 0);
-  if(p.classId==='mage'){
-    range = Math.max(range, 5 + skillRangeBonus('smash'), 2 + Math.floor(skillLv('dash')/10));
-  } else if(p.classId==='hunter'){
-    range = Math.max(range, 6 + skillRangeBonus('smash'), 5 + skillRangeBonus('heal'));
-  } else {
-    range = Math.max(range, 1);
-  }
-  return range;
-}
-function autoSafeSkillThreatEnemy(enemies){
-  if(!S || !S.player) return null;
-  const p=S.player;
-  const list=(enemies || []).filter(e=>e && e.hp>0);
-  const byNear=(a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp||String(autoEnemyUid(a)).localeCompare(String(autoEnemyUid(b)));
-  function visible(e, range){ return autoCanSenseCell(e.x,e.y, range+1); }
-  function ranged(e, range, skillKey){ return dist(e,p)<=range && visible(e, range) && hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls(skillKey)); }
-  let threat=[];
-  if(p.classId==='warrior' || p.classId==='rogue'){
-    threat=list.filter(e=>dist(e,p)<=1 && visible(e,1));
-  } else if(p.classId==='mage'){
-    const magicRange=5+skillRangeBonus('smash');
-    const blastRange=2+Math.floor(skillLv('dash')/10);
-    const basicRange=basicRangedRange();
-    threat=list.filter(e=>
-      ranged(e, magicRange, 'smash') ||
-      (dist(e,p)<=blastRange && visible(e, blastRange) && hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash'))) ||
-      (basicRange>0 && dist(e,p)<=basicRange && visible(e, basicRange) && hasRangedPath(p.x,p.y,e.x,e.y,false))
-    );
-  } else if(p.classId==='hunter'){
-    const snipeRange=6+skillRangeBonus('smash');
-    const volleyRange=5+skillRangeBonus('heal');
-    const basicRange=basicRangedRange();
-    threat=list.filter(e=>
-      ranged(e, snipeRange, 'smash') ||
-      ranged(e, volleyRange, 'heal') ||
-      (basicRange>0 && dist(e,p)<=basicRange && visible(e, basicRange) && hasRangedPath(p.x,p.y,e.x,e.y,false))
-    );
-  }
-  return threat.sort(byNear)[0] || null;
-}
-function stopSafeAutoForThreat(e){
-  if(e) faceToward(e.x,e.y);
-  if(S && S.player) S.player.awaitAim='';
-  renderAll();
-  stopAuto();
-  toast('스킬 사거리 안에 적이 있어 안전오토 정지.');
-}
 function autoExplore(){
   if(!canAct()) return;
   const p=S.player;
-  const senseRange = Math.max(8, autoSafeStopSenseRange()+1);
-  const enemies=autoVisibleEnemies(S.enemies.filter(e=>e.hp>0), senseRange);
-  const threat = autoSafeSkillThreatEnemy(enemies);
-  if(threat){ stopSafeAutoForThreat(threat); return; }
-  if(p.awaitAim){ p.awaitAim=''; renderAll(); saveRun(); }
+  const enemies=S.enemies.filter(e=>e.hp>0);
+  if(autoResolveAwaitAim(enemies)) return;
+  if(enemies.length && tryAutoSkillPriority({allowGapClose:false})) return;
+  if(autoBasicAttack()) return;
+  if(enemies.some(e=>e.hp>0&&dist(e,p)<=4)){ stopAuto(); toast('근처에 적이 있어 안전오토 정지.'); return; }
   const target = nearestTarget();
   if(!target){ stopAuto(); toast('탐험할 목표가 없습니다.'); return; }
   const step = autoStepToward(target.x,target.y);
@@ -4620,19 +4545,17 @@ function autoFullExplore(){
   ensureRunFields();
   const p=S.player;
   const st=calcStats();
-  const allEnemies=S.enemies.filter(e=>e.hp>0);
-  const enemies=autoVisibleEnemies(allEnemies, 8);
+  const enemies=S.enemies.filter(e=>e.hp>0);
   if(autoResolveAwaitAim(enemies)) return;
   if(p.potions>0 && p.cd.potion<=0 && p.hp <= st.maxHp*.42){ clearAutoRoam(); usePotion(); return; }
 
-  // 벽 너머 몬스터는 완전오토가 인지하지 않는다.
-  // 시야 + 벽 없는 직선 감지가 되는 오브젝트만 전투/추적 대상으로 삼는다.
-  if(enemies.length && tryAutoSkillPriority({allowGapClose:true, enemies})){ clearAutoRoam(); return; }
+  // 오브젝트/전투가 보이면 무작위 배회보다 항상 해당 행동을 우선 처리한다.
+  if(enemies.length && tryAutoSkillPriority({allowGapClose:true})){ clearAutoRoam(); return; }
   if(autoBasicAttack()){ clearAutoRoam(); return; }
 
-  // 보스층도 보스가 벽 너머에 있으면 바로 추적하지 않고 탐색한다.
+  // 보스층에서는 보스가 살아 있으면 보스 추적을 최우선으로 유지한다.
   const bossTarget = livingBossEnemy();
-  if(isBossFloor() && bossTarget && autoCanSenseCell(bossTarget.x, bossTarget.y, 9)){
+  if(isBossFloor() && bossTarget){
     clearAutoRoam();
     S.autoTargetUid = autoEnemyUid(bossTarget);
     const step = autoStepToAdjacent(bossTarget.x, bossTarget.y);
@@ -4642,7 +4565,8 @@ function autoFullExplore(){
     return;
   }
 
-  const nearbyEnemy = autoSelectEnemy(enemies, {keepCurrent:true});
+  // 시야 안 가까운 적은 먼저 추적한다. 길이 안 잡히면 한 턴 멈춘 뒤 무작위 길따라 배회로 전환한다.
+  const nearbyEnemy = autoSelectEnemy(enemies.filter(e=>dist(e,p)<=7 || S.seen[e.y]?.[e.x]), {keepCurrent:true});
   if(nearbyEnemy){
     const step = autoStepToAdjacent(nearbyEnemy.x, nearbyEnemy.y);
     if(step){ clearAutoRoam(); autoMove(step); return; }
@@ -4651,8 +4575,7 @@ function autoFullExplore(){
     return;
   }
 
-  const visibleItems = autoVisibleItems(8).sort((a,b)=>dist(a,p)-dist(b,p));
-  const itemTarget = visibleItems[0];
+  const itemTarget = S.items.slice().sort((a,b)=>dist(a,p)-dist(b,p))[0];
   if(itemTarget){
     const step=autoStepToward(itemTarget.x,itemTarget.y);
     if(step){ clearAutoRoam(); autoMove(step); return; }
@@ -4661,7 +4584,16 @@ function autoFullExplore(){
     return;
   }
 
-  if(S.exit && autoCanSenseCell(S.exit.x,S.exit.y,9) && ((isBossFloor() && !livingBossEnemy()) || (!isBossFloor() && !S.enemies.some(e=>e.hp>0) && !S.items.length))){
+  const enemyTarget = autoSelectEnemy(enemies, {keepCurrent:true});
+  if(enemyTarget){
+    const step = autoStepToAdjacent(enemyTarget.x, enemyTarget.y);
+    if(step){ clearAutoRoam(); autoMove(step); return; }
+    enterAutoRoam('enemyBlocked');
+    waitTurn();
+    return;
+  }
+
+  if(S.exit && ((isBossFloor() && !livingBossEnemy()) || (!isBossFloor() && !S.enemies.some(e=>e.hp>0) && !S.items.length))){
     const step=autoStepToward(S.exit.x,S.exit.y);
     if(step){ clearAutoRoam(); autoMove(step); return; }
     if(p.x===S.exit.x && p.y===S.exit.y){ clearAutoRoam(); nextFloor(); return; }
@@ -4670,7 +4602,7 @@ function autoFullExplore(){
     return;
   }
 
-  // 버벅임 감지 후에는 벽 너머 타깃을 잡지 않고 길을 따라 무작위 탐색한다.
+  // 버벅임 감지 후에는 다음 플랜에서 목표를 억지로 재계산하지 않고 길을 따라 무작위로 이동한다.
   if(S.autoRoamTicks && S.autoRoamTicks > 0){
     if(autoTryRoamMove()) return;
   }
@@ -4689,7 +4621,7 @@ function autoFullExplore(){
   waitTurn();
 }
 function tryFullAutoSkill(){
-  return tryAutoSkillPriority({allowGapClose:true, enemies:autoVisibleEnemies(S.enemies.filter(e=>e.hp>0), 8)});
+  return tryAutoSkillPriority({allowGapClose:true});
 }
 function nextStepToAdjacent(tx,ty){
   const p=S.player;
@@ -4723,9 +4655,9 @@ function nextStepToAdjacent(tx,ty){
 }
 function nearestTarget(){
   const p=S.player;
-  const visibleItems = autoVisibleItems(8).sort((a,b)=>dist(a,p)-dist(b,p));
+  const visibleItems = S.items.filter(i=>S.seen[i.y][i.x]).sort((a,b)=>dist(a,p)-dist(b,p));
   if(visibleItems.length) return visibleItems[0];
-  if(autoCanSenseCell(S.exit.x,S.exit.y,9) && !S.enemies.some(e=>e.hp>0) && !S.items.length) return S.exit;
+  if(S.seen[S.exit.y][S.exit.x] && !S.enemies.some(e=>e.hp>0) && !S.items.length) return S.exit;
   let best=null,bd=999;
   for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++){
     if(S.map[y][x]==='#') continue;
