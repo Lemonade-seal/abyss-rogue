@@ -2648,7 +2648,7 @@ function bindBagItemClicks(){
 }
 function skillLv(k){ ensureRunFields(); return clamp((S?.player?.skillEnhance?.[k]||0),0,20); }
 function skillPowerBonus(k){ return Math.floor(skillLv(k)*1.15); }
-function skillRangeBonus(k){ return Math.min(2, Math.floor(skillLv(k)/10)); }
+function skillRangeBonus(k){ return Math.min(1, Math.floor(skillLv(k)/15)); }
 function skillCdBonus(k){ return Math.min(2, Math.floor(skillLv(k)/10)); }
 function skillCostInfo(lv){ return SKILL_ENHANCE_TABLE[clamp(lv,0,19)]; }
 function formatGold(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'G'; }
@@ -3427,12 +3427,12 @@ function skillWarrior3(){ const p=S.player; const st=calcStats(); if(p.mp<8){toa
 function skillRogue1(){ const p=S.player; const e = S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0]; if(!e){toast('인접한 적이 없다.'); return;} addFx({kind:'slash', x:e.x, y:e.y, color:'#c084fc', dur:220, angle:.7}); p.cd.smash=Math.max(5,9-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:4+skillPowerBonus('smash'),critBonus:20+Math.floor(skillLv('smash')/2),ignoreDef:.45,critMult:2.05}); afterPlayerAction(); }
 function skillRogue2(){ const p=S.player; p.cd.dash=Math.max(6,10 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='rogueStep'; showAimHint('그림자 도약 방향을 선택.'); renderAll(); saveRun(); }
 function skillRogue3(){ const p=S.player; if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); p.effects.smoke=3+Math.floor(skillLv('heal')/5); addFx({kind:'smoke', x:p.x, y:p.y, color:'#cbd5e1', dur:430}); addLog('연막을 펼쳤다. 회피율이 크게 상승한다.'); afterPlayerAction(); }
-function skillMage1(){ const p=S.player; if(p.mp<5){toast('MP가 부족하다.'); return;} const e=rangedEnemy(5+skillRangeBonus('smash'),'smash'); if(!e){toast('사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a78bfa', dur:210}); addFx({kind:'burst', x:e.x, y:e.y, color:'#8b5cf6', spark:'#ddd6fe', dur:260}); p.mp-=5; p.cd.smash=Math.max(5,8-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),ignoreDef:.6,ranged:true}); addLog('마력탄이 적중했다.'); afterPlayerAction(); }
-function skillMage2(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=2+Math.floor(skillLv('dash')/10)&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash'))); if(!targets.length){toast('주변 2칸 안에 적이 없다.'); return;} addFx({kind:'ring', x:p.x, y:p.y, color:'#f97316', dur:300}); targets.forEach(e=>addFx({kind:'burst', x:e.x, y:e.y, color:'#f97316', spark:'#fdba74', dur:320})); p.mp-=10; p.cd.dash=Math.max(7,11-skillCdBonus('dash')); targets.forEach(e=>playerAttack(e,false,{bonusBase:3+skillPowerBonus('dash'),ignoreDef:.35,burnTurns:2,ranged:true})); addLog('화염폭발이 주변을 휩쓸었다.'); afterPlayerAction(); }
+function skillMage1(){ const p=S.player; if(p.mp<5){toast('MP가 부족하다.'); return;} const e=rangedEnemy(3+skillRangeBonus('smash'),'smash'); if(!e){toast('사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a78bfa', dur:210}); addFx({kind:'burst', x:e.x, y:e.y, color:'#8b5cf6', spark:'#ddd6fe', dur:260}); p.mp-=5; p.cd.smash=Math.max(5,8-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),ignoreDef:.6,ranged:true}); addLog('마력탄이 적중했다.'); afterPlayerAction(); }
+function skillMage2(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=2&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash'))); if(!targets.length){toast('주변 2칸 안에 적이 없다.'); return;} addFx({kind:'ring', x:p.x, y:p.y, color:'#f97316', dur:300}); targets.forEach(e=>addFx({kind:'burst', x:e.x, y:e.y, color:'#f97316', spark:'#fdba74', dur:320})); p.mp-=10; p.cd.dash=Math.max(7,11-skillCdBonus('dash')); targets.forEach(e=>playerAttack(e,false,{bonusBase:3+skillPowerBonus('dash'),ignoreDef:.35,burnTurns:2,ranged:true})); addLog('화염폭발이 주변을 휩쓸었다.'); afterPlayerAction(); }
 function skillMage3(){ const p=S.player; const st=calcStats(); if(p.mp<12){toast('MP가 부족하다.'); return;} p.mp-=12; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); const heal=Math.floor(st.maxHp*.42)+10+skillPowerBonus('heal')*2; p.hp=clamp(p.hp+heal,1,st.maxHp); addFx({kind:'heal', x:p.x, y:p.y, color:'#34d399', dur:420}); addFx({kind:'ring', x:p.x, y:p.y, color:'#6ee7b7', dur:420}); addLog(`재생술로 HP ${heal} 회복.`); afterPlayerAction(); }
-function skillHunter1(){ const p=S.player; const e=lineEnemy(6+skillRangeBonus('smash'),'smash'); if(!e){toast('직선 사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190}); addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220}); p.cd.smash=Math.max(5,9-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true}); addLog('정밀사격!'); afterPlayerAction(); }
+function skillHunter1(){ const p=S.player; const e=lineEnemy(4+skillRangeBonus('smash'),'smash'); if(!e){toast('직선 사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190}); addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220}); p.cd.smash=Math.max(5,9-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true}); addLog('정밀사격!'); afterPlayerAction(); }
 function skillHunter2(){ const p=S.player; p.cd.dash=Math.max(6,10 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='hunterRoll'; showAimHint('구르기 방향을 선택.'); renderAll(); saveRun(); }
-function skillHunter3(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=5+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('heal'))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp).slice(0,3+Math.floor(skillLv('heal')/7)); if(!targets.length){toast('사거리 안에 적이 없다.'); return;} targets.forEach(e=>{ addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a3e635', dur:180}); addFx({kind:'burst', x:e.x, y:e.y, color:'#84cc16', spark:'#ecfccb', dur:220}); }); p.mp-=10; p.cd.heal=Math.max(7,12-skillCdBonus('heal')); targets.forEach(e=>playerAttack(e,false,{bonusBase:2+skillPowerBonus('heal'),critBonus:8+Math.floor(skillLv('heal')/2),ranged:true})); addLog('다발 사격으로 여러 적을 노렸다.'); afterPlayerAction(); }
+function skillHunter3(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=3+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('heal'))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp).slice(0,3+Math.floor(skillLv('heal')/7)); if(!targets.length){toast('사거리 안에 적이 없다.'); return;} targets.forEach(e=>{ addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a3e635', dur:180}); addFx({kind:'burst', x:e.x, y:e.y, color:'#84cc16', spark:'#ecfccb', dur:220}); }); p.mp-=10; p.cd.heal=Math.max(7,12-skillCdBonus('heal')); targets.forEach(e=>playerAttack(e,false,{bonusBase:2+skillPowerBonus('heal'),critBonus:8+Math.floor(skillLv('heal')/2),ranged:true})); addLog('다발 사격으로 여러 적을 노렸다.'); afterPlayerAction(); }
 function resolveAimedSkill(dx,dy){
   const p=S.player; const type=p.awaitAim; if(!type) return; p.awaitAim='';
   if(type==='warriorCharge'){
@@ -3661,7 +3661,7 @@ function gameOver(retire){
   const p=S.player; const st=calcStats();
   let souls = p.soulsRun + Math.floor(p.floor*1.2) + Math.floor(p.level/2) + Math.floor(p.kills/12);
   if(hasRelic('souljar')) souls = Math.floor(souls*1.35);
-  meta.souls += souls; meta.bestFloor=Math.max(meta.bestFloor,p.floor); meta.bestLevel=Math.max(meta.bestLevel,p.level); saveMeta(); clearRun();
+  meta.souls += souls; p.soulsRun = 0; markActiveSlotSoulsCollected(); meta.bestFloor=Math.max(meta.bestFloor,p.floor); meta.bestLevel=Math.max(meta.bestLevel,p.level); saveMeta(); clearRun();
   const title = retire ? '귀환 완료' : '원정 종료';
   showModal(`<h2>${title}</h2><p class="muted">${retire?'심연에서 살아 돌아왔다.':'심연에 쓰러졌다.'}</p>
   <div class="stats" style="margin:10px 0 12px">
@@ -3743,7 +3743,7 @@ function showSkillMenu(){
   const p=S.player; const map={
     warrior:[['강타','인접 적에게 큰 피해를 준다.'],['방패돌진','방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],['전투함성','HP를 회복하고 잠시 공격력이 증가한다.']],
     rogue:[['급소찌르기','근접 단일 대상 치명 강화 공격.'],['그림자도약','방향을 정해 이동하고 다음 공격이 강화된다.'],['연막','연막을 펼쳐 회피율이 크게 오른다.']],
-    mage:[['마력탄','사거리 5칸 원거리 마법탄.'],['화염폭발','주변 적들을 불태우는 광역 기술.'],['재생술','HP를 많이 회복한다.']],
+    mage:[['마력탄','사거리 5칸 원거리 마법탄.'],['화염폭발','주변 2칸 적들을 불태우는 광역 기술.'],['재생술','HP를 많이 회복한다.']],
     hunter:[['정밀사격','직선상의 적에게 강한 사격.'],['구르기','빠르게 이동하고 다음 원거리 공격이 강화된다.'],['다발 사격','여러 적에게 동시에 사격한다.']]
   };
   const skillKeys=['smash','dash','heal'];
@@ -3996,7 +3996,7 @@ function showStartMenu(){
       <div class="grid2 startClassGrid">${classButtons}</div>
       <div class="grid2">${savePart}<button class="btn warn" id="metaBtn">영혼 강화</button></div>
       <div class="grid2" style="margin-top:8px">${cloudPart}</div>
-      <p class="muted startMetaLine">현재 영혼: <b class="legend">${meta.souls}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b> · ${cloudEscape(cloudStatusText())}</p>
+      <p class="muted startMetaLine">현재 영혼: <b class="legend">${totalSoulAvailable(activeLoginMode === 'kakao' ? 'kakao' : 'guest')}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b> · ${cloudEscape(cloudStatusText())}</p>
     </div>`, true);
   modal.classList.add('startPage');
   modal.setAttribute('data-start-mode','menu');
@@ -4213,16 +4213,16 @@ function skillPreviewCells(key){
   const p=S.player, cls=p.classId;
   if(key==='smash'){
     if(cls==='warrior' || cls==='rogue') return adjacentPreviewCells();
-    if(cls==='mage') return radiusPreviewCells(5+skillRangeBonus('smash'),'smash');
-    if(cls==='hunter') return linePreviewCells(6+skillRangeBonus('smash'));
+    if(cls==='mage') return radiusPreviewCells(3+skillRangeBonus('smash'),'smash');
+    if(cls==='hunter') return linePreviewCells(4+skillRangeBonus('smash'));
   }
   if(key==='dash'){
-    if(cls==='mage') return radiusPreviewCells(2+Math.floor(skillLv('dash')/10),'dash');
+    if(cls==='mage') return radiusPreviewCells(2,'dash');
     return dashPreviewCells();
   }
   if(key==='heal'){
     if(cls==='warrior' || cls==='rogue' || cls==='mage') return [{x:p.x,y:p.y,kind:'self'}];
-    if(cls==='hunter') return radiusPreviewCells(5+skillRangeBonus('heal'),'heal');
+    if(cls==='hunter') return radiusPreviewCells(3+skillRangeBonus('heal'),'heal');
   }
   return [];
 }
@@ -4476,7 +4476,7 @@ function updateSkillButtons(){
   const skillMap={
     warrior:[['강타','인접 적 큰 피해'],['방패돌진','방향 지정 돌진'],['전투함성','회복+공격 강화']],
     rogue:[['급소찌르기','치명 강화 근접기'],['그림자도약','방향 지정 이동'],['연막','회피 대폭 상승']],
-    mage:[['마력탄','5칸 원거리 공격'],['화염폭발','주변 광역 공격'],['재생술','대량 회복']],
+    mage:[['마력탄','5칸 원거리 공격'],['화염폭발','주변 2칸 광역 공격'],['재생술','대량 회복']],
     hunter:[['정밀사격','직선 원거리'],['구르기','방향 지정 이동'],['다발 사격','여러 적 공격']]
   };
   const defs=skillMap[S.player.classId];
@@ -4680,19 +4680,19 @@ function tryAutoSkillPriority(opts={}){
   // 1번 공격 스킬: 쿨타임이 없고 타깃이 있으면 기본공격보다 먼저 사용한다.
   if(p.cd.smash<=0){
     if((p.classId==='warrior'||p.classId==='rogue') && enemies.some(e=>dist(e,p)<=1)){ skillSmash(); return true; }
-    if(p.classId==='mage' && p.mp>=5 && rangedEnemy(5+skillRangeBonus('smash'),'smash')){ skillMage1(); return true; }
-    if(p.classId==='hunter' && lineEnemy(6+skillRangeBonus('smash'),'smash')){ skillHunter1(); return true; }
+    if(p.classId==='mage' && p.mp>=5 && rangedEnemy(3+skillRangeBonus('smash'),'smash')){ skillMage1(); return true; }
+    if(p.classId==='hunter' && lineEnemy(4+skillRangeBonus('smash'),'smash')){ skillHunter1(); return true; }
   }
 
   // 2번 스킬: 공격/접근 가능한 상황이면 기본공격보다 먼저 사용한다.
   if(p.cd.dash<=0){
-    if(p.classId==='mage' && p.mp>=10 && enemies.some(e=>dist(e,p)<=2+Math.floor(skillLv('dash')/10)&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash')))){ skillMage2(); return true; }
+    if(p.classId==='mage' && p.mp>=10 && enemies.some(e=>dist(e,p)<=2&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash')))){ skillMage2(); return true; }
     if(allowGapClose && nearestDist>1 && nearestDist<=3 && (p.classId==='warrior'||p.classId==='rogue'||p.classId==='hunter')){ skillDash(); return true; }
   }
 
   // 3번 스킬: 공격형은 우선 사용하고, 회복/버프형은 전투 중 필요한 경우에만 사용한다.
   if(p.cd.heal<=0){
-    if(p.classId==='hunter' && p.mp>=10 && enemies.some(e=>dist(e,p)<=5+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('heal')))){ skillHunter3(); return true; }
+    if(p.classId==='hunter' && p.mp>=10 && enemies.some(e=>dist(e,p)<=3+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('heal')))){ skillHunter3(); return true; }
     if(p.classId==='warrior' && p.mp>=8 && danger>=1 && ((!p.effects.fury || p.effects.fury<=0) || lowHp)){ skillWarrior3(); return true; }
     if(p.classId==='rogue' && p.mp>=8 && danger>=1 && (!p.effects.smoke || p.effects.smoke<=0)){ skillRogue3(); return true; }
     if(p.classId==='mage' && p.mp>=12 && p.hp<=st.maxHp*.72){ skillMage3(); return true; }
@@ -5260,7 +5260,7 @@ function showCharacterSlots(mode){
         <button class="btn warn" id="slotMetaBtn">영혼 강화</button>
         <button class="btn" id="slotBackBtn">로그인 선택</button>
       </div>
-      <p class="muted startMetaLine">현재 영혼: <b class="legend">${meta.souls}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b></p>
+      <p class="muted startMetaLine">현재 영혼: <b class="legend">${totalSoulAvailable(mode)}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b></p>
     </div>`, true);
   modal.classList.add('startPage');
   modal.setAttribute('data-start-mode','menu');
@@ -5424,26 +5424,107 @@ function startSavedCharacter(mode, slotIndex){
   hideModal();
   hydrateLoadedRun(`${ch.nickname} 캐릭터를 불러왔습니다.`);
 }
+
+
+/* 요청 반영: 캐릭터 슬롯별 보유 영혼을 영혼 강화에서 통합 사용 */
+function currentSoulPoolMode(mode){
+  return mode || activeLoginMode || (S && S.loginMode) || 'guest';
+}
+function slotSoulTotal(mode){
+  const safeMode = currentSoulPoolMode(mode);
+  const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
+  return slots.reduce((sum,ch)=>{
+    const p = ch && ch.run && ch.run.player ? ch.run.player : null;
+    if(!p || ch.run.dead) return sum;
+    return sum + Math.max(0, Number(p.soulsRun || 0));
+  }, 0);
+}
+function totalSoulAvailable(mode){
+  return Math.max(0, Number(meta && meta.souls || 0)) + slotSoulTotal(mode);
+}
+function writeBackSoulSlots(mode, slots){
+  const safeMode = currentSoulPoolMode(mode);
+  setSlotsForMode(safeMode, slots);
+  if(S && S.player && activeLoginMode === safeMode && activeCharacterSlot != null){
+    const active = slots[activeCharacterSlot];
+    if(active && active.run && active.run.player){
+      S.player.soulsRun = Math.max(0, Number(active.run.player.soulsRun || 0));
+      syncActiveCharacterFromRun();
+    }
+  }
+  if(safeMode === 'kakao') queueCharacterCloudSave();
+}
+function spendPooledSouls(cost, mode){
+  const safeMode = currentSoulPoolMode(mode);
+  cost = Math.max(0, Number(cost || 0));
+  if(totalSoulAvailable(safeMode) < cost) return false;
+  let remain = cost;
+  const metaUse = Math.min(Math.max(0, Number(meta.souls || 0)), remain);
+  meta.souls = Math.max(0, Number(meta.souls || 0) - metaUse);
+  remain -= metaUse;
+  if(remain > 0){
+    const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
+    for(const ch of slots){
+      if(remain <= 0) break;
+      const p = ch && ch.run && ch.run.player ? ch.run.player : null;
+      if(!p || ch.run.dead) continue;
+      const have = Math.max(0, Number(p.soulsRun || 0));
+      if(have <= 0) continue;
+      const use = Math.min(have, remain);
+      p.soulsRun = have - use;
+      ch.run.player.soulsRun = p.soulsRun;
+      ch.updatedAt = new Date().toISOString();
+      remain -= use;
+    }
+    writeBackSoulSlots(safeMode, slots);
+  }
+  saveMeta();
+  return true;
+}
+function clearPooledSlotSouls(mode){
+  const safeMode = currentSoulPoolMode(mode);
+  const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
+  slots.forEach(ch=>{
+    const p = ch && ch.run && ch.run.player ? ch.run.player : null;
+    if(p) p.soulsRun = 0;
+  });
+  writeBackSoulSlots(safeMode, slots);
+}
+function markActiveSlotSoulsCollected(){
+  const safeMode = currentSoulPoolMode();
+  if(activeCharacterSlot == null) return;
+  const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
+  const ch = slots[activeCharacterSlot];
+  if(ch && ch.run && ch.run.player){
+    ch.run.player.soulsRun = 0;
+    ch.updatedAt = new Date().toISOString();
+    setSlotsForMode(safeMode, slots);
+    if(safeMode === 'kakao') queueCharacterCloudSave();
+  }
+}
+
 showMeta = function(){
   stopAuto();
+  const soulMode = currentSoulPoolMode(activeLoginMode === 'kakao' ? 'kakao' : (activeLoginMode === 'guest' ? 'guest' : undefined));
   const rows = metaDefs.map(d=>{
     const lv=meta.upgrades[d.id]||0; const cost=metaCost(d.id); const full=lv>=d.max;
     return `<div class="metaRow"><div><h4>${d.name} <span class="muted">Lv.${lv}/${d.max}</span></h4><p>${d.desc}</p></div><button class="btn smallbtn ${full?'':'good'}" data-up="${d.id}" ${full?'disabled':''}>${full?'완료':cost+' 영혼'}</button></div>`;
   }).join('');
-  showModal(`<h2>영혼 강화</h2><p class="muted">원정 종료 때 얻은 영혼으로 다음 원정을 강화합니다. 현재 영혼: <b class="legend">${meta.souls}</b></p>${rows}<div class="grid2" style="margin-top:12px"><button class="btn" id="backStart">캐릭터 슬롯</button><button class="btn bad" id="resetMeta">강화 초기화</button></div>`, true);
+  showModal(`<h2>영혼 강화</h2><p class="muted">슬롯 캐릭터들이 보유한 영혼까지 합산해서 강화합니다. 현재 통합 영혼: <b class="legend">${totalSoulAvailable(soulMode)}</b></p>${rows}<div class="grid2" style="margin-top:12px"><button class="btn" id="backStart">캐릭터 슬롯</button><button class="btn bad" id="resetMeta">강화 초기화</button></div>`, true);
   modalCard.querySelectorAll('[data-up]').forEach(btn=>btn.onclick=()=>{
     const id=btn.dataset.up; const d=metaDefs.find(x=>x.id===id); const lv=meta.upgrades[id]||0; const cost=metaCost(id);
     if(lv>=d.max) return;
-    if(meta.souls<cost){toast('영혼이 부족합니다.'); return;}
-    meta.souls-=cost;
+    if(totalSoulAvailable(soulMode)<cost){toast('영혼이 부족합니다.'); return;}
+    if(!spendPooledSouls(cost, soulMode)){toast('영혼이 부족합니다.'); return;}
     meta.upgrades[id]=lv+1;
     saveMeta();
     showMeta();
   });
-  $('backStart').onclick=()=>showCharacterSlots(activeLoginMode === 'kakao' ? 'kakao' : 'guest');
+  $('backStart').onclick=()=>showCharacterSlots(soulMode === 'kakao' ? 'kakao' : 'guest');
   $('resetMeta').onclick=()=>{
     if(confirm('영혼과 영혼 강화 수치를 모두 0으로 초기화하시겠습니까?')){
       meta.souls=0;
+      clearPooledSlotSouls(soulMode);
       meta.upgrades={hp:0,atk:0,def:0,crit:0,xp:0,gold:0};
       saveMeta();
       showMeta();
