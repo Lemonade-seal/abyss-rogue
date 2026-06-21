@@ -1104,6 +1104,35 @@
     animation:skillTextMarquee 4.8s ease-in-out infinite!important;
   }
 
+
+  /* 요청 반영: 닉네임이 길어져도 상단 닉네임 박스 가로 길이 고정 */
+  .topbar{
+    width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+  }
+  .topbar > .pill,
+  .topInfoPill,
+  .topInfoPill .hudLine,
+  .topInfoPill .mainHudLine{
+    min-width:0!important;
+    max-width:100%!important;
+    overflow:hidden!important;
+  }
+  .topInfoPill{
+    width:100%!important;
+  }
+  #nickText{
+    flex:0 1 auto!important;
+    min-width:0!important;
+    max-width:calc(100% - 46px)!important;
+    overflow:hidden!important;
+    contain:layout paint!important;
+  }
+  #nickText .nickMarqueeInner{
+    max-width:none!important;
+  }
+
 </style>
 </head>
 <body>
@@ -4789,7 +4818,10 @@ updateUi = function(){
   const floorEl = $('floorText');
   const goldEl = $('goldText');
   const soulEl = $('soulText');
-  if(nickEl) nickEl.textContent = (typeof playerNickname === 'function') ? playerNickname(p) : (p.name || p.className || '-');
+  if(nickEl){
+    const rawNick = (typeof playerNickname === 'function') ? playerNickname(p) : (p.name || p.className || '-');
+    nickEl.innerHTML = `<span class="nickMarqueeInner">${escapeText(rawNick || '-')}</span>`;
+  }
   if(levelEl) levelEl.textContent = 'Lv.' + Number(p.level || 1);
   if(jobEl) jobEl.textContent = p.className || '-';
   if(floorEl) floorEl.textContent = Number(p.floor || 1) + '층';
