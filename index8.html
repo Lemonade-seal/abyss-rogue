@@ -3084,6 +3084,25 @@ function reveal(){
   }
 }
 
+
+function isBossFloor(floor){
+  const f = Number(floor || (S && S.player && S.player.floor) || 1);
+  return f > 0 && f % 5 === 0;
+}
+function livingBossEnemy(){
+  return S && Array.isArray(S.enemies) ? S.enemies.find(e=>e.hp>0 && e.boss) : null;
+}
+function canUseExitToNextFloor(showMessage=true){
+  if(isBossFloor() && livingBossEnemy()){
+    if(showMessage){
+      addLog('<span class="badtxt">보스를 처치해야 다음 층으로 내려갈 수 있다.</span>');
+      toast('보스를 먼저 처치해야 한다.');
+    }
+    return false;
+  }
+  return true;
+}
+
 function playerMove(dx,dy){
   if(!canAct()) return;
   setPlayerDirByDelta(dx,dy);
@@ -3093,8 +3112,7 @@ function playerMove(dx,dy){
   if(!passable(nx,ny)){addLog('벽에 막혔다.'); renderAll(); return;}
   p.x=nx; p.y=ny;
   if(S.map[ny][nx]==='>'){
-    if(S.enemies.some(e=>e.hp>0&&e.boss)) { addLog('층지배자를 처치해야 내려갈 수 있다.'); }
-    else nextFloor();
+    if(canUseExitToNextFloor(true)) nextFloor();
   } else {
     pickupCheck();
   }
@@ -3283,6 +3301,7 @@ function pickupCheck(){
 }
 
 function nextFloor(){
+  if(!canUseExitToNextFloor(true)) return;
   const p=S.player;
   p.soulsRun += 1 + Math.floor(p.floor/4);
   meta.bestFloor = Math.max(meta.bestFloor, p.floor+1); meta.bestLevel=Math.max(meta.bestLevel,p.level); saveMeta();
@@ -4080,7 +4099,21 @@ function render(){
     if(e.hp<=0 || !inView(e.x,e.y,ox,oy) || !S.seen[e.y][e.x]) continue;
     const px=(e.x-ox)*TILE, py=(e.y-oy)*TILE;
     drawSprite(e.sprite,px,py);
-    if(e.elite){ ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2; ctx.strokeRect(px+2,py+2,TILE-4,TILE-4); }
+    if(e.boss || e.elite){
+      const label = e.boss ? 'BOSS' : 'ELITE';
+      const labelColor = e.boss ? '#ef4444' : '#facc15';
+      const labelY = Math.max(7, py + 8);
+      ctx.save();
+      ctx.font = 'bold 7px system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.lineWidth = 2.4;
+      ctx.strokeStyle = 'rgba(0,0,0,.92)';
+      ctx.strokeText(label, px + TILE/2, labelY);
+      ctx.fillStyle = labelColor;
+      ctx.fillText(label, px + TILE/2, labelY);
+      ctx.restore();
+    }
     ctx.fillStyle='#1f2937'; ctx.fillRect(px+4,py+27,24,3);
     ctx.fillStyle=e.boss?'#ef4444':'#f97316'; ctx.fillRect(px+4,py+27,Math.max(1,24*e.hp/e.maxHp),3);
   }
@@ -4303,14 +4336,14 @@ function autoEnemyUid(e){
 function clearAutoTargetIfInvalid(enemies){
   if(!S) return;
   const list = enemies || (S.enemies||[]).filter(e=>e.hp>0);
-  if(!list.length){ S.autoTargetUid = null; return; }
-  if(S.autoTargetUid && !list.some(e=>autoEnemyUid(e)===S.autoTargetUid)) S.autoTargetUid = null;
+  if(!list.length){ S.autoTargetUid = null; S.autoGoal = null; return; }
+  if(S.autoTargetUid && !list.some(e=>autoEnemyUid(e)===S.autoTargetUid)){ S.autoTargetUid = null; S.autoGoal = null; }
 }
 function autoSelectEnemy(enemies, opts={}){
   if(!S || !S.player) return null;
   const p = S.player;
   const list = (enemies || S.enemies || []).filter(e=>e.hp>0);
-  if(!list.length){ S.autoTargetUid = null; return null; }
+  if(!list.length){ S.autoTargetUid = null; S.autoGoal = null; return null; }
   list.forEach(autoEnemyUid);
 
   const current = S.autoTargetUid ? list.find(e=>autoEnemyUid(e)===S.autoTargetUid) : null;
@@ -4324,10 +4357,12 @@ function autoSelectEnemy(enemies, opts={}){
   if(current){
     const cd = dist(current,p), bd = dist(best,p);
     const currentVisible = !!S.seen?.[current.y]?.[current.x];
-    // 현재 목표가 크게 멀어지지 않았으면 계속 물고 간다. 양쪽에 적이 있을 때 왕복 버벅임 방지.
-    if(cd <= bd + 2 && (currentVisible || cd <= 8 || opts.keepCurrent)) return current;
+    // 와리가리 방지: 기존 타깃이 죽거나 과도하게 멀어진 경우가 아니면 바꾸지 않는다.
+    if(cd <= bd + 5 && (currentVisible || cd <= 12 || opts.keepCurrent)) return current;
   }
-  S.autoTargetUid = autoEnemyUid(best);
+  const nextUid = autoEnemyUid(best);
+  if(S.autoTargetUid !== nextUid) S.autoGoal = null;
+  S.autoTargetUid = nextUid;
   return best;
 }
 function autoSelectAdjacentEnemy(enemies){
@@ -4339,7 +4374,27 @@ function autoSelectAdjacentEnemy(enemies){
   if(locked) return locked;
   const picked = adjacent.slice().sort((a,b)=>a.hp-b.hp || String(autoEnemyUid(a)).localeCompare(String(autoEnemyUid(b))))[0];
   S.autoTargetUid = autoEnemyUid(picked);
+  S.autoGoal = null;
   return picked;
+}
+function isAutoReverseStep(step){
+  if(!S || !S.player || !step) return false;
+  return S.autoPrevX === S.player.x + step.dx && S.autoPrevY === S.player.y + step.dy;
+}
+function autoMove(step){
+  if(!step || !S || !S.player) return false;
+  S.autoPrevX = S.player.x;
+  S.autoPrevY = S.player.y;
+  S.autoLastDx = step.dx;
+  S.autoLastDy = step.dy;
+  playerMove(step.dx, step.dy);
+  return true;
+}
+function validAutoGoal(goal, uid, tx, ty){
+  if(!goal || goal.uid !== uid) return false;
+  if(Math.abs(goal.x-tx)+Math.abs(goal.y-ty)!==1) return false;
+  if(!passable(goal.x,goal.y) || enemyAt(goal.x,goal.y)) return false;
+  return true;
 }
 
 function autoResolveAwaitAim(enemies){
@@ -4406,7 +4461,7 @@ function autoExplore(){
   const target = nearestTarget();
   if(!target){ stopAuto(); toast('탐험할 목표가 없습니다.'); return; }
   const step = autoStepToward(target.x,target.y);
-  if(step){ playerMove(step.dx, step.dy); return; }
+  if(step){ autoMove(step); return; }
   waitTurn();
 }
 function autoFullExplore(){
@@ -4425,25 +4480,36 @@ function autoFullExplore(){
   const nearbyEnemy = autoSelectEnemy(enemies.filter(e=>dist(e,p)<=7 || S.seen[e.y]?.[e.x]), {keepCurrent:true});
   if(nearbyEnemy){
     const step = autoStepToAdjacent(nearbyEnemy.x, nearbyEnemy.y);
-    if(step){ playerMove(step.dx, step.dy); return; }
+    if(step){ autoMove(step); return; }
+    waitTurn(); return;
+  }
+
+  // 보스층에서는 보스가 살아 있으면 아이템/탐색보다 보스 추적을 최우선으로 고정한다.
+  const bossTarget = livingBossEnemy();
+  if(isBossFloor() && bossTarget){
+    S.autoTargetUid = autoEnemyUid(bossTarget);
+    const step = autoStepToAdjacent(bossTarget.x, bossTarget.y);
+    if(step){ autoMove(step); return; }
+    waitTurn(); return;
   }
 
   const itemTarget = S.items.slice().sort((a,b)=>dist(a,p)-dist(b,p))[0];
-  if(itemTarget){ const step=autoStepToward(itemTarget.x,itemTarget.y); if(step){ playerMove(step.dx, step.dy); return; } }
+  if(itemTarget){ const step=autoStepToward(itemTarget.x,itemTarget.y); if(step){ autoMove(step); return; } }
 
   const enemyTarget = autoSelectEnemy(enemies, {keepCurrent:true});
   if(enemyTarget){
     const step = autoStepToAdjacent(enemyTarget.x, enemyTarget.y);
-    if(step){ playerMove(step.dx, step.dy); return; }
+    if(step){ autoMove(step); return; }
+    waitTurn(); return;
   }
 
-  if(!S.enemies.some(e=>e.hp>0) && !S.items.length && S.exit){
+  if(S.exit && ((isBossFloor() && !livingBossEnemy()) || (!isBossFloor() && !S.enemies.some(e=>e.hp>0) && !S.items.length))){
     const step=autoStepToward(S.exit.x,S.exit.y);
-    if(step){ playerMove(step.dx, step.dy); return; }
+    if(step){ autoMove(step); return; }
     if(p.x===S.exit.x && p.y===S.exit.y){ nextFloor(); return; }
   }
   const target = nearestTarget();
-  if(target){ const step=autoStepToward(target.x,target.y); if(step){ playerMove(step.dx, step.dy); return; } }
+  if(target){ const step=autoStepToward(target.x,target.y); if(step){ autoMove(step); return; } }
   waitTurn();
 }
 function tryFullAutoSkill(){
@@ -4452,9 +4518,31 @@ function tryFullAutoSkill(){
 function nextStepToAdjacent(tx,ty){
   const p=S.player;
   if(Math.abs(p.x-tx)+Math.abs(p.y-ty)<=1) return null;
+  const targetEnemy = enemyAt(tx,ty);
+  const uid = targetEnemy ? autoEnemyUid(targetEnemy) : (S.autoTargetUid || key(tx,ty));
+
+  // 같은 타깃을 추적 중이면, 이전에 고른 인접 목적칸을 유지한다.
+  if(validAutoGoal(S.autoGoal, uid, tx, ty)){
+    const lockedStep = nextStepToward(S.autoGoal.x, S.autoGoal.y);
+    if(lockedStep) return lockedStep;
+    S.autoGoal = null;
+  }
+
   const candidates=DIRS.map(([dx,dy])=>({x:tx+dx,y:ty+dy})).filter(c=>passable(c.x,c.y)&&!enemyAt(c.x,c.y));
-  candidates.sort((a,b)=>dist(a,p)-dist(b,p));
-  for(const c of candidates){ const step=nextStepToward(c.x,c.y); if(step) return step; }
+  const scored=[];
+  for(const c of candidates){
+    const step=nextStepToward(c.x,c.y);
+    if(!step) continue;
+    const reverse = isAutoReverseStep(step) ? 1 : 0;
+    const d = Math.abs(c.x-p.x)+Math.abs(c.y-p.y);
+    const approach = Math.abs((p.x+step.dx)-tx)+Math.abs((p.y+step.dy)-ty);
+    scored.push({c,step,score:d*10 + approach + reverse*100});
+  }
+  scored.sort((a,b)=>a.score-b.score || a.c.y-b.c.y || a.c.x-b.c.x);
+  if(scored.length){
+    S.autoGoal = {uid, x:scored[0].c.x, y:scored[0].c.y};
+    return scored[0].step;
+  }
   return null;
 }
 function nearestTarget(){
@@ -4472,11 +4560,18 @@ function nearestTarget(){
 }
 function nextStepToward(tx,ty){
   const p=S.player;
+  const orderedDirs=DIRS.slice().sort((a,b)=>{
+    const ar=(S.autoPrevX===p.x+a[0] && S.autoPrevY===p.y+a[1])?1:0;
+    const br=(S.autoPrevX===p.x+b[0] && S.autoPrevY===p.y+b[1])?1:0;
+    const ad=Math.abs(p.x+a[0]-tx)+Math.abs(p.y+a[1]-ty);
+    const bd=Math.abs(p.x+b[0]-tx)+Math.abs(p.y+b[1]-ty);
+    return ar-br || ad-bd;
+  });
   const q=[{x:p.x,y:p.y,first:null}], seen=new Set([key(p.x,p.y)]);
   for(let qi=0;qi<q.length && qi<1800;qi++){
     const cur=q[qi];
     if(cur.x===tx&&cur.y===ty) return cur.first;
-    for(const [dx,dy] of DIRS){
+    for(const [dx,dy] of orderedDirs){
       const nx=cur.x+dx, ny=cur.y+dy, k=key(nx,ny);
       if(seen.has(k)||!passable(nx,ny)||enemyAt(nx,ny)) continue;
       seen.add(k); q.push({x:nx,y:ny,first:cur.first||{dx,dy}});
@@ -4491,16 +4586,18 @@ function unstickStep(target=null){
   const cand=DIRS.map(([dx,dy])=>({dx,dy,nx:p.x+dx,ny:p.y+dy})).filter(c=>passable(c.nx,c.ny)&&!enemyAt(c.nx,c.ny));
   if(!cand.length) return null;
   cand.sort((a,b)=>{
+    const ar=(S.autoPrevX===a.nx && S.autoPrevY===a.ny)?1:0;
+    const br=(S.autoPrevX===b.nx && S.autoPrevY===b.ny)?1:0;
     const ad=target?Math.abs(a.nx-target.x)+Math.abs(a.ny-target.y):999;
     const bd=target?Math.abs(b.nx-target.x)+Math.abs(b.ny-target.y):999;
     const af=frontierScore(a.nx,a.ny), bf=frontierScore(b.nx,b.ny);
     const aw=adjacentWallCount(a.nx,a.ny), bw=adjacentWallCount(b.nx,b.ny);
-    return ad-bd || bf-af || aw-bw || (Math.random()-.5);
+    return ar-br || ad-bd || bf-af || aw-bw || a.ny-b.ny || a.nx-b.nx;
   });
   return {dx:cand[0].dx, dy:cand[0].dy};
 }
 function autoStepToward(tx,ty){ return nextStepToward(tx,ty) || unstickStep({x:tx,y:ty}); }
-function autoStepToAdjacent(tx,ty){ return nextStepToAdjacent(tx,ty) || unstickStep({x:tx,y:ty}); }
+function autoStepToAdjacent(tx,ty){ return nextStepToAdjacent(tx,ty); }
 function updateAutoButton(){
   const b=$('autoBtn'); if(!b) return;
   b.classList.remove('good','full');
@@ -4532,7 +4629,7 @@ function startFullAuto(){
   toast('완전오토 시작. 공격·스킬·물약 자동 사용.');
 }
 function toggleAuto(){ startSafeAuto(); }
-function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; if(S) S.autoTargetUid=null; updateAutoButton(); }
+function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; if(S){ S.autoTargetUid=null; S.autoGoal=null; S.autoPrevX=null; S.autoPrevY=null; } updateAutoButton(); }
 
 function handleMove(dx,dy){
   if(!S) return;
