@@ -400,7 +400,7 @@
     padding-bottom:calc(26px + env(safe-area-inset-bottom));
   }
   #modal.startPage .startActionBtn{
-    position:relative;width:auto;min-width:0;height:auto;padding:10px 18px;border-radius:0;
+    position:relative;width:auto;min-width:0;height:auto;padding:0 4px;border-radius:0;
     border:0!important;background:transparent!important;background-image:none!important;color:#f8fbff;
     font-size:34px;font-weight:300;letter-spacing:-.4px;line-height:1.15;text-align:center;
     box-shadow:none!important;overflow:visible;isolation:isolate;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
@@ -411,8 +411,8 @@
     position:relative;z-index:3;display:inline-block;
     background:linear-gradient(90deg,#dbeafe 0%,#ffffff 35%,#a5f3fc 50%,#ffffff 65%,#c4b5fd 100%);
     -webkit-background-clip:text;background-clip:text;color:transparent;
-    filter:drop-shadow(0 0 7px rgba(255,255,255,.82)) drop-shadow(0 0 18px rgba(96,165,250,.76));
-    animation:startTextShine 3.6s ease-in-out infinite;
+    filter:none!important;
+    animation:startTextShine 4.2s ease-in-out infinite;
   }
   #modal.startPage .startActionBtn:before,
   #modal.startPage .startActionBtn:after{content:none!important;display:none!important}
@@ -457,9 +457,8 @@
     }
   }
   @keyframes startTextShine{
-    0%{filter:drop-shadow(0 0 5px rgba(255,255,255,.68)) drop-shadow(0 0 13px rgba(96,165,250,.58)) brightness(.94)}
-    48%{filter:drop-shadow(0 0 10px rgba(255,255,255,1)) drop-shadow(0 0 24px rgba(125,211,252,.90)) brightness(1.38)}
-    100%{filter:drop-shadow(0 0 5px rgba(255,255,255,.68)) drop-shadow(0 0 13px rgba(96,165,250,.58)) brightness(.94)}
+    0%,100%{opacity:.92}
+    50%{opacity:1}
   }
   @media(max-width:820px){
     #modal.startPage .startActionBtn{width:auto;height:auto;font-size:28px}
@@ -471,6 +470,39 @@
     #modal.startPage .choice h4{font-size:13px!important}
     #modal.startPage .choice p{font-size:11px!important}
     #modal.startPage .btn{min-height:38px!important}
+  }
+
+
+  /* 최종 요청 반영: 시작하기는 박스 없이 글자만 표시 */
+  #modal.startPage #modalCard.card button.startActionBtn,
+  #modal.startPage #modalCard.card .startSplashShell button.startActionBtn,
+  #modal.startPage .startActionBtn#openStartMenuBtn{
+    display:inline-block!important;
+    width:auto!important;min-width:0!important;height:auto!important;min-height:0!important;
+    margin:0!important;padding:0 4px!important;
+    border:0!important;border-radius:0!important;outline:0!important;
+    background:transparent!important;background-color:transparent!important;background-image:none!important;
+    box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+    appearance:none!important;-webkit-appearance:none!important;
+    overflow:visible!important;
+    font-weight:300!important;
+    text-shadow:0 0 6px rgba(255,255,255,.62),0 0 15px rgba(125,211,252,.54),0 0 28px rgba(168,85,247,.42)!important;
+    animation:startTextFlash 3.4s ease-in-out infinite!important;
+  }
+  #modal.startPage #modalCard.card button.startActionBtn span,
+  #modal.startPage .startActionBtn#openStartMenuBtn span{
+    background:none!important;background-image:none!important;
+    -webkit-background-clip:initial!important;background-clip:initial!important;
+    color:#f8fbff!important;
+    filter:none!important;
+    text-shadow:inherit!important;
+    animation:startTextShine 4.4s ease-in-out infinite!important;
+  }
+  #modal.startPage #modalCard.card button.startActionBtn:before,
+  #modal.startPage #modalCard.card button.startActionBtn:after,
+  #modal.startPage .startActionBtn#openStartMenuBtn:before,
+  #modal.startPage .startActionBtn#openStartMenuBtn:after{
+    content:none!important;display:none!important;background:none!important;box-shadow:none!important;
   }
 
 </style>
