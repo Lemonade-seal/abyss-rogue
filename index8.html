@@ -2648,8 +2648,8 @@ function bindBagItemClicks(){
 }
 function skillLv(k){ ensureRunFields(); return clamp((S?.player?.skillEnhance?.[k]||0),0,20); }
 function skillPowerBonus(k){ return Math.floor(skillLv(k)*1.15); }
-function skillRangeBonus(k){ return Math.floor(skillLv(k)/5); }
-function skillCdBonus(k){ return Math.floor(skillLv(k)/8); }
+function skillRangeBonus(k){ return Math.min(2, Math.floor(skillLv(k)/10)); }
+function skillCdBonus(k){ return Math.min(2, Math.floor(skillLv(k)/10)); }
 function skillCostInfo(lv){ return SKILL_ENHANCE_TABLE[clamp(lv,0,19)]; }
 function formatGold(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')+'G'; }
 function escHtml(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
@@ -3269,6 +3269,38 @@ function clearLine(x1,y1,x2,y2){
   while(x!==x2 || y!==y2){ if(S.map[y][x]==='#') return false; x+=dx; y+=dy; }
   return true;
 }
+
+function autoHasLineOfSight(x1,y1,x2,y2){
+  if(!S || !S.map) return false;
+  if(x1===x2 && y1===y2) return true;
+  const steps = Math.max(Math.abs(x2-x1), Math.abs(y2-y1));
+  if(steps<=0) return true;
+  let lastKey = key(x1,y1);
+  for(let i=1;i<steps;i++){
+    const x = Math.round(x1 + (x2-x1) * i / steps);
+    const y = Math.round(y1 + (y2-y1) * i / steps);
+    const k = key(x,y);
+    if(k===lastKey) continue;
+    lastKey = k;
+    if(!inMap(x,y) || S.map[y][x]==='#') return false;
+  }
+  return true;
+}
+function autoCanSenseCell(x,y, radius=8){
+  if(!S || !S.player || !inMap(x,y)) return false;
+  const p = S.player;
+  if(Math.abs(p.x-x)+Math.abs(p.y-y)<=1) return true;
+  if(dist({x,y}, p) > radius) return false;
+  if(!S.seen?.[y]?.[x]) return false;
+  return autoHasLineOfSight(p.x,p.y,x,y);
+}
+function autoVisibleEnemies(enemies, radius=8){
+  const list = enemies || (S?.enemies || []);
+  return list.filter(e=>e.hp>0 && autoCanSenseCell(e.x,e.y,radius));
+}
+function autoVisibleItems(radius=8){
+  return (S?.items || []).filter(i=>autoCanSenseCell(i.x,i.y,radius));
+}
 function moveEnemyToward(e,tx,ty){
   const opts = DIRS.map(([dx,dy])=>({dx,dy,d:Math.abs(e.x+dx-tx)+Math.abs(e.y+dy-ty)})).sort((a,b)=>a.d-b.d);
   for(const o of opts){
@@ -3419,19 +3451,19 @@ function skillWarrior1(){
   const p=S.player;
   const e = S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0];
   if(!e){toast('인접한 적이 없다.'); return;}
-  p.cd.smash=Math.max(3,7-skillCdBonus('smash')); playerAttack(e,true,{bonusBase:2+skillPowerBonus('smash')}); afterPlayerAction();
+  p.cd.smash=Math.max(5,10-skillCdBonus('smash')); playerAttack(e,true,{bonusBase:2+skillPowerBonus('smash')}); afterPlayerAction();
 }
-function skillWarrior2(){ const p=S.player; p.cd.dash=Math.max(4,8 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='warriorCharge'; showAimHint('방패돌진 방향을 선택.'); renderAll(); saveRun(); }
-function skillWarrior3(){ const p=S.player; const st=calcStats(); if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(5,10-skillCdBonus('heal')); p.effects.fury=3+Math.floor(skillLv('heal')/5); p.hp=clamp(p.hp + Math.floor(st.maxHp*.16)+8+skillPowerBonus('heal')*2,1,st.maxHp); addFx({kind:'ring', x:p.x, y:p.y, color:'#f59e0b', dur:360}); addFx({kind:'heal', x:p.x, y:p.y, color:'#fb923c', dur:360}); addLog('전투함성! HP를 회복하고 공격력이 상승했다.'); afterPlayerAction(); }
-function skillRogue1(){ const p=S.player; const e = S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0]; if(!e){toast('인접한 적이 없다.'); return;} addFx({kind:'slash', x:e.x, y:e.y, color:'#c084fc', dur:220, angle:.7}); p.cd.smash=Math.max(3,6-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:4+skillPowerBonus('smash'),critBonus:20+Math.floor(skillLv('smash')/2),ignoreDef:.45,critMult:2.05}); afterPlayerAction(); }
-function skillRogue2(){ const p=S.player; p.cd.dash=Math.max(4,7 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='rogueStep'; showAimHint('그림자 도약 방향을 선택.'); renderAll(); saveRun(); }
-function skillRogue3(){ const p=S.player; if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(5,10-skillCdBonus('heal')); p.effects.smoke=3+Math.floor(skillLv('heal')/5); addFx({kind:'smoke', x:p.x, y:p.y, color:'#cbd5e1', dur:430}); addLog('연막을 펼쳤다. 회피율이 크게 상승한다.'); afterPlayerAction(); }
-function skillMage1(){ const p=S.player; if(p.mp<5){toast('MP가 부족하다.'); return;} const e=rangedEnemy(5+skillRangeBonus('smash'),'smash'); if(!e){toast('사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a78bfa', dur:210}); addFx({kind:'burst', x:e.x, y:e.y, color:'#8b5cf6', spark:'#ddd6fe', dur:260}); p.mp-=5; p.cd.smash=Math.max(3,5-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),ignoreDef:.6,ranged:true}); addLog('마력탄이 적중했다.'); afterPlayerAction(); }
-function skillMage2(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=2+Math.floor(skillLv('dash')/10)&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash'))); if(!targets.length){toast('주변 2칸 안에 적이 없다.'); return;} addFx({kind:'ring', x:p.x, y:p.y, color:'#f97316', dur:300}); targets.forEach(e=>addFx({kind:'burst', x:e.x, y:e.y, color:'#f97316', spark:'#fdba74', dur:320})); p.mp-=10; p.cd.dash=Math.max(5,8-skillCdBonus('dash')); targets.forEach(e=>playerAttack(e,false,{bonusBase:3+skillPowerBonus('dash'),ignoreDef:.35,burnTurns:2,ranged:true})); addLog('화염폭발이 주변을 휩쓸었다.'); afterPlayerAction(); }
-function skillMage3(){ const p=S.player; const st=calcStats(); if(p.mp<12){toast('MP가 부족하다.'); return;} p.mp-=12; p.cd.heal=Math.max(5,10-skillCdBonus('heal')); const heal=Math.floor(st.maxHp*.42)+10+skillPowerBonus('heal')*2; p.hp=clamp(p.hp+heal,1,st.maxHp); addFx({kind:'heal', x:p.x, y:p.y, color:'#34d399', dur:420}); addFx({kind:'ring', x:p.x, y:p.y, color:'#6ee7b7', dur:420}); addLog(`재생술로 HP ${heal} 회복.`); afterPlayerAction(); }
-function skillHunter1(){ const p=S.player; const e=lineEnemy(6+skillRangeBonus('smash'),'smash'); if(!e){toast('직선 사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190}); addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220}); p.cd.smash=Math.max(3,6-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true}); addLog('정밀사격!'); afterPlayerAction(); }
-function skillHunter2(){ const p=S.player; p.cd.dash=Math.max(4,7 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='hunterRoll'; showAimHint('구르기 방향을 선택.'); renderAll(); saveRun(); }
-function skillHunter3(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=5+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('heal'))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp).slice(0,3+Math.floor(skillLv('heal')/7)); if(!targets.length){toast('사거리 안에 적이 없다.'); return;} targets.forEach(e=>{ addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a3e635', dur:180}); addFx({kind:'burst', x:e.x, y:e.y, color:'#84cc16', spark:'#ecfccb', dur:220}); }); p.mp-=10; p.cd.heal=Math.max(5,9-skillCdBonus('heal')); targets.forEach(e=>playerAttack(e,false,{bonusBase:2+skillPowerBonus('heal'),critBonus:8+Math.floor(skillLv('heal')/2),ranged:true})); addLog('다발 사격으로 여러 적을 노렸다.'); afterPlayerAction(); }
+function skillWarrior2(){ const p=S.player; p.cd.dash=Math.max(6,11 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='warriorCharge'; showAimHint('방패돌진 방향을 선택.'); renderAll(); saveRun(); }
+function skillWarrior3(){ const p=S.player; const st=calcStats(); if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); p.effects.fury=3+Math.floor(skillLv('heal')/5); p.hp=clamp(p.hp + Math.floor(st.maxHp*.16)+8+skillPowerBonus('heal')*2,1,st.maxHp); addFx({kind:'ring', x:p.x, y:p.y, color:'#f59e0b', dur:360}); addFx({kind:'heal', x:p.x, y:p.y, color:'#fb923c', dur:360}); addLog('전투함성! HP를 회복하고 공격력이 상승했다.'); afterPlayerAction(); }
+function skillRogue1(){ const p=S.player; const e = S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0]; if(!e){toast('인접한 적이 없다.'); return;} addFx({kind:'slash', x:e.x, y:e.y, color:'#c084fc', dur:220, angle:.7}); p.cd.smash=Math.max(5,9-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:4+skillPowerBonus('smash'),critBonus:20+Math.floor(skillLv('smash')/2),ignoreDef:.45,critMult:2.05}); afterPlayerAction(); }
+function skillRogue2(){ const p=S.player; p.cd.dash=Math.max(6,10 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='rogueStep'; showAimHint('그림자 도약 방향을 선택.'); renderAll(); saveRun(); }
+function skillRogue3(){ const p=S.player; if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); p.effects.smoke=3+Math.floor(skillLv('heal')/5); addFx({kind:'smoke', x:p.x, y:p.y, color:'#cbd5e1', dur:430}); addLog('연막을 펼쳤다. 회피율이 크게 상승한다.'); afterPlayerAction(); }
+function skillMage1(){ const p=S.player; if(p.mp<5){toast('MP가 부족하다.'); return;} const e=rangedEnemy(5+skillRangeBonus('smash'),'smash'); if(!e){toast('사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a78bfa', dur:210}); addFx({kind:'burst', x:e.x, y:e.y, color:'#8b5cf6', spark:'#ddd6fe', dur:260}); p.mp-=5; p.cd.smash=Math.max(5,8-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),ignoreDef:.6,ranged:true}); addLog('마력탄이 적중했다.'); afterPlayerAction(); }
+function skillMage2(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=2+Math.floor(skillLv('dash')/10)&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash'))); if(!targets.length){toast('주변 2칸 안에 적이 없다.'); return;} addFx({kind:'ring', x:p.x, y:p.y, color:'#f97316', dur:300}); targets.forEach(e=>addFx({kind:'burst', x:e.x, y:e.y, color:'#f97316', spark:'#fdba74', dur:320})); p.mp-=10; p.cd.dash=Math.max(7,11-skillCdBonus('dash')); targets.forEach(e=>playerAttack(e,false,{bonusBase:3+skillPowerBonus('dash'),ignoreDef:.35,burnTurns:2,ranged:true})); addLog('화염폭발이 주변을 휩쓸었다.'); afterPlayerAction(); }
+function skillMage3(){ const p=S.player; const st=calcStats(); if(p.mp<12){toast('MP가 부족하다.'); return;} p.mp-=12; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); const heal=Math.floor(st.maxHp*.42)+10+skillPowerBonus('heal')*2; p.hp=clamp(p.hp+heal,1,st.maxHp); addFx({kind:'heal', x:p.x, y:p.y, color:'#34d399', dur:420}); addFx({kind:'ring', x:p.x, y:p.y, color:'#6ee7b7', dur:420}); addLog(`재생술로 HP ${heal} 회복.`); afterPlayerAction(); }
+function skillHunter1(){ const p=S.player; const e=lineEnemy(6+skillRangeBonus('smash'),'smash'); if(!e){toast('직선 사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190}); addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220}); p.cd.smash=Math.max(5,9-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true}); addLog('정밀사격!'); afterPlayerAction(); }
+function skillHunter2(){ const p=S.player; p.cd.dash=Math.max(6,10 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='hunterRoll'; showAimHint('구르기 방향을 선택.'); renderAll(); saveRun(); }
+function skillHunter3(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=5+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('heal'))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp).slice(0,3+Math.floor(skillLv('heal')/7)); if(!targets.length){toast('사거리 안에 적이 없다.'); return;} targets.forEach(e=>{ addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a3e635', dur:180}); addFx({kind:'burst', x:e.x, y:e.y, color:'#84cc16', spark:'#ecfccb', dur:220}); }); p.mp-=10; p.cd.heal=Math.max(7,12-skillCdBonus('heal')); targets.forEach(e=>playerAttack(e,false,{bonusBase:2+skillPowerBonus('heal'),critBonus:8+Math.floor(skillLv('heal')/2),ranged:true})); addLog('다발 사격으로 여러 적을 노렸다.'); afterPlayerAction(); }
 function resolveAimedSkill(dx,dy){
   const p=S.player; const type=p.awaitAim; if(!type) return; p.awaitAim='';
   if(type==='warriorCharge'){
@@ -4486,7 +4518,7 @@ function autoBasicAttack(){
 }
 function tryAutoSkillPriority(opts={}){
   const p=S.player, st=calcStats();
-  const enemies=S.enemies.filter(e=>e.hp>0);
+  const enemies=(opts.enemies || S.enemies.filter(e=>e.hp>0)).filter(e=>e.hp>0);
   if(!enemies.length) return false;
   const allowGapClose = !!opts.allowGapClose;
   const nearest=autoSelectEnemy(enemies, {keepCurrent:true});
@@ -4517,14 +4549,66 @@ function tryAutoSkillPriority(opts={}){
 
   return false;
 }
+
+function autoSafeStopSenseRange(){
+  if(!S || !S.player) return 4;
+  const p=S.player;
+  let range = Math.max(1, basicRangedRange ? basicRangedRange() : 0);
+  if(p.classId==='mage'){
+    range = Math.max(range, 5 + skillRangeBonus('smash'), 2 + Math.floor(skillLv('dash')/10));
+  } else if(p.classId==='hunter'){
+    range = Math.max(range, 6 + skillRangeBonus('smash'), 5 + skillRangeBonus('heal'));
+  } else {
+    range = Math.max(range, 1);
+  }
+  return range;
+}
+function autoSafeSkillThreatEnemy(enemies){
+  if(!S || !S.player) return null;
+  const p=S.player;
+  const list=(enemies || []).filter(e=>e && e.hp>0);
+  const byNear=(a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp||String(autoEnemyUid(a)).localeCompare(String(autoEnemyUid(b)));
+  function visible(e, range){ return autoCanSenseCell(e.x,e.y, range+1); }
+  function ranged(e, range, skillKey){ return dist(e,p)<=range && visible(e, range) && hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls(skillKey)); }
+  let threat=[];
+  if(p.classId==='warrior' || p.classId==='rogue'){
+    threat=list.filter(e=>dist(e,p)<=1 && visible(e,1));
+  } else if(p.classId==='mage'){
+    const magicRange=5+skillRangeBonus('smash');
+    const blastRange=2+Math.floor(skillLv('dash')/10);
+    const basicRange=basicRangedRange();
+    threat=list.filter(e=>
+      ranged(e, magicRange, 'smash') ||
+      (dist(e,p)<=blastRange && visible(e, blastRange) && hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash'))) ||
+      (basicRange>0 && dist(e,p)<=basicRange && visible(e, basicRange) && hasRangedPath(p.x,p.y,e.x,e.y,false))
+    );
+  } else if(p.classId==='hunter'){
+    const snipeRange=6+skillRangeBonus('smash');
+    const volleyRange=5+skillRangeBonus('heal');
+    const basicRange=basicRangedRange();
+    threat=list.filter(e=>
+      ranged(e, snipeRange, 'smash') ||
+      ranged(e, volleyRange, 'heal') ||
+      (basicRange>0 && dist(e,p)<=basicRange && visible(e, basicRange) && hasRangedPath(p.x,p.y,e.x,e.y,false))
+    );
+  }
+  return threat.sort(byNear)[0] || null;
+}
+function stopSafeAutoForThreat(e){
+  if(e) faceToward(e.x,e.y);
+  if(S && S.player) S.player.awaitAim='';
+  renderAll();
+  stopAuto();
+  toast('스킬 사거리 안에 적이 있어 안전오토 정지.');
+}
 function autoExplore(){
   if(!canAct()) return;
   const p=S.player;
-  const enemies=S.enemies.filter(e=>e.hp>0);
-  if(autoResolveAwaitAim(enemies)) return;
-  if(enemies.length && tryAutoSkillPriority({allowGapClose:false})) return;
-  if(autoBasicAttack()) return;
-  if(enemies.some(e=>e.hp>0&&dist(e,p)<=4)){ stopAuto(); toast('근처에 적이 있어 안전오토 정지.'); return; }
+  const senseRange = Math.max(8, autoSafeStopSenseRange()+1);
+  const enemies=autoVisibleEnemies(S.enemies.filter(e=>e.hp>0), senseRange);
+  const threat = autoSafeSkillThreatEnemy(enemies);
+  if(threat){ stopSafeAutoForThreat(threat); return; }
+  if(p.awaitAim){ p.awaitAim=''; renderAll(); saveRun(); }
   const target = nearestTarget();
   if(!target){ stopAuto(); toast('탐험할 목표가 없습니다.'); return; }
   const step = autoStepToward(target.x,target.y);
@@ -4536,17 +4620,19 @@ function autoFullExplore(){
   ensureRunFields();
   const p=S.player;
   const st=calcStats();
-  const enemies=S.enemies.filter(e=>e.hp>0);
+  const allEnemies=S.enemies.filter(e=>e.hp>0);
+  const enemies=autoVisibleEnemies(allEnemies, 8);
   if(autoResolveAwaitAim(enemies)) return;
   if(p.potions>0 && p.cd.potion<=0 && p.hp <= st.maxHp*.42){ clearAutoRoam(); usePotion(); return; }
 
-  // 오브젝트/전투가 보이면 무작위 배회보다 항상 해당 행동을 우선 처리한다.
-  if(enemies.length && tryAutoSkillPriority({allowGapClose:true})){ clearAutoRoam(); return; }
+  // 벽 너머 몬스터는 완전오토가 인지하지 않는다.
+  // 시야 + 벽 없는 직선 감지가 되는 오브젝트만 전투/추적 대상으로 삼는다.
+  if(enemies.length && tryAutoSkillPriority({allowGapClose:true, enemies})){ clearAutoRoam(); return; }
   if(autoBasicAttack()){ clearAutoRoam(); return; }
 
-  // 보스층에서는 보스가 살아 있으면 보스 추적을 최우선으로 유지한다.
+  // 보스층도 보스가 벽 너머에 있으면 바로 추적하지 않고 탐색한다.
   const bossTarget = livingBossEnemy();
-  if(isBossFloor() && bossTarget){
+  if(isBossFloor() && bossTarget && autoCanSenseCell(bossTarget.x, bossTarget.y, 9)){
     clearAutoRoam();
     S.autoTargetUid = autoEnemyUid(bossTarget);
     const step = autoStepToAdjacent(bossTarget.x, bossTarget.y);
@@ -4556,8 +4642,7 @@ function autoFullExplore(){
     return;
   }
 
-  // 시야 안 가까운 적은 먼저 추적한다. 길이 안 잡히면 한 턴 멈춘 뒤 무작위 길따라 배회로 전환한다.
-  const nearbyEnemy = autoSelectEnemy(enemies.filter(e=>dist(e,p)<=7 || S.seen[e.y]?.[e.x]), {keepCurrent:true});
+  const nearbyEnemy = autoSelectEnemy(enemies, {keepCurrent:true});
   if(nearbyEnemy){
     const step = autoStepToAdjacent(nearbyEnemy.x, nearbyEnemy.y);
     if(step){ clearAutoRoam(); autoMove(step); return; }
@@ -4566,7 +4651,8 @@ function autoFullExplore(){
     return;
   }
 
-  const itemTarget = S.items.slice().sort((a,b)=>dist(a,p)-dist(b,p))[0];
+  const visibleItems = autoVisibleItems(8).sort((a,b)=>dist(a,p)-dist(b,p));
+  const itemTarget = visibleItems[0];
   if(itemTarget){
     const step=autoStepToward(itemTarget.x,itemTarget.y);
     if(step){ clearAutoRoam(); autoMove(step); return; }
@@ -4575,16 +4661,7 @@ function autoFullExplore(){
     return;
   }
 
-  const enemyTarget = autoSelectEnemy(enemies, {keepCurrent:true});
-  if(enemyTarget){
-    const step = autoStepToAdjacent(enemyTarget.x, enemyTarget.y);
-    if(step){ clearAutoRoam(); autoMove(step); return; }
-    enterAutoRoam('enemyBlocked');
-    waitTurn();
-    return;
-  }
-
-  if(S.exit && ((isBossFloor() && !livingBossEnemy()) || (!isBossFloor() && !S.enemies.some(e=>e.hp>0) && !S.items.length))){
+  if(S.exit && autoCanSenseCell(S.exit.x,S.exit.y,9) && ((isBossFloor() && !livingBossEnemy()) || (!isBossFloor() && !S.enemies.some(e=>e.hp>0) && !S.items.length))){
     const step=autoStepToward(S.exit.x,S.exit.y);
     if(step){ clearAutoRoam(); autoMove(step); return; }
     if(p.x===S.exit.x && p.y===S.exit.y){ clearAutoRoam(); nextFloor(); return; }
@@ -4593,7 +4670,7 @@ function autoFullExplore(){
     return;
   }
 
-  // 버벅임 감지 후에는 다음 플랜에서 목표를 억지로 재계산하지 않고 길을 따라 무작위로 이동한다.
+  // 버벅임 감지 후에는 벽 너머 타깃을 잡지 않고 길을 따라 무작위 탐색한다.
   if(S.autoRoamTicks && S.autoRoamTicks > 0){
     if(autoTryRoamMove()) return;
   }
@@ -4612,7 +4689,7 @@ function autoFullExplore(){
   waitTurn();
 }
 function tryFullAutoSkill(){
-  return tryAutoSkillPriority({allowGapClose:true});
+  return tryAutoSkillPriority({allowGapClose:true, enemies:autoVisibleEnemies(S.enemies.filter(e=>e.hp>0), 8)});
 }
 function nextStepToAdjacent(tx,ty){
   const p=S.player;
@@ -4646,9 +4723,9 @@ function nextStepToAdjacent(tx,ty){
 }
 function nearestTarget(){
   const p=S.player;
-  const visibleItems = S.items.filter(i=>S.seen[i.y][i.x]).sort((a,b)=>dist(a,p)-dist(b,p));
+  const visibleItems = autoVisibleItems(8).sort((a,b)=>dist(a,p)-dist(b,p));
   if(visibleItems.length) return visibleItems[0];
-  if(S.seen[S.exit.y][S.exit.x] && !S.enemies.some(e=>e.hp>0) && !S.items.length) return S.exit;
+  if(autoCanSenseCell(S.exit.x,S.exit.y,9) && !S.enemies.some(e=>e.hp>0) && !S.items.length) return S.exit;
   let best=null,bd=999;
   for(let y=0;y<MAPH;y++) for(let x=0;x<MAPW;x++){
     if(S.map[y][x]==='#') continue;
