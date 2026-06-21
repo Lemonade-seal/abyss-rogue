@@ -179,7 +179,7 @@
 
   /* 최종 강제 적용: 하단 메뉴 버튼 + 모든 메뉴 팝업 박스 반투명 */
   .menubar .menuBtn:not(.menuGhost),
-  #statMenuBtn,#equipMenuBtn,#bagMenuBtn,#skillMenuBtn,#mapMenuBtn,#codexMenuBtn,#logChatBtn,#menuMenuBtn,#autoBtn{
+  #statMenuBtn,#equipMenuBtn,#bagMenuBtn,#skillMenuBtn,#mapMenuBtn,#codexMenuBtn,#logChatBtn,#rankingMenuBtn,#menuMenuBtn,#autoBtn{
     background:rgba(15,23,42,.26)!important;
     background-image:none!important;
     border-color:rgba(148,163,184,.36)!important;
@@ -839,12 +839,95 @@
     #modal.startPage .startActionBtn{font-size:28px!important}
   }
 
+
+
+  /* 직업 선택 강조: 선택된 직업 박스 테두리/광채 */
+  #modal.startPage .choice.classPicked{
+    border-color:rgba(110,231,168,.98)!important;
+    box-shadow:
+      0 0 0 2px rgba(110,231,168,.42),
+      0 0 18px rgba(34,197,94,.34),
+      inset 0 0 18px rgba(34,197,94,.12)!important;
+    background:rgba(20,83,45,.34)!important;
+  }
+  #modal.startPage .choice.classPicked h4{
+    color:#bbf7d0!important;
+    text-shadow:0 0 8px rgba(110,231,168,.58)!important;
+  }
+
+
+
+  /* 삭제 버튼 반응 표시 */
+  #modal.startPage .btn.bad:active,
+  #modal .btn.bad:active{
+    transform:translateY(2px) scale(.98)!important;
+    box-shadow:0 0 0 2px rgba(248,113,113,.42),0 0 18px rgba(239,68,68,.36)!important;
+  }
+
+
+  /* 스킬 버튼 긴 글자: 왼쪽 이동 애니메이션으로 표시 */
+  .skill b{
+    display:inline-block!important;
+    max-width:100%!important;
+    white-space:nowrap!important;
+    overflow:visible!important;
+    text-overflow:clip!important;
+    will-change:transform;
+  }
+  .skill b.scrollText{
+    max-width:none!important;
+    animation:skillTextMarquee 4.8s ease-in-out infinite!important;
+  }
+  @keyframes skillTextMarquee{
+    0%,18%{transform:translateX(0)}
+    58%,76%{transform:translateX(var(--skill-text-shift,-24px))}
+    100%{transform:translateX(0)}
+  }
+
+  /* 최종 고정: 직업 선택 강조는 박스 내부 색상 변경 없이 밝은 흰노랑 테두리만 */
+  #modal.startPage #modalCard .choice.jobChoice.classPicked,
+  #modal.startPage #modalCard button.choice.jobChoice.classPicked,
+  #modal.startPage #modalCard .startClassGrid .choice.jobChoice.classPicked,
+  #modal.startPage #modalCard .choice.jobChoice[aria-selected="true"]{
+    border:2px solid #fff3a3!important;
+    outline:1px solid rgba(255,255,255,.78)!important;
+    outline-offset:2px!important;
+    background:rgba(15,23,42,.34)!important;
+    box-shadow:0 0 0 1px rgba(255,243,163,.48),0 0 14px rgba(255,243,163,.38)!important;
+    transform:none!important;
+  }
+  #modal.startPage #modalCard .choice.jobChoice.classPicked h4,
+  #modal.startPage #modalCard .choice.jobChoice[aria-selected="true"] h4,
+  #modal.startPage #modalCard .choice.jobChoice.classPicked p,
+  #modal.startPage #modalCard .choice.jobChoice[aria-selected="true"] p{
+    color:inherit!important;
+    text-shadow:none!important;
+  }
+
+  .rankingTable{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+    font-size:12px;
+  }
+  .rankingTable th,.rankingTable td{
+    border-top:1px solid rgba(203,213,225,.24);
+    padding:6px 4px;
+    text-align:right;
+    white-space:nowrap;
+  }
+  .rankingTable th:first-child,.rankingTable td:first-child,
+  .rankingTable th:nth-child(2),.rankingTable td:nth-child(2){
+    text-align:left;
+  }
+  .rankingTable .rankTop{color:#fff3a3;font-weight:900}
+
 </style>
 </head>
 <body>
 <div id="app">
   <div class="topbar">
-    <div class="pill">레벨 / 층<br><b><span id="levelText">1</span> / <span id="floorText">1</span></b></div>
+    <div class="pill">닉네임 / Lv / 층<br><b><span id="nickText">-</span> / <span id="levelText">1</span> / <span id="floorText">1</span></b></div>
     <div class="pill bars">
       <div class="bar"><div id="hpFill" class="fill hpfill"></div><span id="hpText">HP</span></div>
       <div class="bar"><div id="mpFill" class="fill mpfill"></div><span id="mpText">MP</span></div>
@@ -899,8 +982,8 @@
         <button id="mapMenuBtn" class="menuBtn"><b>미니맵</b></button>
         <button id="codexMenuBtn" class="menuBtn"><b>도감</b></button>
         <button id="logChatBtn" class="menuBtn"><b>로그</b></button>
+        <button id="rankingMenuBtn" class="menuBtn"><b>랭킹</b></button>
         <button id="menuMenuBtn" class="menuBtn"><b>메뉴</b></button>
-        <span class="menuBtn menuGhost"><b>-</b></span>
       </div>
     </div>
   </div>
@@ -1044,7 +1127,7 @@ function getCloudClient(){
   const sig = cloudConfig.url + '|' + cloudConfig.key;
   if(!cloudClient || cloudClientSignature !== sig){
     cloudClient = window.supabase.createClient(cloudConfig.url, cloudConfig.key, {
-      auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:false}
+      auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}
     });
     cloudClientSignature = sig;
   }
@@ -2585,9 +2668,20 @@ function gameOver(retire){
     <div>도달 층 <b>${p.floor}</b></div><div>레벨 <b>${p.level}</b></div><div>처치 <b>${p.kills}</b></div><div>획득 영혼 <b>${souls}</b></div><div>최종 HP <b>${Math.max(0,p.hp)}/${st.maxHp}</b></div><div>총 영혼 <b>${meta.souls}</b></div>
   </div>
   <div class="grid2"><button class="btn good" id="againBtn">새 원정</button><button class="btn warn" id="metaBtn2">영혼 강화</button></div>`, false);
-  $('againBtn').onclick=showStart;
+  $('againBtn').onclick=goNewExpeditionClassSelect;
   $('metaBtn2').onclick=showMeta;
   renderAll();
+}
+
+
+function goNewExpeditionClassSelect(){
+  stopAuto();
+  const mode = activeLoginMode || (S && S.loginMode) || 'guest';
+  const slot = activeCharacterSlot != null ? activeCharacterSlot : (S && S.characterSlotIndex != null ? S.characterSlotIndex : 0);
+  S = null;
+  activeLoginMode = mode;
+  activeCharacterSlot = slot;
+  showCharacterCreate(mode, slot);
 }
 
 function closeInfoModal(){ hideModal(); renderAll(); }
@@ -2816,14 +2910,14 @@ function showCloudMenu(){
   $('cloudLoginBtn').onclick=async()=>{
     try{
       const email=$('cloudEmailInput').value.trim(), pw=$('cloudPwInput').value;
-      if(!email || !pw){ toast('이메일과 비밀번호를 입력해라.'); return; }
+      if(!email || !pw){ toast('이메일과 비밀번호를 입력하세요.'); return; }
       await signInCloud(email,pw); toast('Supabase 로그인 완료.'); refreshCloudStatusLine();
     }catch(e){ toast('로그인 실패: '+e.message); }
   };
   $('cloudSignupBtn').onclick=async()=>{
     try{
       const email=$('cloudEmailInput').value.trim(), pw=$('cloudPwInput').value;
-      if(!email || !pw){ toast('이메일과 비밀번호를 입력해라.'); return; }
+      if(!email || !pw){ toast('이메일과 비밀번호를 입력하세요.'); return; }
       await signUpCloud(email,pw); toast('가입 요청 완료. 이메일 확인이 필요할 수 있다.'); refreshCloudStatusLine();
     }catch(e){ toast('가입 실패: '+e.message); }
   };
@@ -2833,7 +2927,7 @@ function showCloudMenu(){
   };
   $('cloudLogoutBtn').onclick=async()=>{ await signOutCloud(); toast('Supabase 로그아웃 완료.'); refreshCloudStatusLine(); };
   $('cloudSaveNowBtn').onclick=async()=>{
-    try{ const ok=await saveCloud(); toast(ok?'클라우드 저장 완료.':'클라우드 저장 실패. 설정을 확인해라.'); }
+    try{ const ok=await saveCloud(); toast(ok?'클라우드 저장 완료.':'클라우드 저장 실패. 설정을 확인하세요.'); }
     catch(e){ toast('클라우드 저장 실패: '+e.message); }
   };
   $('cloudLoadNowBtn').onclick=async()=>{
@@ -2855,11 +2949,11 @@ function showSystemMenu(){
   $('menuContinueBtn').onclick=()=>{ startMenuResumeClassId = S?.player?.classId || null; hideModal(); showStart(); };
   $('cloudMenuBtn').onclick=showCloudMenu;
   $('cloudQuickSaveBtn').onclick=async()=>{
-    try{ const ok=await saveCloud(); toast(ok?'클라우드 저장 완료.':'클라우드 저장 실패. Supabase 설정을 확인해라.'); }
+    try{ const ok=await saveCloud(); toast(ok?'클라우드 저장 완료.':'클라우드 저장 실패. Supabase 설정을 확인하세요.'); }
     catch(e){ toast('클라우드 저장 실패: '+e.message); }
   };
   $('menuResetBtn').onclick=()=>{
-    if(confirm('저장 원정과 영혼 강화 데이터를 모두 초기화할까?')){
+    if(confirm('저장 원정과 영혼 강화 데이터를 모두 초기화하시겠습니까?')){
       localStorage.removeItem(SAVE_KEY);
       localStorage.removeItem(META_KEY);
       meta=loadMeta();
@@ -2925,15 +3019,15 @@ function showMeta(){
     const lv=meta.upgrades[d.id]||0; const cost=metaCost(d.id); const full=lv>=d.max;
     return `<div class="metaRow"><div><h4>${d.name} <span class="muted">Lv.${lv}/${d.max}</span></h4><p>${d.desc}</p></div><button class="btn smallbtn ${full?'':'good'}" data-up="${d.id}" ${full?'disabled':''}>${full?'완료':cost+' 영혼'}</button></div>`;
   }).join('');
-  showModal(`<h2>영혼 강화</h2><p class="muted">원정 종료 때 얻은 영혼으로 다음 원정을 강화한다. 현재 영혼: <b class="legend">${meta.souls}</b></p>${rows}<div class="grid2" style="margin-top:12px"><button class="btn" id="backStart">메뉴</button><button class="btn bad" id="resetMeta">강화 초기화</button></div>`, true);
+  showModal(`<h2>영혼 강화</h2><p class="muted">원정 종료 때 얻은 영혼으로 다음 원정을 강화합니다. 현재 영혼: <b class="legend">${meta.souls}</b></p>${rows}<div class="grid2" style="margin-top:12px"><button class="btn" id="backStart">메뉴</button><button class="btn bad" id="resetMeta">강화 초기화</button></div>`, true);
   modalCard.querySelectorAll('[data-up]').forEach(btn=>btn.onclick=()=>{
     const id=btn.dataset.up; const d=metaDefs.find(x=>x.id===id); const lv=meta.upgrades[id]||0; const cost=metaCost(id);
-    if(lv>=d.max) return; if(meta.souls<cost){toast('영혼이 부족하다.'); return;}
+    if(lv>=d.max) return; if(meta.souls<cost){toast('영혼이 부족합니다.'); return;}
     meta.souls-=cost; meta.upgrades[id]=lv+1; saveMeta(); showMeta();
   });
   $('backStart').onclick=showStartMenu;
   $('resetMeta').onclick=()=>{
-    if(confirm('영혼과 영혼 강화 수치를 모두 0으로 초기화할까?')){
+    if(confirm('영혼과 영혼 강화 수치를 모두 0으로 초기화하시겠습니까?')){
       meta.souls=0;
       meta.upgrades={hp:0,atk:0,def:0,crit:0,xp:0,gold:0};
       saveMeta();
@@ -3342,7 +3436,7 @@ function autoExplore(){
   if(autoBasicAttack()) return;
   if(enemies.some(e=>e.hp>0&&dist(e,p)<=4)){ stopAuto(); toast('근처에 적이 있어 안전오토 정지.'); return; }
   const target = nearestTarget();
-  if(!target){ stopAuto(); toast('탐험할 목표가 없다.'); return; }
+  if(!target){ stopAuto(); toast('탐험할 목표가 없습니다.'); return; }
   const step = autoStepToward(target.x,target.y);
   if(step){ playerMove(step.dx, step.dy); return; }
   waitTurn();
@@ -3533,7 +3627,7 @@ function bindShortLongPress(btn, shortFn, longFn, holdMs=520){
   btn.addEventListener('lostpointercapture', ()=>{ clear(); pointerId=null; });
   btn.onclick=e=>{ e.preventDefault(); e.stopPropagation(); };
 }
-$('skill1').onclick=skillSmash; $('skill2').onclick=skillDash; $('skill3').onclick=skillHeal; $('potionBtn').onclick=usePotion; $('attackBtn').onclick=basicAttackButton; bindShortLongPress($('autoBtn'), startSafeAuto, startFullAuto); $('statMenuBtn').onclick=showStatsMenu; bindShortLongPress($('mapMenuBtn'), toggleMiniMap, showMapMenu); $('codexMenuBtn').onclick=showCodexMenu; $('logChatBtn').onclick=toggleLogChatPanel; $('equipMenuBtn').onclick=showEquipMenu; $('bagMenuBtn').onclick=showBagMenu; $('skillMenuBtn').onclick=showSkillMenu; $('menuMenuBtn').onclick=showSystemMenu;
+$('skill1').onclick=skillSmash; $('skill2').onclick=skillDash; $('skill3').onclick=skillHeal; $('potionBtn').onclick=usePotion; $('attackBtn').onclick=basicAttackButton; bindShortLongPress($('autoBtn'), startSafeAuto, startFullAuto); $('statMenuBtn').onclick=showStatsMenu; bindShortLongPress($('mapMenuBtn'), toggleMiniMap, showMapMenu); $('codexMenuBtn').onclick=showCodexMenu; $('logChatBtn').onclick=toggleLogChatPanel; $('equipMenuBtn').onclick=showEquipMenu; $('bagMenuBtn').onclick=showBagMenu; $('skillMenuBtn').onclick=showSkillMenu; $('rankingMenuBtn').onclick=showRankingMenu; $('menuMenuBtn').onclick=showSystemMenu;
 
 document.addEventListener('keydown',e=>{
   if(e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
@@ -3554,6 +3648,826 @@ document.addEventListener('selectstart', e=>{ if(e.target && ['INPUT','TEXTAREA'
 document.addEventListener('contextmenu', e=>e.preventDefault());
 document.addEventListener('dragstart', e=>e.preventDefault());
 let lastTouch=0; document.addEventListener('touchend', e=>{const now=Date.now(); if(now-lastTouch<350) e.preventDefault(); lastTouch=now;}, {passive:false});
+
+
+/* ===== 요청 반영: 로그인 선택 + 캐릭터 슬롯 시스템 ===== */
+let activeLoginMode = 'none';
+let activeCharacterSlot = null;
+let cloudCharacterSlots = [null,null,null];
+let guestCharacterSlots = [null];
+let guestMetaState = normalizeMeta({souls:0,bestFloor:1,bestLevel:1,totalKills:0,runs:0,upgrades:{hp:0,atk:0,def:0,crit:0,xp:0,gold:0}});
+let cloudCharacterSaveTimer = null;
+
+function normalizeCharacterSlots(slots, count){
+  const arr = Array.isArray(slots) ? slots.slice(0,count) : [];
+  while(arr.length<count) arr.push(null);
+  return arr.map(ch=>{
+    if(!ch || typeof ch !== 'object') return null;
+    if(ch.run && ch.run.player){
+      const p = ch.run.player;
+      return {
+        nickname: ch.nickname || p.name || p.className || '이름 없음',
+        classId: ch.classId || p.classId || 'warrior',
+        className: ch.className || p.className || (classes[ch.classId||p.classId]||classes.warrior).name,
+        level: Number(ch.level || p.level || 1),
+        floor: Number(ch.floor || p.floor || 1),
+        updatedAt: ch.updatedAt || new Date().toISOString(),
+        run: ch.run
+      };
+    }
+    return null;
+  });
+}
+function currentSlotLimit(mode){
+  return mode === 'kakao' ? 3 : 1;
+}
+function getSlotsForMode(mode){
+  return mode === 'kakao' ? cloudCharacterSlots : guestCharacterSlots;
+}
+function setSlotsForMode(mode, slots){
+  if(mode === 'kakao') cloudCharacterSlots = normalizeCharacterSlots(slots, 3);
+  else guestCharacterSlots = normalizeCharacterSlots(slots, 1);
+}
+function escapeText(v){
+  return String(v ?? '').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function compactDate(v){
+  if(!v) return '-';
+  const d = new Date(v);
+  if(Number.isNaN(d.getTime())) return '-';
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`;
+}
+function characterSummary(ch){
+  if(!ch || !ch.run || !ch.run.player) return '';
+  const p = ch.run.player;
+  return `<p>직업 <b>${escapeText(ch.className || p.className)}</b> · Lv.${Number(p.level||1)} · ${Number(p.floor||1)}층</p>
+          <p class="muted">최근 저장: ${compactDate(ch.updatedAt)}</p>`;
+}
+function syncActiveCharacterFromRun(){
+  if(!S || !S.player || activeCharacterSlot == null) return;
+  const mode = S.loginMode || activeLoginMode || 'guest';
+  const limit = currentSlotLimit(mode);
+  const slots = normalizeCharacterSlots(getSlotsForMode(mode), limit);
+  const p = S.player;
+  slots[activeCharacterSlot] = {
+    nickname: p.name || S.characterNickname || p.className || '이름 없음',
+    classId: p.classId || S.characterClassId || 'warrior',
+    className: p.className || (classes[p.classId]||classes.warrior).name,
+    level: Number(p.level || 1),
+    floor: Number(p.floor || 1),
+    updatedAt: new Date().toISOString(),
+    run: deepClone(S)
+  };
+  setSlotsForMode(mode, slots);
+}
+async function loadCloudCharacterProfile(){
+  const client = getCloudClient();
+  if(!client) throw new Error('Supabase 연결 정보가 필요하다.');
+  const user = await currentCloudUser();
+  if(!user) return false;
+  const {data,error} = await client.from('game_saves').select('save_data, meta_data, updated_at').eq('user_id', user.id).maybeSingle();
+  if(error) throw error;
+
+  if(data && data.meta_data){
+    meta = normalizeMeta(data.meta_data || {});
+  }else{
+    meta = normalizeMeta({souls:0,bestFloor:1,bestLevel:1,totalKills:0,runs:0,upgrades:{hp:0,atk:0,def:0,crit:0,xp:0,gold:0}});
+  }
+
+  if(data && data.save_data && Array.isArray(data.save_data.characters)){
+    cloudCharacterSlots = normalizeCharacterSlots(data.save_data.characters, 3);
+  }else if(data && data.save_data && data.save_data.player){
+    const p = data.save_data.player;
+    cloudCharacterSlots = normalizeCharacterSlots([{
+      nickname:p.name || p.className || '이전 캐릭터',
+      classId:p.classId || 'warrior',
+      className:p.className || (classes[p.classId]||classes.warrior).name,
+      level:p.level || 1,
+      floor:p.floor || 1,
+      updatedAt:data.updated_at || new Date().toISOString(),
+      run:data.save_data
+    }], 3);
+  }else{
+    cloudCharacterSlots = [null,null,null];
+  }
+  return true;
+}
+async function saveCloudCharacterProfile(){
+  if(activeLoginMode !== 'kakao') return false;
+  const client = getCloudClient();
+  if(!client) return false;
+  const user = await currentCloudUser();
+  if(!user) return false;
+
+  const slots = normalizeCharacterSlots(cloudCharacterSlots, 3);
+  const active = activeCharacterSlot != null ? slots[activeCharacterSlot] : slots.find(Boolean);
+  const {error} = await client.from('game_saves').upsert({
+    user_id:user.id,
+    nickname:active ? active.nickname : null,
+    save_data:{version:2, characters:slots},
+    meta_data:meta || {},
+    updated_at:new Date().toISOString()
+  }, {onConflict:'user_id'});
+  if(error) throw error;
+  return true;
+}
+function queueCharacterCloudSave(){
+  if(activeLoginMode !== 'kakao') return;
+  clearTimeout(cloudCharacterSaveTimer);
+  cloudCharacterSaveTimer = setTimeout(()=>{
+    saveCloudCharacterProfile().catch(e=>console.warn('character cloud save error:', e.message));
+  }, 1200);
+}
+saveMeta = function(){
+  if(activeLoginMode === 'guest'){
+    guestMetaState = normalizeMeta(meta || {});
+    return;
+  }
+  if(activeLoginMode === 'kakao'){
+    queueCharacterCloudSave();
+    return;
+  }
+};
+saveRun = function(){
+  if(!S || S.dead) return;
+  syncActiveCharacterFromRun();
+  if(activeLoginMode === 'kakao') queueCharacterCloudSave();
+};
+clearRun = function(){
+  const mode = activeLoginMode || (S && S.loginMode) || 'guest';
+  if(activeCharacterSlot != null){
+    const slots = normalizeCharacterSlots(getSlotsForMode(mode), currentSlotLimit(mode));
+    slots[activeCharacterSlot] = null;
+    setSlotsForMode(mode, slots);
+    if(mode === 'kakao') queueCharacterCloudSave();
+  }
+  localStorage.removeItem(SAVE_KEY);
+};
+
+function showLoginChoice(){
+  stopAuto();
+  showModal(`<h1 class="srOnly">로그인 선택</h1>
+    <div class="startMenuPanel">
+      <div class="grid2" style="margin-top:4px">
+        <button class="choice" id="kakaoLoginBtn">
+          <h4>카카오 로그인</h4>
+          <p>Supabase 계정에 캐릭터 3개까지 저장/로드됩니다.</p>
+        </button>
+        <button class="choice" id="guestLoginBtn">
+          <h4>게스트 로그인</h4>
+          <p>캐릭터 슬롯 1개만 사용됩니다. 게임 종료/새로고침 후 저장되지 않습니다.</p>
+        </button>
+      </div>
+      <p class="muted startMetaLine">로그인 방식을 선택하세요.</p>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+  $('guestLoginBtn').onclick=()=>{
+    activeLoginMode = 'guest';
+    activeCharacterSlot = null;
+    meta = normalizeMeta(guestMetaState || {});
+    showCharacterSlots('guest');
+  };
+  $('kakaoLoginBtn').onclick=beginKakaoLogin;
+}
+async function beginKakaoLogin(){
+  try{
+    activeLoginMode = 'kakao';
+    const client = getCloudClient();
+    if(!client){
+      toast('Supabase 연결 정보가 없어 카카오 로그인을 사용할 수 없습니다.');
+      return;
+    }
+    const user = await currentCloudUser();
+    if(user){
+      await loadCloudCharacterProfile();
+      showCharacterSlots('kakao');
+      return;
+    }
+    const redirectTo = location.href.split('#')[0];
+    const {error} = await client.auth.signInWithOAuth({
+      provider:'kakao',
+      options:{redirectTo}
+    });
+    if(error) throw error;
+  }catch(e){
+    toast('카카오 로그인 실패: ' + e.message);
+  }
+}
+function showStart(){
+  stopAuto();
+  showModal(`<div class="startSplashShell"><button class="startActionBtn" id="openStartMenuBtn" aria-label="시작하기"><span data-text="- 시작하기 -">- 시작하기 -</span></button></div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','splash');
+  $('openStartMenuBtn').onclick=()=>{ showLoginChoice(); };
+}
+showStartMenu = function(){
+  showLoginChoice();
+};
+
+function showCharacterSlots(mode){
+  stopAuto();
+  activeLoginMode = mode;
+  const limit = currentSlotLimit(mode);
+  const slots = normalizeCharacterSlots(getSlotsForMode(mode), limit);
+  setSlotsForMode(mode, slots);
+  const title = mode === 'kakao' ? '카카오 캐릭터' : '게스트 캐릭터';
+  const saveNote = mode === 'kakao' ? 'Supabase에 저장된다.' : '게임 종료/새로고침 후 저장되지 않는다.';
+  const slotHtml = slots.map((ch,i)=>{
+    if(ch){
+      return `<div class="choice">
+        <h4>슬롯 ${i+1} · ${escapeText(ch.nickname)}</h4>
+        ${characterSummary(ch)}
+        <div class="grid2" style="margin-top:8px">
+          <button class="btn good" data-play-slot="${i}">게임 시작</button>
+          <button class="btn bad" data-delete-slot="${i}">삭제</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="choice">
+      <h4>슬롯 ${i+1}</h4>
+      <p class="muted">빈 슬롯</p>
+      <button class="btn good" data-create-slot="${i}" style="width:100%;margin-top:8px">캐릭터 생성하기</button>
+    </div>`;
+  }).join('');
+  showModal(`<h1 class="srOnly">${title}</h1>
+    <div class="startMenuPanel">
+      <h2 style="margin:0 0 8px">${title}</h2>
+      <p class="muted">${saveNote}</p>
+      <div class="grid3" style="margin-top:10px">${slotHtml}</div>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn warn" id="slotMetaBtn">영혼 강화</button>
+        <button class="btn" id="slotBackBtn">로그인 선택</button>
+      </div>
+      <p class="muted startMetaLine">현재 영혼: <b class="legend">${meta.souls}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b></p>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+
+  modalCard.querySelectorAll('[data-create-slot]').forEach(btn=>btn.onclick=()=>showCharacterCreate(mode, Number(btn.dataset.createSlot)));
+  modalCard.querySelectorAll('[data-play-slot]').forEach(btn=>btn.onclick=()=>startSavedCharacter(mode, Number(btn.dataset.playSlot)));
+  modalCard.querySelectorAll('[data-delete-slot]').forEach(btn=>btn.onclick=()=>{
+    const idx = Number(btn.dataset.deleteSlot);
+    showDeleteCharacterConfirm(mode, idx);
+  });
+  $('slotMetaBtn').onclick=()=>showMeta();
+  $('slotBackBtn').onclick=()=>{
+    activeCharacterSlot = null;
+    showLoginChoice();
+  };
+}
+
+function showDeleteCharacterConfirm(mode, slotIndex){
+  stopAuto();
+  const slots = normalizeCharacterSlots(getSlotsForMode(mode), currentSlotLimit(mode));
+  const ch = slots[slotIndex];
+  const name = ch ? ch.nickname : `슬롯 ${slotIndex+1}`;
+  showModal(`<h1 class="srOnly">캐릭터 삭제 확인</h1>
+    <div class="startMenuPanel">
+      <h2 style="margin:0 0 8px">캐릭터 삭제</h2>
+      <p class="muted"><b class="badtxt">${escapeText(name)}</b> 캐릭터를 삭제하시겠습니까?</p>
+      <p class="muted">삭제하면 이 슬롯은 빈 슬롯으로 돌아갑니다.</p>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn bad" id="deleteCharacterConfirmBtn">삭제하기</button>
+        <button class="btn" id="deleteCharacterCancelBtn">취소</button>
+      </div>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+
+  $('deleteCharacterCancelBtn').onclick=()=>showCharacterSlots(mode);
+  $('deleteCharacterConfirmBtn').onclick=()=>{
+    const next = normalizeCharacterSlots(getSlotsForMode(mode), currentSlotLimit(mode));
+    next[slotIndex] = null;
+    setSlotsForMode(mode, next);
+    if(activeCharacterSlot === slotIndex && activeLoginMode === mode){
+      activeCharacterSlot = null;
+      S = null;
+    }
+    if(mode === 'kakao'){
+      saveCloudCharacterProfile()
+        .catch(e=>toast('삭제 저장 실패: ' + e.message))
+        .finally(()=>showCharacterSlots(mode));
+    }else{
+      toast('캐릭터를 삭제했습니다.');
+      showCharacterSlots(mode);
+    }
+  };
+}
+function showDeleteCurrentCharacterConfirm(mode){
+  const p = S && S.player ? S.player : null;
+  const name = p ? (p.name || p.className || '현재 캐릭터') : '현재 캐릭터';
+  showModal(`<h2>현재 캐릭터 삭제</h2>
+    <p class="muted"><b class="badtxt">${escapeText(name)}</b> 캐릭터를 삭제하고 캐릭터 선택 화면으로 돌아가시겠습니까?</p>
+    <p class="muted">삭제 후에는 되돌릴 수 없습니다.</p>
+    <div class="grid2" style="margin-top:12px">
+      <button class="btn bad" id="deleteCurrentConfirmBtn">삭제하기</button>
+      <button class="btn" id="deleteCurrentCancelBtn">취소</button>
+    </div>`, true);
+  $('deleteCurrentCancelBtn').onclick=()=>showSystemMenu();
+  $('deleteCurrentConfirmBtn').onclick=()=>{
+    clearRun();
+    S = null;
+    toast('현재 캐릭터를 삭제했습니다.');
+    showCharacterSlots(mode);
+  };
+}
+
+function showCharacterCreate(mode, slotIndex){
+  stopAuto();
+  const classButtons = Object.entries(classes).map(([id,c])=>`
+    <button class="choice jobChoice" data-pick-class="${id}">
+      <h4>${escapeText(c.name)}</h4>
+      <p>${escapeText(c.desc)}</p>
+      <p class="warntxt">${escapeText(c.skill)}</p>
+    </button>`).join('');
+  showModal(`<h1 class="srOnly">캐릭터 생성</h1>
+    <div class="startMenuPanel">
+      <h2 style="margin:0 0 8px">캐릭터 생성 · 슬롯 ${slotIndex+1}</h2>
+      <input id="charNickInput" maxlength="12" placeholder="닉네임 입력" style="width:100%;height:40px;padding:8px 10px;border-radius:11px;border:1px solid rgba(148,163,184,.42);background:rgba(15,23,42,.35);color:#eef3ff;caret-color:auto;-webkit-user-select:text;user-select:text" />
+      <p class="muted" style="margin:8px 0">직업을 선택한 뒤 생성하세요.</p>
+      <div class="grid2 startClassGrid">${classButtons}</div>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn good" id="createCharacterBtn">생성하고 시작</button>
+        <button class="btn" id="createBackBtn">뒤로</button>
+      </div>
+      <p id="pickedClassLine" class="muted startMetaLine">선택 직업: 없음</p>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+
+  let pickedClass = null;
+  modalCard.querySelectorAll('[data-pick-class]').forEach(btn=>{
+    btn.onclick=()=>{
+      pickedClass = btn.dataset.pickClass;
+      modalCard.querySelectorAll('[data-pick-class]').forEach(x=>{
+        x.classList.remove('classPicked');
+        x.removeAttribute('aria-selected');
+      });
+      btn.classList.add('classPicked');
+      btn.setAttribute('aria-selected','true');
+      $('pickedClassLine').innerHTML = `선택 직업: <b class="goodtxt">${escapeText(classes[pickedClass].name)}</b>`;
+    };
+  });
+  $('createBackBtn').onclick=()=>showCharacterSlots(mode);
+  $('createCharacterBtn').onclick=()=>{
+    const nick = $('charNickInput').value.trim();
+    if(!nick){ toast('닉네임을 입력하세요.'); return; }
+    if(!pickedClass){ toast('직업을 선택하세요.'); return; }
+    startNewCharacter(mode, slotIndex, pickedClass, nick);
+  };
+}
+function startNewCharacter(mode, slotIndex, clsId, nickname){
+  stopAuto();
+  activeLoginMode = mode;
+  activeCharacterSlot = slotIndex;
+  const p = createPlayer(clsId);
+  p.name = mode === 'guest' ? '게스트' : nickname;
+  S = {
+    map:[], seen:[], rooms:[], enemies:[], items:[], merchants:[], discovered:{}, fx:[],
+    player:p, log:[], logOrder:'oldestFirst', chat:[], chatOrder:'oldestFirst',
+    mapPanelMode:'log', dead:false, auto:false, modalQueue:[], floorMod:null, bounty:null, seed:Date.now(),
+    loginMode:mode, characterSlotIndex:slotIndex, characterNickname:(mode === 'guest' ? '게스트' : nickname), characterClassId:clsId
+  };
+  mapPanelMode = 'log';
+  ensureRunFields();
+  Object.values(p.equip).forEach(it=>recordInventory('equip', it.name, 1, `시작 장비 · ${SLOT_KO[it.slot]} · ${it.jobName||p.className||'직업 전용'} · ${RARITY[it.rarity]} · ${statLine(it)}`, {equip:it}));
+  meta.runs++;
+  saveMeta();
+  generateFloor(1, true);
+  addLog(`${nickname} · ${p.className} 원정 시작. 난이도: 심연. 기술: ${classes[clsId].skill}`);
+  hideModal();
+  renderAll();
+  saveRun();
+}
+function startSavedCharacter(mode, slotIndex){
+  const slots = normalizeCharacterSlots(getSlotsForMode(mode), currentSlotLimit(mode));
+  const ch = slots[slotIndex];
+  if(!ch || !ch.run || !ch.run.player){
+    toast('저장된 캐릭터가 없습니다.');
+    showCharacterSlots(mode);
+    return;
+  }
+  activeLoginMode = mode;
+  activeCharacterSlot = slotIndex;
+  S = deepClone(ch.run);
+  S.loginMode = mode;
+  S.characterSlotIndex = slotIndex;
+  S.characterNickname = ch.nickname;
+  S.characterClassId = ch.classId;
+  if(S.player) S.player.name = ch.nickname || S.player.name || S.player.className;
+  hideModal();
+  hydrateLoadedRun(`${ch.nickname} 캐릭터를 불러왔습니다.`);
+}
+showMeta = function(){
+  stopAuto();
+  const rows = metaDefs.map(d=>{
+    const lv=meta.upgrades[d.id]||0; const cost=metaCost(d.id); const full=lv>=d.max;
+    return `<div class="metaRow"><div><h4>${d.name} <span class="muted">Lv.${lv}/${d.max}</span></h4><p>${d.desc}</p></div><button class="btn smallbtn ${full?'':'good'}" data-up="${d.id}" ${full?'disabled':''}>${full?'완료':cost+' 영혼'}</button></div>`;
+  }).join('');
+  showModal(`<h2>영혼 강화</h2><p class="muted">원정 종료 때 얻은 영혼으로 다음 원정을 강화합니다. 현재 영혼: <b class="legend">${meta.souls}</b></p>${rows}<div class="grid2" style="margin-top:12px"><button class="btn" id="backStart">캐릭터 슬롯</button><button class="btn bad" id="resetMeta">강화 초기화</button></div>`, true);
+  modalCard.querySelectorAll('[data-up]').forEach(btn=>btn.onclick=()=>{
+    const id=btn.dataset.up; const d=metaDefs.find(x=>x.id===id); const lv=meta.upgrades[id]||0; const cost=metaCost(id);
+    if(lv>=d.max) return;
+    if(meta.souls<cost){toast('영혼이 부족합니다.'); return;}
+    meta.souls-=cost;
+    meta.upgrades[id]=lv+1;
+    saveMeta();
+    showMeta();
+  });
+  $('backStart').onclick=()=>showCharacterSlots(activeLoginMode === 'kakao' ? 'kakao' : 'guest');
+  $('resetMeta').onclick=()=>{
+    if(confirm('영혼과 영혼 강화 수치를 모두 0으로 초기화하시겠습니까?')){
+      meta.souls=0;
+      meta.upgrades={hp:0,atk:0,def:0,crit:0,xp:0,gold:0};
+      saveMeta();
+      showMeta();
+    }
+  };
+};
+showSystemMenu = function(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const mode = activeLoginMode || S.loginMode || 'guest';
+  showModal(`<h2>메뉴</h2>
+    <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn good" id="menuResumeBtn">게임 계속</button>
+      <button class="btn" id="menuCharacterBtn">캐릭터 선택</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn warn" id="menuMetaBtn">영혼 강화</button>
+      <button class="btn bad" id="menuDeleteCharBtn">현재 캐릭터 삭제</button>
+    </div>`, false);
+  $('menuResumeBtn').onclick=()=>{ hideModal(); renderAll(); };
+  $('menuCharacterBtn').onclick=()=>{
+    saveRun();
+    S=null;
+    showCharacterSlots(mode);
+  };
+  $('menuMetaBtn').onclick=showMeta;
+  $('menuDeleteCharBtn').onclick=()=>{
+    showDeleteCurrentCharacterConfirm(mode);
+  };
+};
+
+
+
+/* ===== 요청 반영: 닉네임 HUD + 전투력/랭킹 + 게스트 닉네임 제한 + 스킬 글자 이동 ===== */
+function playerNickname(p){
+  if(!p) return '-';
+  return String(p.name || p.nickname || p.className || '이름 없음');
+}
+function calcStatsForRun(run, metaObj){
+  const p = run && run.player ? run.player : null;
+  const m = normalizeMeta(metaObj || meta || {});
+  if(!p) return {maxHp:1,maxMp:0,atk:0,def:0,crit:0,eva:0,goldRate:0,xpRate:0,potionCap:0};
+  let st = {maxHp:p.maxHpBase||1, maxMp:p.maxMpBase||0, atk:p.baseAtk||0, def:p.baseDef||0, crit:p.crit||0, eva:p.eva||0, taken:0, flatReduce:0, goldRate:0, xpRate:0, potionPower:0, potionCap:0, dashCd:0};
+  Object.values(p.equip||{}).forEach(it=>{
+    if(!it) return;
+    ['maxHp','maxMp','atk','def','crit','eva'].forEach(k=>st[k]=(st[k]||0)+(it[k]||0));
+  });
+  (p.relics||[]).forEach(r=>{
+    if(r && r.stats) Object.entries(r.stats).forEach(([k,v])=>st[k]=(st[k]||0)+v);
+  });
+  st.xpRate += (m.upgrades?.xp||0)*.04;
+  st.goldRate += (m.upgrades?.gold||0)*.05;
+  if(p.classId==='hunter') st.goldRate += .15;
+  if(p.effects){
+    if(p.effects.guard>0) st.def += 2;
+    if(p.effects.fury>0) st.atk += 3;
+    if(p.effects.smoke>0) st.eva += 25;
+    if(p.effects.shadow>0) st.eva += 8;
+    if(p.effects.focus>0) st.crit += 8;
+  }
+  st.maxHp = Math.max(1, Math.floor(st.maxHp));
+  st.maxMp = Math.max(0, Math.floor(st.maxMp));
+  st.crit = clamp(st.crit,0,75);
+  st.eva = clamp(st.eva,0,65);
+  return st;
+}
+function combatPowerForRun(run, metaObj){
+  const p = run && run.player ? run.player : null;
+  if(!p) return 0;
+  const st = calcStatsForRun(run, metaObj);
+  return Math.max(0, Math.floor(
+    (p.level||1)*95 +
+    (p.floor||1)*130 +
+    st.maxHp*1.8 +
+    st.maxMp*1.1 +
+    st.atk*18 +
+    st.def*15 +
+    st.crit*9 +
+    st.eva*7 +
+    (p.relics?.length||0)*65 +
+    Object.values(p.skillLv||{}).reduce((a,b)=>a+(Number(b)||0),0)*22
+  ));
+}
+function rankingScoreForRun(run, metaObj){
+  const p = run && run.player ? run.player : null;
+  if(!p) return 0;
+  const power = combatPowerForRun(run, metaObj);
+  return Math.max(0, Math.floor(
+    power +
+    (p.floor||1)*900 +
+    (p.level||1)*160 +
+    (p.kills||0)*24 +
+    (p.soulsRun||0)*35 +
+    (p.opened||0)*18
+  ));
+}
+function currentCombatPower(){
+  return S && S.player ? combatPowerForRun(S, meta) : 0;
+}
+function currentRankingScore(){
+  return S && S.player ? rankingScoreForRun(S, meta) : 0;
+}
+function buildRankRecordFromCharacter(ch, metaObj, fallbackNick){
+  if(!ch || !ch.run || !ch.run.player) return null;
+  const p = ch.run.player;
+  const nick = ch.nickname || fallbackNick || p.name || p.className || '이름 없음';
+  return {
+    nickname:nick,
+    className:ch.className || p.className || (classes[p.classId]||classes.warrior).name,
+    level:Number(p.level || ch.level || 1),
+    floor:Number(p.floor || ch.floor || 1),
+    combatPower:Number(ch.combatPower || combatPowerForRun(ch.run, metaObj)),
+    score:Number(ch.score || rankingScoreForRun(ch.run, metaObj)),
+    updatedAt:ch.updatedAt || new Date().toISOString()
+  };
+}
+function refreshSkillTextMarquee(){
+  requestAnimationFrame(()=>{
+    ['skill1','skill2','skill3','potionBtn','attackBtn'].forEach(id=>{
+      const btn=$(id);
+      if(!btn) return;
+      const b=btn.querySelector('b');
+      if(!b) return;
+      b.classList.remove('scrollText');
+      b.style.removeProperty('--skill-text-shift');
+      const available = Math.max(28, btn.clientWidth - 12);
+      const overflow = b.scrollWidth - available;
+      if(overflow > 2){
+        b.style.setProperty('--skill-text-shift', `-${overflow}px`);
+        b.classList.add('scrollText');
+      }
+    });
+  });
+}
+const originalUpdateSkillButtonsForMarquee = updateSkillButtons;
+updateSkillButtons = function(){
+  originalUpdateSkillButtonsForMarquee();
+  refreshSkillTextMarquee();
+};
+window.addEventListener('resize', refreshSkillTextMarquee);
+
+syncActiveCharacterFromRun = function(){
+  if(!S || !S.player || activeCharacterSlot == null) return;
+  const mode = S.loginMode || activeLoginMode || 'guest';
+  const limit = currentSlotLimit(mode);
+  const slots = normalizeCharacterSlots(getSlotsForMode(mode), limit);
+  const p = S.player;
+  const power = combatPowerForRun(S, meta);
+  const score = rankingScoreForRun(S, meta);
+  slots[activeCharacterSlot] = {
+    nickname: mode === 'guest' ? '게스트' : (p.name || S.characterNickname || p.className || '이름 없음'),
+    classId: p.classId || S.characterClassId || 'warrior',
+    className: p.className || (classes[p.classId]||classes.warrior).name,
+    level: Number(p.level || 1),
+    floor: Number(p.floor || 1),
+    combatPower: power,
+    score: score,
+    updatedAt: new Date().toISOString(),
+    run: deepClone(S)
+  };
+  setSlotsForMode(mode, slots);
+};
+normalizeCharacterSlots = function(slots, count){
+  const arr = Array.isArray(slots) ? slots.slice(0,count) : [];
+  while(arr.length<count) arr.push(null);
+  return arr.map(ch=>{
+    if(!ch || typeof ch !== 'object') return null;
+    if(ch.run && ch.run.player){
+      const p = ch.run.player;
+      const metaForPower = meta || {};
+      return {
+        nickname: ch.nickname || p.name || p.className || '이름 없음',
+        classId: ch.classId || p.classId || 'warrior',
+        className: ch.className || p.className || (classes[ch.classId||p.classId]||classes.warrior).name,
+        level: Number(ch.level || p.level || 1),
+        floor: Number(ch.floor || p.floor || 1),
+        combatPower: Number(ch.combatPower || combatPowerForRun(ch.run, metaForPower)),
+        score: Number(ch.score || rankingScoreForRun(ch.run, metaForPower)),
+        updatedAt: ch.updatedAt || new Date().toISOString(),
+        run: ch.run
+      };
+    }
+    return null;
+  });
+};
+saveCloudCharacterProfile = async function(){
+  if(activeLoginMode !== 'kakao') return false;
+  const client = getCloudClient();
+  if(!client) return false;
+  const user = await currentCloudUser();
+  if(!user) return false;
+
+  const slots = normalizeCharacterSlots(cloudCharacterSlots, 3);
+  const rankings = slots.map(ch=>buildRankRecordFromCharacter(ch, meta)).filter(Boolean);
+  const active = activeCharacterSlot != null ? slots[activeCharacterSlot] : slots.find(Boolean);
+  const {error} = await client.from('game_saves').upsert({
+    user_id:user.id,
+    nickname:active ? active.nickname : null,
+    save_data:{version:3, characters:slots, rankings},
+    meta_data:meta || {},
+    updated_at:new Date().toISOString()
+  }, {onConflict:'user_id'});
+  if(error) throw error;
+  return true;
+};
+
+showCharacterCreate = function(mode, slotIndex){
+  stopAuto();
+  const classButtons = Object.entries(classes).map(([id,c])=>`
+    <button class="choice jobChoice" data-pick-class="${id}">
+      <h4>${escapeText(c.name)}</h4>
+      <p>${escapeText(c.desc)}</p>
+      <p class="warntxt">${escapeText(c.skill)}</p>
+    </button>`).join('');
+  const isGuest = mode === 'guest';
+  const nickBlock = isGuest
+    ? `<div class="choice" style="min-height:auto"><h4>게스트</h4><p>게스트 로그인은 닉네임을 설정하지 않고 랭킹에도 등록되지 않습니다.</p></div>`
+    : `<input id="charNickInput" maxlength="12" placeholder="닉네임 입력" style="width:100%;height:40px;padding:8px 10px;border-radius:11px;border:1px solid rgba(148,163,184,.42);background:rgba(15,23,42,.35);color:#eef3ff;caret-color:auto;-webkit-user-select:text;user-select:text" />`;
+  showModal(`<h1 class="srOnly">캐릭터 생성</h1>
+    <div class="startMenuPanel">
+      <h2 style="margin:0 0 8px">캐릭터 생성 · 슬롯 ${slotIndex+1}</h2>
+      ${nickBlock}
+      <p class="muted" style="margin:8px 0">직업을 선택한 뒤 생성하세요.</p>
+      <div class="grid2 startClassGrid">${classButtons}</div>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn good" id="createCharacterBtn">생성하고 시작</button>
+        <button class="btn" id="createBackBtn">뒤로</button>
+      </div>
+      <p id="pickedClassLine" class="muted startMetaLine">선택 직업: 없음</p>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+
+  let pickedClass = null;
+  modalCard.querySelectorAll('[data-pick-class]').forEach(btn=>{
+    btn.onclick=()=>{
+      pickedClass = btn.dataset.pickClass;
+      modalCard.querySelectorAll('[data-pick-class]').forEach(x=>{
+        x.classList.remove('classPicked');
+        x.removeAttribute('aria-selected');
+      });
+      btn.classList.add('classPicked');
+      btn.setAttribute('aria-selected','true');
+      $('pickedClassLine').innerHTML = `선택 직업: <b class="warntxt">${escapeText(classes[pickedClass].name)}</b>`;
+    };
+  });
+  $('createBackBtn').onclick=()=>showCharacterSlots(mode);
+  $('createCharacterBtn').onclick=()=>{
+    const nick = isGuest ? '게스트' : $('charNickInput').value.trim();
+    if(!isGuest && !nick){ toast('닉네임을 입력하세요.'); return; }
+    if(!pickedClass){ toast('직업을 선택하세요.'); return; }
+    startNewCharacter(mode, slotIndex, pickedClass, nick);
+  };
+};
+
+const originalShowCharacterSlotsForText = showCharacterSlots;
+showCharacterSlots = function(mode){
+  originalShowCharacterSlotsForText(mode);
+  const p = modalCard.querySelector('.startMenuPanel > p.muted');
+  if(p){
+    p.textContent = mode === 'kakao' ? 'Supabase에 저장됩니다.' : '게임 종료/새로고침 후 저장되지 않습니다.';
+  }
+};
+
+async function collectRankingRecords(){
+  const records = [];
+  if(activeLoginMode === 'kakao'){
+    const client = getCloudClient();
+    const user = await currentCloudUser();
+    if(client && user){
+      const {data,error} = await client.from('game_saves').select('nickname, save_data, meta_data, updated_at').limit(100);
+      if(!error && Array.isArray(data)){
+        data.forEach(row=>{
+          const metaRow = normalizeMeta(row.meta_data || {});
+          const save = row.save_data || {};
+          if(Array.isArray(save.characters)){
+            save.characters.forEach(ch=>{
+              const rec = buildRankRecordFromCharacter(ch, metaRow, row.nickname);
+              if(rec) records.push(rec);
+            });
+          }else if(save.player){
+            const p = save.player;
+            const rec = buildRankRecordFromCharacter({
+              nickname:row.nickname || p.name || p.className,
+              classId:p.classId,
+              className:p.className,
+              level:p.level,
+              floor:p.floor,
+              updatedAt:row.updated_at,
+              run:save
+            }, metaRow, row.nickname);
+            if(rec) records.push(rec);
+          }
+        });
+      }
+    }
+  }
+  if(activeLoginMode === 'kakao'){
+    normalizeCharacterSlots(cloudCharacterSlots,3).forEach(ch=>{
+      const rec = buildRankRecordFromCharacter(ch, meta);
+      if(rec) records.push(rec);
+    });
+  }
+  const dedup = new Map();
+  records.forEach(r=>{
+    const key = `${r.nickname}|${r.className}|${r.level}|${r.floor}`;
+    const prev = dedup.get(key);
+    if(!prev || r.score > prev.score) dedup.set(key, r);
+  });
+  return Array.from(dedup.values()).sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level)).slice(0,50);
+}
+async function showRankingMenu(){
+  pauseAutoForChoice();
+  if(activeLoginMode !== 'kakao'){
+    showModal(`<h2>랭킹</h2>
+      <p class="muted">게스트 로그인은 닉네임을 설정하지 않으며 랭킹에도 등록되지 않습니다.</p>
+      ${makeCloseBar()}`, false);
+    bindCloseOnly();
+    return;
+  }
+  showModal(`<h2>랭킹</h2><p class="muted">랭킹 정보를 불러오는 중입니다.</p>`, false);
+  try{
+    if(S && S.player){ syncActiveCharacterFromRun(); queueCharacterCloudSave(); }
+    const records = await collectRankingRecords();
+    const rows = records.map((r,i)=>`<tr>
+      <td class="${i<3?'rankTop':''}">${i+1}</td>
+      <td>${escapeText(r.nickname)}</td>
+      <td>${escapeText(r.className)}</td>
+      <td>${r.level}</td>
+      <td>${r.floor}</td>
+      <td>${r.combatPower.toLocaleString()}</td>
+      <td>${r.score.toLocaleString()}</td>
+    </tr>`).join('');
+    showModal(`<h2>랭킹</h2>
+      <p class="muted">카카오 로그인 캐릭터만 등록됩니다.</p>
+      <table class="rankingTable">
+        <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center" class="muted">등록된 랭킹이 없습니다.</td></tr>'}</tbody>
+      </table>
+      ${makeCloseBar()}`, false);
+    bindCloseOnly();
+  }catch(e){
+    showModal(`<h2>랭킹</h2><p class="muted">랭킹을 불러오지 못했습니다: ${escapeText(e.message)}</p>${makeCloseBar()}`, false);
+    bindCloseOnly();
+  }
+}
+
+const originalShowStatsMenuForPower = showStatsMenu;
+showStatsMenu = function(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const p=S.player, st=calcStats();
+  const power=currentCombatPower();
+  const score=currentRankingScore();
+  showModal(`<h2>스탯</h2><div class="stats" style="margin-top:10px">
+    <div>닉네임 <b>${escapeText(playerNickname(p))}</b></div><div>전투력 <b>${power.toLocaleString()}</b></div>
+    <div>점수 <b>${score.toLocaleString()}</b></div><div>직업 <b>${p.className}</b></div>
+    <div>층 / 턴 <b>${p.floor} / ${p.turn}</b></div><div>레벨 <b>${p.level}</b></div>
+    <div>경험치 <b>${p.xp}/${p.nextXp}</b></div><div>HP <b>${p.hp}/${st.maxHp}</b></div>
+    <div>MP <b>${p.mp}/${st.maxMp}</b></div><div>공격 <b>${st.atk}</b></div>
+    <div>방어 <b>${st.def}</b></div><div>치명타 <b>${st.crit}%</b></div>
+    <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>
+    <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
+    <div>영혼 <b>${p.soulsRun}</b></div>
+  </div>
+  <p class="muted" style="margin-top:10px">효과: ${p.effects.guard>0?'방어 태세 '+p.effects.guard+'턴 · ':''}${p.effects.fury>0?'전투함성 '+p.effects.fury+'턴 · ':''}${p.effects.smoke>0?'연막 '+p.effects.smoke+'턴 · ':''}${p.effects.shadow>0?'그림자 기습 '+p.effects.shadow+'턴 · ':''}${p.effects.focus>0?'집중 '+p.effects.focus+'턴':''||'없음'}</p>
+  ${makeCloseBar()}`, false);
+  bindCloseOnly();
+};
+
+const originalUpdateUiForNicknamePower = updateUi;
+updateUi = function(){
+  originalUpdateUiForNicknamePower();
+  if(!S || !S.player) return;
+  const p=S.player;
+  const nickEl=$('nickText');
+  if(nickEl) nickEl.textContent = playerNickname(p);
+  const st=calcStats();
+  const power=currentCombatPower();
+  const score=currentRankingScore();
+  const statsBox=$('statsBox');
+  if(statsBox){
+    statsBox.innerHTML = `<div>닉네임 <b>${escapeText(playerNickname(p))}</b></div><div>전투력 <b>${power.toLocaleString()}</b></div><div>점수 <b>${score.toLocaleString()}</b></div><div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div><div>치명 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div><div>처치 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div><div>층 효과 <b>${S.floorMod?.name||'없음'}</b></div><div>현상금 <b>${S.bounty?S.bounty.count+'/'+S.bounty.need:'없음'}</b></div>`;
+  }
+};
+
+if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+if($('menuMenuBtn')) $('menuMenuBtn').onclick = showSystemMenu;
 
 showStart();
 render();
