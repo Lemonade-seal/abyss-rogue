@@ -1741,6 +1741,7 @@ let meta = loadMeta();
 let S = null;
 let autoTimer = null;
 let autoMode = 'off';
+let autoEnemySeq = 1;
 const AUTO_INTERVAL_MS = 204; // 170ms 대비 오토 진행속도 추가 20% 감소
 let modalOpen = false;
 let mapPanelMode = 'log';
@@ -2918,7 +2919,8 @@ function makeEnemy(x,y,floor,boss){
     ranged:!!t.ranged,
     boss:!!t.boss,
     burn:0,
-    tier:t.tier
+    tier:t.tier,
+    autoUid:'ae'+(autoEnemySeq++)
   };
   if(t.boss){
     e.maxHp = Math.floor(e.maxHp*1.18); e.hp=e.maxHp; e.atk=Math.floor(e.atk*1.14); e.def+=3; e.xp=Math.floor(e.xp*1.35); e.gold=Math.floor(e.gold*1.45);
@@ -3361,7 +3363,7 @@ function basicRangedAttack(e){
 function basicAttackButton(){
   if(!canAct()) return;
   const p=S.player;
-  const close = S.enemies.filter(e=>e.hp>0&&dist(e,p)<=1).sort((a,b)=>a.hp-b.hp||dist(a,p)-dist(b,p))[0];
+  const close = autoSelectAdjacentEnemy(S.enemies);
   if(close){ faceToward(close.x, close.y); playerAttack(close,false); addLog('기본공격.'); afterPlayerAction(); return; }
   const ranged = basicRangedEnemy();
   if(ranged){ faceToward(ranged.x, ranged.y); basicRangedAttack(ranged); addLog(`${p.className} 원거리 기본공격.`); afterPlayerAction(); return; }
@@ -3593,7 +3595,7 @@ function gameOver(retire){
     <div>도달 층 <b>${p.floor}</b></div><div>레벨 <b>${p.level}</b></div><div>처치 <b>${p.kills}</b></div><div>획득 영혼 <b>${souls}</b></div><div>최종 HP <b>${Math.max(0,p.hp)}/${st.maxHp}</b></div><div>총 영혼 <b>${meta.souls}</b></div>
   </div>
   <div class="grid2"><button class="btn good" id="againBtn">새 원정</button><button class="btn warn" id="metaBtn2">영혼 강화</button></div>`, false);
-  $('againBtn').onclick=goNewExpeditionClassSelect;
+  $('againBtn').onclick=()=>goNewExpeditionClassSelect();
   $('metaBtn2').onclick=showMeta;
   renderAll();
 }
@@ -3602,11 +3604,17 @@ function gameOver(retire){
 function goNewExpeditionClassSelect(){
   stopAuto();
   const mode = activeLoginMode || (S && S.loginMode) || 'guest';
-  const slot = activeCharacterSlot != null ? activeCharacterSlot : (S && S.characterSlotIndex != null ? S.characterSlotIndex : 0);
+  const slot = activeCharacterSlot != null ? activeCharacterSlot : ((S && S.characterSlotIndex != null) ? S.characterSlotIndex : 0);
+  if(typeof resetCharacterSlotForNewExpedition === 'function'){
+    resetCharacterSlotForNewExpedition(mode, slot);
+    toast('새 원정 진행도가 초기화되었습니다. 슬롯에서 다시 시작하세요.');
+    showCharacterSlots(mode);
+    return;
+  }
   S = null;
   activeLoginMode = mode;
   activeCharacterSlot = slot;
-  showCharacterCreate(mode, slot);
+  showCharacterSlots(mode);
 }
 
 function closeInfoModal(){ hideModal(); renderAll(); }
@@ -4286,10 +4294,58 @@ function updateCooldown(id,cd){
   if(cd>0){el.classList.add('cool');cdEl.textContent=cd;} else {el.classList.remove('cool');cdEl.textContent='';}
 }
 
+
+function autoEnemyUid(e){
+  if(!e) return '';
+  if(!e.autoUid) e.autoUid = 'ae' + (autoEnemySeq++);
+  return e.autoUid;
+}
+function clearAutoTargetIfInvalid(enemies){
+  if(!S) return;
+  const list = enemies || (S.enemies||[]).filter(e=>e.hp>0);
+  if(!list.length){ S.autoTargetUid = null; return; }
+  if(S.autoTargetUid && !list.some(e=>autoEnemyUid(e)===S.autoTargetUid)) S.autoTargetUid = null;
+}
+function autoSelectEnemy(enemies, opts={}){
+  if(!S || !S.player) return null;
+  const p = S.player;
+  const list = (enemies || S.enemies || []).filter(e=>e.hp>0);
+  if(!list.length){ S.autoTargetUid = null; return null; }
+  list.forEach(autoEnemyUid);
+
+  const current = S.autoTargetUid ? list.find(e=>autoEnemyUid(e)===S.autoTargetUid) : null;
+  const scored = list.slice().sort((a,b)=>{
+    const ad = dist(a,p), bd = dist(b,p);
+    const av = S.seen?.[a.y]?.[a.x] ? 0 : 1;
+    const bv = S.seen?.[b.y]?.[b.x] ? 0 : 1;
+    return ad-bd || av-bv || a.hp-b.hp || String(autoEnemyUid(a)).localeCompare(String(autoEnemyUid(b)));
+  });
+  const best = scored[0];
+  if(current){
+    const cd = dist(current,p), bd = dist(best,p);
+    const currentVisible = !!S.seen?.[current.y]?.[current.x];
+    // 현재 목표가 크게 멀어지지 않았으면 계속 물고 간다. 양쪽에 적이 있을 때 왕복 버벅임 방지.
+    if(cd <= bd + 2 && (currentVisible || cd <= 8 || opts.keepCurrent)) return current;
+  }
+  S.autoTargetUid = autoEnemyUid(best);
+  return best;
+}
+function autoSelectAdjacentEnemy(enemies){
+  if(!S || !S.player) return null;
+  const p = S.player;
+  const adjacent = (enemies || S.enemies || []).filter(e=>e.hp>0 && dist(e,p)<=1);
+  if(!adjacent.length) return null;
+  const locked = S.autoTargetUid ? adjacent.find(e=>autoEnemyUid(e)===S.autoTargetUid) : null;
+  if(locked) return locked;
+  const picked = adjacent.slice().sort((a,b)=>a.hp-b.hp || String(autoEnemyUid(a)).localeCompare(String(autoEnemyUid(b))))[0];
+  S.autoTargetUid = autoEnemyUid(picked);
+  return picked;
+}
+
 function autoResolveAwaitAim(enemies){
   const p=S.player;
   if(!p.awaitAim) return false;
-  const t = (enemies||S.enemies.filter(e=>e.hp>0)).slice().sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
+  const t = autoSelectEnemy(enemies||S.enemies.filter(e=>e.hp>0), {keepCurrent:true});
   if(t){
     const dx=Math.sign(t.x-p.x), dy=Math.sign(t.y-p.y);
     resolveAimedSkill(Math.abs(dx)>=Math.abs(dy)?dx:0, Math.abs(dy)>Math.abs(dx)?dy:0);
@@ -4300,8 +4356,8 @@ function autoResolveAwaitAim(enemies){
 }
 function autoBasicAttack(){
   const p=S.player;
-  const close = S.enemies.filter(e=>e.hp>0&&dist(e,p)<=1).sort((a,b)=>a.hp-b.hp||dist(a,p)-dist(b,p))[0];
-  if(close){ playerAttack(close,false); addLog('기본공격.'); afterPlayerAction(); return true; }
+  const close = autoSelectAdjacentEnemy(S.enemies);
+  if(close){ faceToward(close.x, close.y); playerAttack(close,false); addLog('기본공격.'); afterPlayerAction(); return true; }
   const rangedBasic = basicRangedEnemy();
   if(rangedBasic){ basicRangedAttack(rangedBasic); addLog(`${p.className} 원거리 기본공격.`); afterPlayerAction(); return true; }
   return false;
@@ -4311,7 +4367,7 @@ function tryAutoSkillPriority(opts={}){
   const enemies=S.enemies.filter(e=>e.hp>0);
   if(!enemies.length) return false;
   const allowGapClose = !!opts.allowGapClose;
-  const nearest=enemies.slice().sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
+  const nearest=autoSelectEnemy(enemies, {keepCurrent:true});
   const nearestDist=nearest?dist(nearest,p):999;
   const danger=enemies.filter(e=>dist(e,p)<=3).length;
   const lowHp=p.hp<=st.maxHp*.65;
@@ -4366,7 +4422,7 @@ function autoFullExplore(){
   if(enemies.length && tryAutoSkillPriority({allowGapClose:true})) return;
   if(autoBasicAttack()) return;
 
-  const nearbyEnemy = enemies.filter(e=>dist(e,p)<=7 || S.seen[e.y]?.[e.x]).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
+  const nearbyEnemy = autoSelectEnemy(enemies.filter(e=>dist(e,p)<=7 || S.seen[e.y]?.[e.x]), {keepCurrent:true});
   if(nearbyEnemy){
     const step = autoStepToAdjacent(nearbyEnemy.x, nearbyEnemy.y);
     if(step){ playerMove(step.dx, step.dy); return; }
@@ -4375,7 +4431,7 @@ function autoFullExplore(){
   const itemTarget = S.items.slice().sort((a,b)=>dist(a,p)-dist(b,p))[0];
   if(itemTarget){ const step=autoStepToward(itemTarget.x,itemTarget.y); if(step){ playerMove(step.dx, step.dy); return; } }
 
-  const enemyTarget = enemies.sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
+  const enemyTarget = autoSelectEnemy(enemies, {keepCurrent:true});
   if(enemyTarget){
     const step = autoStepToAdjacent(enemyTarget.x, enemyTarget.y);
     if(step){ playerMove(step.dx, step.dy); return; }
@@ -4476,7 +4532,7 @@ function startFullAuto(){
   toast('완전오토 시작. 공격·스킬·물약 자동 사용.');
 }
 function toggleAuto(){ startSafeAuto(); }
-function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; updateAutoButton(); }
+function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; if(S) S.autoTargetUid=null; updateAutoButton(); }
 
 function handleMove(dx,dy){
   if(!S) return;
@@ -5976,7 +6032,19 @@ goNewExpeditionClassSelect = function(){
   const slot = activeCharacterSlot != null ? activeCharacterSlot : ((S && S.characterSlotIndex != null) ? S.characterSlotIndex : 0);
   resetCharacterSlotForNewExpedition(mode, slot);
   toast('새 원정 진행도가 초기화되었습니다. 슬롯에서 다시 시작하세요.');
+  window.__newExpeditionSlotOnly = true;
   showCharacterSlots(mode);
+};
+
+/* 안전장치: 새 원정 흐름에서는 직업선택창을 열지 않고 슬롯화면만 연다. */
+const originalShowCharacterCreateForNewExpeditionGuard = showCharacterCreate;
+showCharacterCreate = function(mode, slotIndex){
+  if(window.__newExpeditionSlotOnly){
+    window.__newExpeditionSlotOnly = false;
+    showCharacterSlots(mode || activeLoginMode || 'guest');
+    return;
+  }
+  return originalShowCharacterCreateForNewExpeditionGuard(mode, slotIndex);
 };
 
 showDeleteCurrentCharacterConfirm = function(mode){
