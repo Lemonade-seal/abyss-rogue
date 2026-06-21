@@ -4388,7 +4388,73 @@ function autoMove(step){
   S.autoPrevY = S.player.y;
   S.autoLastDx = step.dx;
   S.autoLastDy = step.dy;
+  const beforeX = S.player.x, beforeY = S.player.y;
   playerMove(step.dx, step.dy);
+  registerAutoPosition(beforeX, beforeY, S.player.x, S.player.y);
+  return true;
+}
+
+function registerAutoPosition(beforeX, beforeY, afterX, afterY){
+  if(!S || !S.player) return;
+  if(!Array.isArray(S.autoPathLog)) S.autoPathLog = [];
+  S.autoPathLog.push({x:afterX, y:afterY});
+  if(S.autoPathLog.length > 10) S.autoPathLog.shift();
+
+  const log = S.autoPathLog;
+  const n = log.length;
+  const wasReverse = n>=3 && log[n-1].x===log[n-3].x && log[n-1].y===log[n-3].y;
+  const repeatedHere = log.slice(Math.max(0,n-6)).filter(pos=>pos.x===afterX && pos.y===afterY).length >= 3;
+  if(wasReverse || repeatedHere) S.autoStuckScore = (S.autoStuckScore||0) + 1;
+  else S.autoStuckScore = Math.max(0, (S.autoStuckScore||0) - 1);
+
+  if(S.autoStuckScore >= 3) enterAutoRoam('zigzag');
+}
+
+function enterAutoRoam(reason='stuck'){
+  if(!S) return;
+  S.autoRoamTicks = Math.max(S.autoRoamTicks||0, 8);
+  S.autoRoamReason = reason;
+  S.autoTargetUid = null;
+  S.autoGoal = null;
+  S.autoStuckScore = 0;
+  S.autoPathLog = [];
+}
+
+function clearAutoRoam(){
+  if(!S) return;
+  S.autoRoamTicks = 0;
+  S.autoRoamReason = '';
+}
+
+function autoRandomRoamStep(){
+  if(!S || !S.player) return null;
+  const p=S.player;
+  const cand=DIRS.map(([dx,dy])=>({dx,dy,nx:p.x+dx,ny:p.y+dy}))
+    .filter(c=>passable(c.nx,c.ny)&&!enemyAt(c.nx,c.ny));
+  if(!cand.length) return null;
+
+  const nonReverse = cand.filter(c=>!(S.autoPrevX===c.nx && S.autoPrevY===c.ny));
+  const pool = nonReverse.length ? nonReverse : cand;
+  const scored = pool.map(c=>{
+    const frontier = frontierScore(c.nx,c.ny);
+    const unseenAround = frontier > 0 ? 0 : 1;
+    const reverse = (S.autoPrevX===c.nx && S.autoPrevY===c.ny) ? 1 : 0;
+    const wall = adjacentWallCount(c.nx,c.ny);
+    const drift = ((c.nx*31 + c.ny*17 + (S.player.turn||0)*7) % 100) / 100;
+    return {c, score:unseenAround*80 + reverse*50 + wall*3 + drift};
+  }).sort((a,b)=>a.score-b.score);
+  return {dx:scored[0].c.dx, dy:scored[0].c.dy};
+}
+
+function autoTryRoamMove(){
+  if(!S || !S.player) return false;
+  const step = autoRandomRoamStep();
+  if(step){
+    S.autoRoamTicks = Math.max(0, (S.autoRoamTicks||0)-1);
+    autoMove(step);
+    return true;
+  }
+  waitTurn();
   return true;
 }
 function validAutoGoal(goal, uid, tx, ty){
@@ -4472,45 +4538,77 @@ function autoFullExplore(){
   const st=calcStats();
   const enemies=S.enemies.filter(e=>e.hp>0);
   if(autoResolveAwaitAim(enemies)) return;
-  if(p.potions>0 && p.cd.potion<=0 && p.hp <= st.maxHp*.42){ usePotion(); return; }
+  if(p.potions>0 && p.cd.potion<=0 && p.hp <= st.maxHp*.42){ clearAutoRoam(); usePotion(); return; }
 
-  // 오토 전투 우선순위: 스킬 사용 가능 → 기본공격 → 접근/탐색.
-  if(enemies.length && tryAutoSkillPriority({allowGapClose:true})) return;
-  if(autoBasicAttack()) return;
+  // 오브젝트/전투가 보이면 무작위 배회보다 항상 해당 행동을 우선 처리한다.
+  if(enemies.length && tryAutoSkillPriority({allowGapClose:true})){ clearAutoRoam(); return; }
+  if(autoBasicAttack()){ clearAutoRoam(); return; }
 
-  const nearbyEnemy = autoSelectEnemy(enemies.filter(e=>dist(e,p)<=7 || S.seen[e.y]?.[e.x]), {keepCurrent:true});
-  if(nearbyEnemy){
-    const step = autoStepToAdjacent(nearbyEnemy.x, nearbyEnemy.y);
-    if(step){ autoMove(step); return; }
-    waitTurn(); return;
-  }
-
-  // 보스층에서는 보스가 살아 있으면 아이템/탐색보다 보스 추적을 최우선으로 고정한다.
+  // 보스층에서는 보스가 살아 있으면 보스 추적을 최우선으로 유지한다.
   const bossTarget = livingBossEnemy();
   if(isBossFloor() && bossTarget){
+    clearAutoRoam();
     S.autoTargetUid = autoEnemyUid(bossTarget);
     const step = autoStepToAdjacent(bossTarget.x, bossTarget.y);
     if(step){ autoMove(step); return; }
-    waitTurn(); return;
+    enterAutoRoam('bossBlocked');
+    waitTurn();
+    return;
+  }
+
+  // 시야 안 가까운 적은 먼저 추적한다. 길이 안 잡히면 한 턴 멈춘 뒤 무작위 길따라 배회로 전환한다.
+  const nearbyEnemy = autoSelectEnemy(enemies.filter(e=>dist(e,p)<=7 || S.seen[e.y]?.[e.x]), {keepCurrent:true});
+  if(nearbyEnemy){
+    const step = autoStepToAdjacent(nearbyEnemy.x, nearbyEnemy.y);
+    if(step){ clearAutoRoam(); autoMove(step); return; }
+    enterAutoRoam('enemyBlocked');
+    waitTurn();
+    return;
   }
 
   const itemTarget = S.items.slice().sort((a,b)=>dist(a,p)-dist(b,p))[0];
-  if(itemTarget){ const step=autoStepToward(itemTarget.x,itemTarget.y); if(step){ autoMove(step); return; } }
+  if(itemTarget){
+    const step=autoStepToward(itemTarget.x,itemTarget.y);
+    if(step){ clearAutoRoam(); autoMove(step); return; }
+    enterAutoRoam('itemBlocked');
+    waitTurn();
+    return;
+  }
 
   const enemyTarget = autoSelectEnemy(enemies, {keepCurrent:true});
   if(enemyTarget){
     const step = autoStepToAdjacent(enemyTarget.x, enemyTarget.y);
-    if(step){ autoMove(step); return; }
-    waitTurn(); return;
+    if(step){ clearAutoRoam(); autoMove(step); return; }
+    enterAutoRoam('enemyBlocked');
+    waitTurn();
+    return;
   }
 
   if(S.exit && ((isBossFloor() && !livingBossEnemy()) || (!isBossFloor() && !S.enemies.some(e=>e.hp>0) && !S.items.length))){
     const step=autoStepToward(S.exit.x,S.exit.y);
-    if(step){ autoMove(step); return; }
-    if(p.x===S.exit.x && p.y===S.exit.y){ nextFloor(); return; }
+    if(step){ clearAutoRoam(); autoMove(step); return; }
+    if(p.x===S.exit.x && p.y===S.exit.y){ clearAutoRoam(); nextFloor(); return; }
+    enterAutoRoam('exitBlocked');
+    waitTurn();
+    return;
   }
+
+  // 버벅임 감지 후에는 다음 플랜에서 목표를 억지로 재계산하지 않고 길을 따라 무작위로 이동한다.
+  if(S.autoRoamTicks && S.autoRoamTicks > 0){
+    if(autoTryRoamMove()) return;
+  }
+
   const target = nearestTarget();
-  if(target){ const step=autoStepToward(target.x,target.y); if(step){ autoMove(step); return; } }
+  if(target){
+    const step=autoStepToward(target.x,target.y);
+    if(step){ autoMove(step); return; }
+    enterAutoRoam('exploreBlocked');
+    waitTurn();
+    return;
+  }
+
+  enterAutoRoam('noTarget');
+  if(autoTryRoamMove()) return;
   waitTurn();
 }
 function tryFullAutoSkill(){
@@ -4630,7 +4728,8 @@ function startFullAuto(){
   toast('완전오토 시작. 공격·스킬·물약 자동 사용.');
 }
 function toggleAuto(){ startSafeAuto(); }
-function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; if(S){ S.autoTargetUid=null; S.autoGoal=null; S.autoPrevX=null; S.autoPrevY=null; } updateAutoButton(); }
+function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; if(S){ S.autoTargetUid=null; S.autoGoal=null; S.autoPrevX=null; S.autoPrevY=null; S.autoRoamTicks=0; S.autoRoamReason=''; S.autoStuckScore=0; S.autoPathLog=[]; } updateAutoButton(); }
+
 
 function handleMove(dx,dy){
   if(!S) return;
