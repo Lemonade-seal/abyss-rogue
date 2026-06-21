@@ -6022,9 +6022,28 @@ async function collectRankingRecords(){
       if(rec) records.push(rec);
     });
   }
+  try{
+    const onlineList = (typeof normalizeOnlineList === 'function') ? normalizeOnlineList() : [];
+    onlineList.forEach(u=>{
+      if(String(u.mode || '') !== 'kakao') return;
+      if(!u.nickname || String(u.nickname) === '대기 중') return;
+      const lv = Number(u.level || 1);
+      const fl = Number(u.floor || 1);
+      records.push({
+        nickname:String(u.nickname || '이름 없음'),
+        className:String(u.className || '-'),
+        level:lv,
+        floor:fl,
+        combatPower:Number(u.combatPower || 0) || Math.floor(lv*95 + fl*130),
+        score:Number(u.score || 0) || Math.floor(fl*900 + lv*160),
+        updatedAt:new Date(Number(u.updatedAt)||Date.now()).toISOString(),
+        online:true
+      });
+    });
+  }catch(e){}
   const dedup = new Map();
   records.forEach(r=>{
-    const key = `${r.nickname}|${r.className}|${r.level}|${r.floor}`;
+    const key = `${r.nickname}|${r.className}`;
     const prev = dedup.get(key);
     if(!prev || r.score > prev.score) dedup.set(key, r);
   });
@@ -6045,7 +6064,7 @@ async function showRankingMenu(){
     const records = await collectRankingRecords();
     const rows = records.map((r,i)=>`<tr>
       <td class="${i<3?'rankTop':''}">${i+1}</td>
-      <td>${escapeText(r.nickname)}</td>
+      <td>${escapeText(r.nickname)}${r.online ? ' <span class="goodtxt">●</span>' : ''}</td>
       <td>${escapeText(r.className)}</td>
       <td>${r.level}</td>
       <td>${r.floor}</td>
@@ -6259,12 +6278,16 @@ let onlineBadgeBound = false;
 function onlineSelfInfo(){
   const p = S && S.player ? S.player : null;
   const nick = p ? ((typeof playerNickname === 'function') ? playerNickname(p) : (p.name || p.className || '이름 없음')) : '대기 중';
+  const cp = p && typeof combatPowerForRun === 'function' ? combatPowerForRun(S, meta) : 0;
+  const score = p && typeof rankingScoreForRun === 'function' ? rankingScoreForRun(S, meta) : 0;
   return {
     id: ONLINE_CLIENT_ID,
     nickname: String(nick || '이름 없음'),
     className: p ? String(p.className || '-') : '-',
     level: p ? Number(p.level || 1) : 0,
     floor: p ? Number(p.floor || 1) : 0,
+    combatPower: Number(cp || 0),
+    score: Number(score || 0),
     mode: activeLoginMode || 'local',
     slot: activeCharacterSlot == null ? '-' : String(activeCharacterSlot + 1),
     updatedAt: Date.now()
@@ -6325,6 +6348,12 @@ async function syncOnlinePresence(force=false){
   onlinePresenceStateCache = onlinePresenceStateCache || {};
   onlinePresenceStateCache[ONLINE_CLIENT_ID] = [self];
   updateOnlineBadge();
+  if(activeLoginMode === 'kakao' && S && S.player){
+    try{
+      if(typeof syncActiveCharacterFromRun === 'function') syncActiveCharacterFromRun();
+      if(typeof saveCloudCharacterProfile === 'function') await saveCloudCharacterProfile();
+    }catch(e){ console.warn('ranking presence save skipped:', e.message); }
+  }
   const client = getCloudClient && getCloudClient();
   if(!client || typeof client.channel !== 'function') return;
   const sig = (cloudClientSignature || '') + '|' + ONLINE_CLIENT_ID;
