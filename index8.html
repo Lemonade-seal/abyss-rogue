@@ -3844,10 +3844,10 @@ async function beginKakaoLogin(){
       showCharacterSlots('kakao');
       return;
     }
-    const redirectTo = location.href.split('#')[0];
+    const redirectTo = getOAuthRedirectUrl();
     const {error} = await client.auth.signInWithOAuth({
       provider:'kakao',
-      options:{redirectTo}
+      options:{redirectTo:getOAuthRedirectUrl()}
     });
     if(error) throw error;
   }catch(e){
@@ -4469,7 +4469,65 @@ updateUi = function(){
 if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
 if($('menuMenuBtn')) $('menuMenuBtn').onclick = showSystemMenu;
 
-showStart();
+
+function getOAuthRedirectUrl(){
+  const u = new URL(location.href);
+  u.hash = '';
+  ['code','state','error','error_code','error_description'].forEach(k=>u.searchParams.delete(k));
+  return u.href;
+}
+async function handleKakaoOAuthReturn(){
+  const u = new URL(location.href);
+  const isAuthReturn =
+    u.searchParams.has('code') ||
+    u.searchParams.has('error') ||
+    location.hash.includes('access_token') ||
+    location.hash.includes('error');
+  if(!isAuthReturn) return false;
+
+  activeLoginMode = 'kakao';
+  showModal(`<h1 class="srOnly">카카오 로그인 처리</h1>
+    <div class="startMenuPanel">
+      <h2 style="margin:0 0 8px">카카오 로그인</h2>
+      <p class="muted">로그인 정보를 확인하는 중입니다.</p>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+
+  try{
+    const client = getCloudClient();
+    if(!client) throw new Error('Supabase 연결 정보가 없습니다.');
+    await client.auth.getSession();
+    const user = await currentCloudUser();
+    if(!user) throw new Error('카카오 로그인 세션을 확인하지 못했습니다.');
+    await loadCloudCharacterProfile();
+
+    const clean = new URL(location.href);
+    clean.hash = '';
+    ['code','state','error','error_code','error_description'].forEach(k=>clean.searchParams.delete(k));
+    history.replaceState(null, document.title, clean.pathname + clean.search);
+
+    showCharacterSlots('kakao');
+    return true;
+  }catch(e){
+    showModal(`<h1 class="srOnly">카카오 로그인 실패</h1>
+      <div class="startMenuPanel">
+        <h2 style="margin:0 0 8px">카카오 로그인 실패</h2>
+        <p class="muted">${escapeText(e.message)}</p>
+        <button class="btn" id="oauthBackBtn" style="width:100%;margin-top:10px">로그인 선택으로 돌아가기</button>
+      </div>`, true);
+    modal.classList.add('startPage');
+    modal.setAttribute('data-start-mode','menu');
+    $('oauthBackBtn').onclick=showLoginChoice;
+    return true;
+  }
+}
+async function initStartPage(){
+  const handled = await handleKakaoOAuthReturn();
+  if(!handled) showStart();
+}
+
+initStartPage();
 render();
 
 })();
