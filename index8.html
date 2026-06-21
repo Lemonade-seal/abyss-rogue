@@ -932,6 +932,26 @@
     z-index:999!important;
   }
 
+
+
+  /* 게임 화면 고정 정보 박스 제거: 능력치/장비/유물/로그/게임 위 로그 오버레이 */
+  .side,
+  .side .box,
+  .logbox,
+  #mapLogPanel,
+  .mapLogPanel{
+    display:none!important;
+  }
+  .main{
+    grid-template-columns:1fr!important;
+  }
+  .gameWrap{
+    min-width:0!important;
+  }
+  #gamePanel{
+    min-height:0!important;
+  }
+
 </style>
 </head>
 <body>
@@ -4577,6 +4597,26 @@ async function initStartPage(){
   const handled = await handleKakaoOAuthReturn();
   if(!handled) showStart();
 }
+
+
+/* 고정 로그/정보 박스 비활성화 */
+function disableFixedInfoBoxes(){
+  const side = document.querySelector('.side');
+  if(side) side.style.display = 'none';
+  const mapLogPanel = document.getElementById('mapLogPanel');
+  if(mapLogPanel) mapLogPanel.style.display = 'none';
+}
+const originalRenderAllForFixedBoxRemoval = renderAll;
+renderAll = function(){
+  originalRenderAllForFixedBoxRemoval();
+  disableFixedInfoBoxes();
+};
+const originalRenderForFixedBoxRemoval = render;
+render = function(){
+  originalRenderForFixedBoxRemoval();
+  disableFixedInfoBoxes();
+};
+disableFixedInfoBoxes();
 
 initStartPage();
 render();
