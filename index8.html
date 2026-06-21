@@ -934,12 +934,10 @@
 
 
 
-  /* 게임 화면 고정 정보 박스 제거: 능력치/장비/유물/로그/게임 위 로그 오버레이 */
+  /* 최종 고정: 게이지 복구, 사이드 박스만 제거, 로그/채팅 패널 유지 */
   .side,
   .side .box,
-  .logbox,
-  #mapLogPanel,
-  .mapLogPanel{
+  .logbox{
     display:none!important;
   }
   .main{
@@ -948,8 +946,162 @@
   .gameWrap{
     min-width:0!important;
   }
-  #gamePanel{
-    min-height:0!important;
+
+  .topbar{
+    grid-template-columns:1fr 1.24fr 1fr!important;
+    align-items:stretch!important;
+    gap:6px!important;
+  }
+  .topbar .pill{
+    min-height:64px!important;
+  }
+  .topbar .pill:not(.bars){
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;
+    font-weight:800!important;
+    letter-spacing:-.2px!important;
+  }
+  .topbar .pill.bars{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:4px!important;
+    align-content:center!important;
+    min-height:64px!important;
+    padding:7px 8px!important;
+  }
+  .topbar .pill.bars .bar{
+    display:block!important;
+    height:13px!important;
+    width:100%!important;
+  }
+  .topbar .pill.bars .fill{
+    display:block!important;
+    height:100%!important;
+  }
+  .topInfoPill{
+    flex-direction:column!important;
+    gap:4px!important;
+    padding:8px 6px!important;
+  }
+  .topInfoPill .hudLine{
+    width:100%;
+    text-align:center;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .topInfoPill .mainHudLine,
+  .topInfoPill .subHudLine,
+  .currencyPill b{
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;
+    font-weight:800!important;
+    letter-spacing:-.25px!important;
+  }
+  .topInfoPill .mainHudLine{
+    font-size:15px!important;
+    color:#fff!important;
+    line-height:1.1!important;
+  }
+  .topInfoPill .subHudLine{
+    font-size:12px!important;
+    color:#cbd5e1!important;
+    line-height:1.1!important;
+  }
+  .currencyPill{
+    padding:8px 6px!important;
+  }
+  .currencyPill b{
+    width:100%;
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:8px!important;
+    font-size:15px!important;
+    line-height:1.05!important;
+    white-space:nowrap!important;
+  }
+  .currencyGap{
+    display:inline-block;
+    width:10px;
+  }
+
+  #mapLogPanel.mapLogPanel{
+    display:block;
+  }
+  #mapLogPanel.mapLogPanel.off{
+    display:none!important;
+  }
+  #mapLogPanel.mapLogPanel:not(.off){
+    display:block!important;
+  }
+
+
+  /* 요청 반영: 골드/소울 표시를 로그창 내용 폰트와 동일하게, 우측 2줄 정렬 */
+  .currencyPill{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    text-align:right!important;
+    padding:6px 8px!important;
+  }
+  .currencyPill b{
+    width:100%!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:flex-end!important;
+    justify-content:center!important;
+    gap:2px!important;
+    font-family:inherit!important;
+    font-size:11px!important;
+    font-weight:400!important;
+    line-height:1.28!important;
+    letter-spacing:normal!important;
+    color:#dbe7ff!important;
+    white-space:nowrap!important;
+  }
+  .currencyPill #goldText,
+  .currencyPill #soulText{
+    display:block!important;
+    width:100%!important;
+    text-align:right!important;
+    font:inherit!important;
+    color:inherit!important;
+  }
+  .currencyPill .currencyGap{
+    display:none!important;
+    width:0!important;
+  }
+
+
+  /* 요청 반영: 닉네임이 길면 스킬 버튼과 같은 좌우 흐름 애니메이션 적용 */
+  .topInfoPill .mainHudLine{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:4px!important;
+    min-width:0!important;
+  }
+  #levelText{
+    flex:0 0 auto!important;
+  }
+  #nickText{
+    display:inline-block!important;
+    min-width:0!important;
+    max-width:calc(100% - 46px)!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:clip!important;
+    vertical-align:bottom!important;
+  }
+  #nickText .nickMarqueeInner{
+    display:inline-block!important;
+    white-space:nowrap!important;
+    will-change:transform;
+  }
+  #nickText.scrollText .nickMarqueeInner{
+    animation:skillTextMarquee 4.8s ease-in-out infinite!important;
   }
 
 </style>
@@ -957,13 +1109,13 @@
 <body>
 <div id="app">
   <div class="topbar">
-    <div class="pill">닉네임 / Lv / 층<br><b><span id="nickText">-</span> / <span id="levelText">1</span> / <span id="floorText">1</span></b></div>
+    <div class="pill topInfoPill"><div class="hudLine mainHudLine"><span id="levelText">Lv.1</span> <span id="nickText">-</span></div><div class="hudLine subHudLine"><span id="jobText">-</span> · <span id="floorText">1층</span></div></div>
     <div class="pill bars">
       <div class="bar"><div id="hpFill" class="fill hpfill"></div><span id="hpText">HP</span></div>
       <div class="bar"><div id="mpFill" class="fill mpfill"></div><span id="mpText">MP</span></div>
       <div class="bar"><div id="xpFill" class="fill xpfill"></div><span id="xpText">XP</span></div>
     </div>
-    <div class="pill">골드 / 영혼<br><b><span id="goldText">0</span> / <span id="soulText">0</span></b></div>
+    <div class="pill currencyPill"><b><span id="goldText">0 GOLD</span><span class="currencyGap"></span><span id="soulText">0 SOUL</span></b></div>
   </div>
 
   <div class="main">
@@ -3379,9 +3531,9 @@ function updateSkillButtons(){
 function updateUi(){
   if(!S){ return; }
   const p=S.player; const st=calcStats();
-  $('floorText').textContent = p.floor;
-  $('levelText').textContent = p.level;
-  $('goldText').textContent = p.gold;
+  $('floorText').textContent = p.floor + '층';
+  $('levelText').textContent = 'Lv.' + p.level;
+  $('goldText').textContent = Number(p.gold||0).toLocaleString() + ' G';
   if($('soulText')) $('soulText').textContent = p.soulsRun;
   $('hpFill').style.width = clamp(p.hp/st.maxHp*100,0,100)+'%'; $('hpText').textContent = `HP ${Math.max(0,p.hp)}/${st.maxHp}`;
   $('mpFill').style.width = clamp(p.mp/st.maxMp*100,0,100)+'%'; $('mpText').textContent = `MP ${p.mp}/${st.maxMp}`;
@@ -4599,24 +4751,93 @@ async function initStartPage(){
 }
 
 
-/* 고정 로그/정보 박스 비활성화 */
-function disableFixedInfoBoxes(){
-  const side = document.querySelector('.side');
-  if(side) side.style.display = 'none';
-  const mapLogPanel = document.getElementById('mapLogPanel');
-  if(mapLogPanel) mapLogPanel.style.display = 'none';
+
+
+/* 최종 고정: 게임 시작 기본 로그창 + 기존 로그/채팅/off 순환 사용 */
+function restoreDefaultLogPanel(){
+  mapPanelMode = 'log';
+  if(S) S.mapPanelMode = 'log';
+  const panel = $('mapLogPanel');
+  if(panel){
+    panel.classList.remove('off','chat');
+    panel.style.removeProperty('display');
+  }
+  if(typeof renderMapPanel === 'function') renderMapPanel();
+  if(typeof updateLogChatButton === 'function') updateLogChatButton();
 }
-const originalRenderAllForFixedBoxRemoval = renderAll;
-renderAll = function(){
-  originalRenderAllForFixedBoxRemoval();
-  disableFixedInfoBoxes();
+const originalStartNewCharacterRestoreDefaultLog = startNewCharacter;
+startNewCharacter = function(mode, slotIndex, clsId, nickname){
+  originalStartNewCharacterRestoreDefaultLog(mode, slotIndex, clsId, nickname);
+  restoreDefaultLogPanel();
 };
-const originalRenderForFixedBoxRemoval = render;
-render = function(){
-  originalRenderForFixedBoxRemoval();
-  disableFixedInfoBoxes();
+const originalStartSavedCharacterRestoreDefaultLog = startSavedCharacter;
+startSavedCharacter = function(mode, slotIndex){
+  originalStartSavedCharacterRestoreDefaultLog(mode, slotIndex);
+  restoreDefaultLogPanel();
 };
-disableFixedInfoBoxes();
+
+
+/* 상단 HUD 표기 최종 보정 */
+const originalUpdateUiForTopHudFormat = updateUi;
+updateUi = function(){
+  originalUpdateUiForTopHudFormat();
+  if(!S || !S.player) return;
+  const p = S.player;
+  const nickEl = $('nickText');
+  const levelEl = $('levelText');
+  const jobEl = $('jobText');
+  const floorEl = $('floorText');
+  const goldEl = $('goldText');
+  const soulEl = $('soulText');
+  if(nickEl) nickEl.textContent = (typeof playerNickname === 'function') ? playerNickname(p) : (p.name || p.className || '-');
+  if(levelEl) levelEl.textContent = 'Lv.' + Number(p.level || 1);
+  if(jobEl) jobEl.textContent = p.className || '-';
+  if(floorEl) floorEl.textContent = Number(p.floor || 1) + '층';
+  if(goldEl) goldEl.textContent = Number(p.gold || 0).toLocaleString() + ' GOLD';
+  if(soulEl) soulEl.textContent = Number(p.soulsRun || 0).toLocaleString() + ' SOUL';
+};
+
+
+/* 요청 반영: 긴 닉네임도 스킬 버튼처럼 흐름 애니메이션 처리 */
+function refreshNicknameMarquee(){
+  requestAnimationFrame(()=>{
+    const nickEl = $('nickText');
+    const levelEl = $('levelText');
+    const lineEl = nickEl ? nickEl.closest('.mainHudLine') : null;
+    if(!nickEl || !lineEl) return;
+
+    let rawText = '';
+    const innerOld = nickEl.querySelector('.nickMarqueeInner');
+    if(innerOld) rawText = innerOld.textContent || '';
+    else rawText = nickEl.textContent || '';
+    rawText = rawText || '-';
+
+    nickEl.classList.remove('scrollText');
+    nickEl.style.removeProperty('--skill-text-shift');
+    nickEl.innerHTML = `<span class="nickMarqueeInner">${escapeText(rawText)}</span>`;
+
+    const inner = nickEl.querySelector('.nickMarqueeInner');
+    if(!inner) return;
+
+    const levelWidth = levelEl ? Math.ceil(levelEl.getBoundingClientRect().width) : 0;
+    const lineWidth = Math.floor(lineEl.clientWidth || 0);
+    const available = Math.max(24, lineWidth - levelWidth - 8);
+    nickEl.style.maxWidth = available + 'px';
+
+    const overflow = inner.scrollWidth - available;
+    if(overflow > 2){
+      nickEl.style.setProperty('--skill-text-shift', `-${overflow}px`);
+      nickEl.classList.add('scrollText');
+    }
+  });
+}
+const originalUpdateUiForNicknameMarquee = updateUi;
+updateUi = function(){
+  originalUpdateUiForNicknameMarquee();
+  refreshNicknameMarquee();
+};
+window.addEventListener('resize', refreshNicknameMarquee);
+
 
 initStartPage();
 render();
