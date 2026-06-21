@@ -2724,7 +2724,7 @@ function showVaultChoice(){
   pauseAutoForChoice();
   const p=S.player;
   const choices=[
-    {name:'무기고', desc:'직업 장비 상자 2회', f:()=>{p.opened++; showEquipmentChoice(); setTimeout(()=>{ if(!modalOpen) showEquipmentChoice(); },0);}},
+    {name:'무기고', desc:'직업 장비 상자 2회', f:()=>{p.opened++; showEquipmentChoice('normal'); setTimeout(()=>{ if(!modalOpen) showEquipmentChoice('normal'); },0);}},
     {name:'금고', desc:'대량 골드 획득', f:()=>{const g=220+p.floor*35;p.gold+=g;recordInventory('gold','비밀 금고 골드',g,`${g}G`, {source:'vault', amount:g});addLog(`금고에서 ${g}G 획득.`);}},
     {name:'봉인 유물', desc:'유물 선택', f:()=>showRelicChoice()}
   ];
@@ -3233,7 +3233,8 @@ function killEnemy(e){
   addLog(`<span class="goodtxt">${e.name} 처치</span> +${xp}XP +${gold}G${e.boss?' +영혼':''}`);
   if(hasRelic('bloodfang')){ const heal=Math.ceil(calcStats().maxHp*.08); p.hp=clamp(p.hp+heal,1,calcStats().maxHp); addLog(`피의 송곳니로 HP ${heal} 회복.`); }
   updateBounty(e);
-  if(chance(e.boss?.8:.08)) S.items.push({x:e.x,y:e.y,type:'chest'});
+  const chestChance = e.boss ? .80 : (e.elite ? .18 : .08);
+  if(chance(chestChance)) S.items.push({x:e.x,y:e.y,type:'chest',source:e.boss?'boss':(e.elite?'elite':'normal')});
   if(chance(.12)) S.items.push({x:e.x,y:e.y,type:'potion'});
   if(chance(.035)) S.items.push({x:e.x,y:e.y,type:'skillgem'});
   if(chance(.045)) S.items.push({x:e.x,y:e.y,type:'soul',amount:1});
@@ -3289,7 +3290,7 @@ function pickupCheck(){
     if(p.potions>=cap){ p.gold += 8; recordInventory('gold','물약 전환 골드',8,'물약 한도 초과', {source:'potion_over_cap', amount:8}); addLog('물약 보유 한도 초과. 8골드로 전환.'); }
     else { p.potions++; recordInventory('potion','물약',1,'던전 습득', {source:'dungeon'}); addLog(`물약 획득. (${p.potions}/${cap})`); }
   }
-  if(it.type==='chest'){ p.opened++; recordInventory('chest','장비 상자',1,'개봉', {reward:'equipment_choice', choices:3}); showEquipmentChoice(); }
+  if(it.type==='chest'){ const chestSource=normalizeEquipDropSource(it.source||it.dropSource||'normal'); p.opened++; recordInventory('chest','장비 상자',1,`${equipDropSourceName(chestSource)} 개봉`, {reward:'equipment_choice', choices:3, source:chestSource}); showEquipmentChoice(chestSource); }
   if(it.type==='relic'){ recordInventory('relic','유물 선택권',1,'발견', {reward:'relic_choice', choices:3}); showRelicChoice(); }
   if(it.type==='shrine'){ recordInventory('shrine','심연 제단',1,'이용', {choices:['피의 계약','금화의 제단','정화']}); showShrineChoice(); }
   if(it.type==='merchant'){ recordInventory('merchant','떠돌이 상인',1,'조우', {service:'shop'}); showMerchant(); }
@@ -3454,11 +3455,60 @@ function resolveAimedSkill(dx,dy){
 function showAimHint(msg){toast(msg);}
 
 
-function showEquipmentChoice(){
+function normalizeEquipDropSource(source){
+  if(source && typeof source === 'object') source = source.source || source.dropSource || source.kind;
+  source = String(source || 'dungeon').toLowerCase();
+  if(source === 'boss' || source === 'elite') return source;
+  return 'normal';
+}
+function rollWeightedRarity(weights){
+  const total = weights.reduce((a,b)=>a+b,0);
+  let n = Math.random() * total;
+  for(let i=0;i<weights.length;i++){
+    n -= weights[i];
+    if(n <= 0) return i;
+  }
+  return 0;
+}
+function rollEquipRarity(source){
+  const s = normalizeEquipDropSource(source);
+  const luck = Math.max(0, (S?.player?.lootLuck||0) + Math.floor((S?.player?.floor||1)/10));
+  let weights;
+  if(s === 'boss'){
+    // 보스: 전설 낮은 확률, 정예보다 조금 높음
+    weights = [24, 33, 27, 13, 3];
+  }else if(s === 'elite'){
+    // 정예: 전설 낮은 확률
+    weights = [32, 33, 23, 10, 2];
+  }else{
+    // 일반 상자/일반 몬스터: 전설 없음, 일반~영웅 차등
+    weights = [52, 29, 14, 5, 0];
+  }
+  if(luck > 0){
+    const shift = Math.min(weights[0]-12, luck * 1.1);
+    if(shift > 0){
+      weights[0] -= shift;
+      weights[1] += shift * .45;
+      weights[2] += shift * .35;
+      weights[3] += shift * .20;
+    }
+  }
+  if(s === 'normal') weights[4] = 0;
+  return clamp(rollWeightedRarity(weights),0,4);
+}
+function equipDropSourceName(source){
+  const s = normalizeEquipDropSource(source);
+  if(s === 'boss') return '보스 보상';
+  if(s === 'elite') return '정예 보상';
+  return '일반 보상';
+}
+function showEquipmentChoice(source='normal'){
   pauseAutoForChoice();
   ensureRunFields();
-  const choices = [makeEquip(), makeEquip(), makeEquip()];
-  showModal(`<h2>장비 상자</h2><p class="muted">하나를 선택한다. 기존 장비는 자동 판매된다.</p><div class="grid3">${choices.map((it,i)=>equipChoiceHtml(it,i)).join('')}</div><div class="grid2" style="margin-top:10px"><button class="btn" id="skipEquipBtn">선택안함</button><div></div></div>`, false);
+  const dropSource = normalizeEquipDropSource(source);
+  const choices = [makeEquip(dropSource), makeEquip(dropSource), makeEquip(dropSource)];
+  const sourceNote = dropSource==='boss' ? '보스 보상: 전설 장비가 낮은 확률로 등장한다.' : (dropSource==='elite' ? '정예 보상: 전설 장비가 낮은 확률로 등장한다.' : '일반 보상: 전설 장비는 등장하지 않는다.');
+  showModal(`<h2>장비 상자</h2><p class="muted">${sourceNote} 하나를 선택한다. 기존 장비는 자동 판매된다.</p><div class="grid3">${choices.map((it,i)=>equipChoiceHtml(it,i)).join('')}</div><div class="grid2" style="margin-top:10px"><button class="btn" id="skipEquipBtn">선택안함</button><div></div></div>`, false);
   modalCard.querySelectorAll('.choice').forEach((el,i)=>el.onclick=()=>{
     equipItem(choices[i]); hideModal(); renderAll(); saveRun(); resumeAutoAfterChoice();
   });
@@ -3493,22 +3543,17 @@ function classEquipPool(cls, slot){
   };
   return ((pools[cls]||pools.warrior)[slot] || pools.warrior[slot] || pools.warrior.weapon);
 }
-function makeEquip(){
+function makeEquip(source='normal'){
   ensureRunFields();
   const floor=S.player.floor; const cls=S.player.classId;
   const slot=one(EQUIP_SLOTS);
-  let luck = (S.player.lootLuck||0) + Math.floor(floor/7);
-  let r = 0;
-  if(chance(.50 + luck*.02)) r=1;
-  if(chance(.22 + luck*.025)) r=2;
-  if(chance(.08 + luck*.018)) r=3;
-  if(chance(.018 + luck*.008)) r=4;
-  r = clamp(r,0,4);
+  const dropSource = normalizeEquipDropSource(source);
+  let r = rollEquipRarity(dropSource);
   const mult = RARITY_MULT[r];
   const tier = Math.floor(floor/2)+1;
   const prefix = ['낡은','단단한','빛나는','심연의','고대의'][r];
   const baseType = one(classEquipPool(cls,slot));
-  const it = {slot, baseType, job:cls, jobName:(classes[cls]||classes.warrior).name, rarity:r, atk:0, def:0, maxHp:0, maxMp:0, crit:0, eva:0, value:Math.floor((8+tier*4)*mult)};
+  const it = {slot, baseType, job:cls, jobName:(classes[cls]||classes.warrior).name, rarity:r, dropSource, atk:0, def:0, maxHp:0, maxMp:0, crit:0, eva:0, value:Math.floor((8+tier*4)*mult)};
   it.name = `${prefix} ${baseType} +${tier}`;
 
   const addStat=(k,v)=>{ it[k] = Math.max(0, Math.floor((it[k]||0) + v)); };
