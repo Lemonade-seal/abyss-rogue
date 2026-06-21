@@ -1133,6 +1133,85 @@
     max-width:none!important;
   }
 
+
+
+  /* 재점검 수정: 긴 닉네임이 있어도 상단 HUD 박스 폭을 절대 늘리지 않음 */
+  #app{
+    width:100%!important;
+    max-width:920px!important;
+    min-width:0!important;
+    overflow:hidden!important;
+  }
+  .topbar{
+    grid-template-columns:minmax(0,1fr) minmax(0,1.24fr) minmax(0,1fr)!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+  }
+  .topbar > .pill{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+  }
+  .topInfoPill{
+    inline-size:100%!important;
+    min-inline-size:0!important;
+    max-inline-size:100%!important;
+    overflow:hidden!important;
+  }
+  .topInfoPill .mainHudLine{
+    display:grid!important;
+    grid-template-columns:auto minmax(0,1fr)!important;
+    align-items:center!important;
+    justify-content:stretch!important;
+    justify-items:stretch!important;
+    gap:4px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    text-align:left!important;
+  }
+  #levelText{
+    display:block!important;
+    min-width:0!important;
+    max-width:max-content!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    justify-self:end!important;
+  }
+  #nickText{
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:clip!important;
+    contain:layout paint!important;
+    justify-self:stretch!important;
+  }
+  #nickText .nickMarqueeInner{
+    display:inline-block!important;
+    width:auto!important;
+    max-width:none!important;
+    min-width:0!important;
+    white-space:nowrap!important;
+    will-change:transform;
+  }
+  #nickText.scrollText .nickMarqueeInner{
+    animation:skillTextMarquee 4.8s ease-in-out infinite!important;
+  }
+  .topInfoPill .subHudLine{
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:ellipsis!important;
+  }
 </style>
 </head>
 <body>
@@ -4834,9 +4913,7 @@ updateUi = function(){
 function refreshNicknameMarquee(){
   requestAnimationFrame(()=>{
     const nickEl = $('nickText');
-    const levelEl = $('levelText');
-    const lineEl = nickEl ? nickEl.closest('.mainHudLine') : null;
-    if(!nickEl || !lineEl) return;
+    if(!nickEl) return;
 
     let rawText = '';
     const innerOld = nickEl.querySelector('.nickMarqueeInner');
@@ -4846,24 +4923,21 @@ function refreshNicknameMarquee(){
 
     nickEl.classList.remove('scrollText');
     nickEl.style.removeProperty('--skill-text-shift');
+    nickEl.style.removeProperty('max-width');
+    nickEl.style.removeProperty('flex-basis');
     nickEl.innerHTML = `<span class="nickMarqueeInner">${escapeText(rawText)}</span>`;
 
     const inner = nickEl.querySelector('.nickMarqueeInner');
     if(!inner) return;
 
-    const levelWidth = levelEl ? Math.ceil(levelEl.getBoundingClientRect().width) : 0;
-    const lineWidth = Math.floor(lineEl.clientWidth || 0);
-    const available = Math.max(24, lineWidth - levelWidth - 8);
-    nickEl.style.maxWidth = available + 'px';
-
+    const available = Math.max(24, Math.floor(nickEl.clientWidth || nickEl.getBoundingClientRect().width || 0));
     const overflow = inner.scrollWidth - available;
     if(overflow > 2){
       nickEl.style.setProperty('--skill-text-shift', `-${overflow}px`);
       nickEl.classList.add('scrollText');
     }
   });
-}
-const originalUpdateUiForNicknameMarquee = updateUi;
+}const originalUpdateUiForNicknameMarquee = updateUi;
 updateUi = function(){
   originalUpdateUiForNicknameMarquee();
   refreshNicknameMarquee();
