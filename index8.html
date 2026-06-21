@@ -4471,10 +4471,19 @@ if($('menuMenuBtn')) $('menuMenuBtn').onclick = showSystemMenu;
 
 
 function getOAuthRedirectUrl(){
-  const u = new URL(location.href);
-  u.hash = '';
-  ['code','state','error','error_code','error_description'].forEach(k=>u.searchParams.delete(k));
-  return u.href;
+  const projectUrl = 'https://lemonade-seal.github.io/abyss-rogue/index8.html?v=054';
+  try{
+    const u = new URL(location.href);
+    if(u.hostname === 'lemonade-seal.github.io'){
+      return projectUrl;
+    }
+    u.hash = '';
+    ['code','state','error','error_code','error_description'].forEach(k=>u.searchParams.delete(k));
+    u.searchParams.set('v','054');
+    return u.href;
+  }catch(e){
+    return projectUrl;
+  }
 }
 async function handleKakaoOAuthReturn(){
   const u = new URL(location.href);
