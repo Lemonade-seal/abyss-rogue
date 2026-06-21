@@ -1136,12 +1136,6 @@
 
 
   /* 재점검 수정: 긴 닉네임이 있어도 상단 HUD 박스 폭을 절대 늘리지 않음 */
-  #app{
-    width:100%!important;
-    max-width:920px!important;
-    min-width:0!important;
-    overflow:hidden!important;
-  }
   .topbar{
     grid-template-columns:minmax(0,1fr) minmax(0,1.24fr) minmax(0,1fr)!important;
     width:100%!important;
@@ -1212,12 +1206,101 @@
     white-space:nowrap!important;
     text-overflow:ellipsis!important;
   }
+
+  /* 요청 반영: 레벨 표시는 직업 앞에 배치하고 직업 표시와 같은 폰트 사용 */
+  .topInfoPill .mainHudLine{
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    text-align:center!important;
+  }
+  .topInfoPill .subHudLine{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:3px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:ellipsis!important;
+  }
+  .topInfoPill .subHudLine #levelText,
+  .topInfoPill .subHudLine #jobText,
+  .topInfoPill .subHudLine #floorText{
+    font:inherit!important;
+    font-weight:inherit!important;
+    letter-spacing:inherit!important;
+    color:inherit!important;
+    line-height:inherit!important;
+    white-space:nowrap!important;
+  }
+  #nickText{
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:clip!important;
+    contain:layout paint!important;
+  }
+
+
+  /* 요청 반영: 층수 표시는 직업 줄 아래 별도 줄로 분리 */
+  .topInfoPill{
+    gap:2px!important;
+    padding-top:6px!important;
+    padding-bottom:6px!important;
+  }
+  .topInfoPill .subHudLine{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:3px!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:ellipsis!important;
+  }
+  .topInfoPill .floorHudLine{
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:ellipsis!important;
+    text-align:center!important;
+    font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;
+    font-size:12px!important;
+    font-weight:800!important;
+    line-height:1.08!important;
+    letter-spacing:-.25px!important;
+    color:#cbd5e1!important;
+  }
+  .topInfoPill .floorHudLine #floorText,
+  .topInfoPill .subHudLine #levelText,
+  .topInfoPill .subHudLine #jobText{
+    font:inherit!important;
+    font-weight:inherit!important;
+    letter-spacing:inherit!important;
+    color:inherit!important;
+    line-height:inherit!important;
+    white-space:nowrap!important;
+  }
+
 </style>
 </head>
 <body>
 <div id="app">
   <div class="topbar">
-    <div class="pill topInfoPill"><div class="hudLine mainHudLine"><span id="levelText">Lv.1</span> <span id="nickText">-</span></div><div class="hudLine subHudLine"><span id="jobText">-</span> · <span id="floorText">1층</span></div></div>
+    <div class="pill topInfoPill"><div class="hudLine mainHudLine"><span id="nickText">-</span></div><div class="hudLine subHudLine"><span id="levelText">Lv.1</span> <span id="jobText">-</span></div><div class="hudLine floorHudLine"><span id="floorText">1층</span></div></div>
     <div class="pill bars">
       <div class="bar"><div id="hpFill" class="fill hpfill"></div><span id="hpText">HP</span></div>
       <div class="bar"><div id="mpFill" class="fill mpfill"></div><span id="mpText">MP</span></div>
@@ -4375,10 +4458,106 @@ showMeta = function(){
     }
   };
 };
+async function deleteSupabaseAccountPermanently(){
+  const client = getCloudClient();
+  if(!client) throw new Error('Supabase 연결 정보가 없습니다.');
+  const user = await currentCloudUser();
+  if(!user) throw new Error('로그인된 Supabase 계정이 없습니다.');
+
+  clearTimeout(cloudSaveTimer);
+  clearTimeout(cloudCharacterSaveTimer);
+
+  let rpcError = null;
+  if(typeof client.rpc === 'function'){
+    const {error} = await client.rpc('delete_current_user');
+    rpcError = error || null;
+    if(!rpcError){
+      try{ await client.auth.signOut(); }catch(e){}
+      finishLocalAccountWithdrawal();
+      return true;
+    }
+  }
+
+  let functionError = null;
+  if(client.functions && typeof client.functions.invoke === 'function'){
+    const {error} = await client.functions.invoke('delete-account', {body:{confirm:'회원탈퇴'}});
+    functionError = error || null;
+    if(!functionError){
+      try{ await client.auth.signOut(); }catch(e){}
+      finishLocalAccountWithdrawal();
+      return true;
+    }
+  }
+
+  const detail = rpcError ? rpcError.message : (functionError ? functionError.message : '삭제 함수를 찾을 수 없습니다.');
+  throw new Error(`Supabase 계정 삭제 함수가 필요합니다. delete_current_user RPC 또는 delete-account Edge Function을 설정하세요. (${detail})`);
+}
+function finishLocalAccountWithdrawal(){
+  clearTimeout(cloudSaveTimer);
+  clearTimeout(cloudCharacterSaveTimer);
+  localStorage.removeItem(SAVE_KEY);
+  localStorage.removeItem(META_KEY);
+  S = null;
+  activeLoginMode = 'guest';
+  activeCharacterSlot = null;
+  cloudCharacterSlots = [null,null,null];
+  guestCharacterSlots = [null];
+  guestMetaState = normalizeMeta({souls:0,bestFloor:1,bestLevel:1,totalKills:0,runs:0,upgrades:{hp:0,atk:0,def:0,crit:0,xp:0,gold:0}});
+  meta = normalizeMeta({souls:0,bestFloor:1,bestLevel:1,totalKills:0,runs:0,upgrades:{hp:0,atk:0,def:0,crit:0,xp:0,gold:0}});
+}
+function showAccountWithdrawalConfirm(mode){
+  if(mode !== 'kakao'){
+    showModal(`<h2>회원탈퇴</h2>
+      <p class="muted">게스트 모드는 Supabase 회원 계정이 없습니다.</p>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn" id="withdrawGuestBackBtn">메뉴로 돌아가기</button>
+        <button class="btn good" id="withdrawGuestCloseBtn">게임 계속</button>
+      </div>`, false);
+    $('withdrawGuestBackBtn').onclick=showSystemMenu;
+    $('withdrawGuestCloseBtn').onclick=()=>{ hideModal(); renderAll(); };
+    return;
+  }
+  showModal(`<h2>회원탈퇴</h2>
+    <p class="muted"><b class="badtxt">Supabase 계정, 캐릭터 슬롯, 영혼 강화 데이터</b>를 삭제합니다.</p>
+    <p class="muted">실수 방지를 위해 아래 입력칸에 <b>회원탈퇴</b>를 정확히 작성해야 진행됩니다.</p>
+    <input id="withdrawConfirmInput" placeholder="회원탈퇴 입력" autocomplete="off" style="width:100%;height:40px;margin-top:10px;padding:8px 10px;border-radius:11px;border:1px solid rgba(148,163,184,.42);background:rgba(15,23,42,.35);color:#eef3ff;caret-color:auto;-webkit-user-select:text;user-select:text" />
+    <p id="withdrawHelpLine" class="muted" style="margin-top:8px">입력값이 일치해야 버튼이 활성화됩니다.</p>
+    <div class="grid2" style="margin-top:12px">
+      <button class="btn bad" id="withdrawConfirmBtn" disabled>회원탈퇴 진행</button>
+      <button class="btn" id="withdrawCancelBtn">취소</button>
+    </div>`, false);
+  const input = $('withdrawConfirmInput');
+  const confirmBtn = $('withdrawConfirmBtn');
+  const helpLine = $('withdrawHelpLine');
+  const refresh=()=>{
+    const ok = input.value.trim() === '회원탈퇴';
+    confirmBtn.disabled = !ok;
+    helpLine.innerHTML = ok ? '<span class="badtxt">확인 완료. 누르면 계정 삭제가 진행됩니다.</span>' : '입력값이 일치해야 버튼이 활성화됩니다.';
+  };
+  input.oninput = refresh;
+  input.onkeydown = e=>{ if(e.key === 'Enter' && !confirmBtn.disabled) confirmBtn.click(); };
+  $('withdrawCancelBtn').onclick=showSystemMenu;
+  confirmBtn.onclick=async()=>{
+    if(input.value.trim() !== '회원탈퇴'){ toast('회원탈퇴를 정확히 입력하세요.'); return; }
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '처리 중...';
+    try{
+      await deleteSupabaseAccountPermanently();
+      toast('회원탈퇴가 완료되었습니다.');
+      showStart();
+    }catch(e){
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = '회원탈퇴 진행';
+      toast('회원탈퇴 실패: ' + e.message);
+    }
+  };
+  setTimeout(()=>input.focus(), 0);
+}
 showSystemMenu = function(){
   if(!S) return;
   pauseAutoForChoice();
   const mode = activeLoginMode || S.loginMode || 'guest';
+  const accountDeleteDisabled = mode === 'kakao' ? '' : ' disabled';
   showModal(`<h2>메뉴</h2>
     <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
     <div class="grid2" style="margin-top:10px">
@@ -4386,7 +4565,7 @@ showSystemMenu = function(){
       <button class="btn" id="menuCharacterBtn">캐릭터 선택</button>
     </div>
     <div class="grid2" style="margin-top:8px">
-      <button class="btn warn" id="menuMetaBtn">영혼 강화</button>
+      <button class="btn bad" id="menuWithdrawBtn"${accountDeleteDisabled}>회원탈퇴</button>
       <button class="btn bad" id="menuDeleteCharBtn">현재 캐릭터 삭제</button>
     </div>`, false);
   $('menuResumeBtn').onclick=()=>{ hideModal(); renderAll(); };
@@ -4395,7 +4574,8 @@ showSystemMenu = function(){
     S=null;
     showCharacterSlots(mode);
   };
-  $('menuMetaBtn').onclick=showMeta;
+  const withdrawBtn = $('menuWithdrawBtn');
+  if(withdrawBtn) withdrawBtn.onclick=()=>showAccountWithdrawalConfirm(mode);
   $('menuDeleteCharBtn').onclick=()=>{
     showDeleteCurrentCharacterConfirm(mode);
   };
