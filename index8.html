@@ -1052,41 +1052,7 @@
   }
 
 
-  /* 요청 반영: 골드/소울 표시를 로그창 내용 폰트와 동일하게, 우측 2줄 정렬 */
-  .currencyPill{
-    display:flex!important;
-    align-items:center!important;
-    justify-content:flex-end!important;
-    text-align:right!important;
-    padding:6px 8px!important;
-  }
-  .currencyPill b{
-    width:100%!important;
-    display:flex!important;
-    flex-direction:column!important;
-    align-items:flex-end!important;
-    justify-content:center!important;
-    gap:2px!important;
-    font-family:inherit!important;
-    font-size:11px!important;
-    font-weight:400!important;
-    line-height:1.28!important;
-    letter-spacing:normal!important;
-    color:#dbe7ff!important;
-    white-space:nowrap!important;
-  }
-  .currencyPill #goldText,
-  .currencyPill #soulText{
-    display:block!important;
-    width:100%!important;
-    text-align:right!important;
-    font:inherit!important;
-    color:inherit!important;
-  }
-  .currencyPill .currencyGap{
-    display:none!important;
-    width:0!important;
-  }
+
 
 
   /* 요청 반영: 닉네임이 길면 스킬 버튼과 같은 좌우 흐름 애니메이션 적용 */
@@ -2260,9 +2226,30 @@ body.liveKeymapMode .keymapLiveDragging{
 
 
 
-  /* 상단 재화 표시: 숫자 + 아이콘만 표시, G/SOUL 문자는 제거 */
+
+
+  /* 최종 정리: 상단 재화 표시 - 숫자 + 아이콘, 문자 라벨 없음 */
+  .currencyPill{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:flex-end!important;
+    text-align:right!important;
+    padding:6px 8px!important;
+  }
   .currencyPill b{
+    width:100%!important;
+    display:flex!important;
+    flex-direction:column!important;
     align-items:stretch!important;
+    justify-content:center!important;
+    gap:2px!important;
+    font-family:inherit!important;
+    font-size:11px!important;
+    font-weight:400!important;
+    line-height:1.28!important;
+    letter-spacing:normal!important;
+    color:#dbe7ff!important;
+    white-space:nowrap!important;
   }
   .currencyPill .currencyVisual{
     width:100%!important;
@@ -2274,8 +2261,8 @@ body.liveKeymapMode .keymapLiveDragging{
     min-width:0!important;
     white-space:nowrap!important;
   }
-  .currencyPill .currencyVisual #goldText,
-  .currencyPill .currencyVisual #soulText{
+  .currencyPill #goldText,
+  .currencyPill #soulText{
     display:inline-block!important;
     width:auto!important;
     min-width:0!important;
@@ -2284,10 +2271,14 @@ body.liveKeymapMode .keymapLiveDragging{
     color:inherit!important;
     line-height:1.1!important;
   }
-  .currencyPill .currencyVisual .currencyIconImg{
+  .currencyPill .currencyIconImg{
     flex:0 0 auto!important;
     order:2!important;
     margin-left:2px!important;
+  }
+  .currencyPill .currencyGap{
+    display:none!important;
+    width:0!important;
   }
 
 </style>
@@ -4931,54 +4922,6 @@ function showSystemMenu(){
   };
 }
 
-function showStart(){
-  stopAuto();
-  showModal(`<div class="startSplashShell"><button class="startActionBtn" id="openStartMenuBtn" aria-label="시작하기"><span data-text="- 시작하기 -">- 시작하기 -</span></button></div>`, true);
-  modal.classList.add('startPage');
-  modal.setAttribute('data-start-mode','splash');
-  $('openStartMenuBtn').onclick=()=>{ showStartMenu(); };
-}
-
-function showStartMenu(){
-  stopAuto();
-  const resumeClassId = startMenuResumeClassId;
-  const savePart = hasSave()?`<button class="btn good" id="continueBtn">저장된 원정 이어하기</button>`:`<button class="btn" disabled style="opacity:.45">저장된 원정 없음</button>`;
-  const classButtons = Object.entries(classes).map(([id,c])=>{
-    const same = resumeClassId && id===resumeClassId && hasSave();
-    const note = same ? '<p class="goodtxt">현재 직업: 선택 시 이어하기</p>' : (resumeClassId ? '<p class="badtxt">다른 직업: 새 원정 시작</p>' : '');
-    return `<button class="choice" data-class="${id}"><h4>${c.name}</h4><p>${c.desc}</p><p class="warntxt">${c.skill}</p>${note}</button>`;
-  }).join('');
-  const cloudPart = `<button class="btn warn" id="cloudLoadBtn">클라우드 불러오기</button><button class="btn" id="cloudSetupBtn">Supabase 설정</button>`;
-  showModal(`<h1 class="srOnly">Abyss Rogue</h1>
-    <div class="startMenuPanel">
-      <p class="muted startIntro">턴제 웹 로그라이크. 랜덤 던전, 장비 상자, 유물 조합, 영혼 강화가 누적된다. 왼쪽 아날로그 패드와 키보드/WASD로 이동하고, 직업마다 서로 다른 기술 3개를 사용한다.</p>
-      <div class="grid2 startClassGrid">${classButtons}</div>
-      <div class="grid2">${savePart}<button class="btn warn" id="metaBtn">영혼 강화</button></div>
-      <div class="grid2" style="margin-top:8px">${cloudPart}</div>
-      <p class="muted startMetaLine">현재 영혼: <b class="legend">${totalSoulAvailable(activeLoginMode === 'kakao' ? 'kakao' : 'guest')}</b> · 최고층: <b>${meta.bestFloor}</b> · 누적 처치: <b>${meta.totalKills}</b> · ${cloudEscape(cloudStatusText())}</p>
-    </div>`, true);
-  modal.classList.add('startPage');
-  modal.setAttribute('data-start-mode','menu');
-  modalCard.querySelectorAll('[data-class]').forEach(btn=>btn.onclick=()=>{
-    const selected = btn.dataset.class;
-    if(resumeClassId && selected===resumeClassId && hasSave()){
-      startMenuResumeClassId=null;
-      hideModal();
-      if(!loadRun()) newRun(selected);
-    } else {
-      startMenuResumeClassId=null;
-      newRun(selected);
-    }
-  });
-  const cb=$('continueBtn'); if(cb) cb.onclick=()=>{startMenuResumeClassId=null; hideModal(); if(!loadRun()) showStartMenu();};
-  $('metaBtn').onclick=()=>{ startMenuResumeClassId=null; showMeta(); };
-  $('cloudSetupBtn').onclick=()=>{ startMenuResumeClassId=null; showCloudMenu(); };
-  $('cloudLoadBtn').onclick=async()=>{
-    startMenuResumeClassId=null;
-    try{ const ok=await loadCloud(); if(ok){ hideModal(); toast('클라우드 불러오기 완료.'); } else toast('클라우드 저장 데이터가 없다.'); }
-    catch(e){ toast('클라우드 불러오기 실패: '+e.message); }
-  };
-}
 function showMeta(){
   stopAuto();
   const rows = metaDefs.map(d=>{
@@ -6182,9 +6125,9 @@ function showStart(){
   modal.setAttribute('data-start-mode','splash');
   $('openStartMenuBtn').onclick=()=>{ showLoginChoice(); };
 }
-showStartMenu = function(){
+function showStartMenu(){
   showLoginChoice();
-};
+}
 
 function showCharacterSlots(mode){
   stopAuto();
@@ -7341,7 +7284,7 @@ updateUi = function(){
   if(floorEl) floorEl.textContent = Number(p.floor || 1) + '층';
   if(jobEl) jobEl.textContent = p.className || '-';
   applyCurrencyHeaderIcons();
-  if(goldEl) goldEl.textContent = Number(p.gold || 0).toLocaleString() + ' G';
+  if(goldEl) goldEl.textContent = Number(p.gold || 0).toLocaleString();
   if(soulEl) soulEl.textContent = Number(p.soulsRun || 0).toLocaleString();
   if(heroEl){
     const row = HERO_CLASS_ROW[p.classId];
