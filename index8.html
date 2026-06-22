@@ -6819,6 +6819,140 @@ resetCharacterSlotForNewExpedition = function(mode, slotIndex){
   }
 };
 
+
+/* 요청 반영: 랭킹 삭제는 캐릭터 삭제 / 회원탈퇴 때만 처리 */
+function deleteCharacterSlotAndRankingOnly(mode, slotIndex){
+  const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
+  const limit = currentSlotLimit(safeMode);
+  const idx = Math.max(0, Math.min(limit - 1, Number(slotIndex) || 0));
+  const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), limit);
+  slots[idx] = null;
+  setSlotsForMode(safeMode, slots);
+  if(activeLoginMode === safeMode && activeCharacterSlot === idx){
+    activeCharacterSlot = null;
+    S = null;
+  }
+  localStorage.removeItem(SAVE_KEY);
+  if(safeMode === 'kakao'){
+    return saveCloudCharacterProfile().catch(e=>{
+      console.warn('character/ranking delete cloud save failed:', e);
+      throw e;
+    });
+  }
+  return Promise.resolve(true);
+}
+
+// 사망/귀환/새 원정/중간 종료는 저장 랭킹을 지우지 않는다.
+clearRun = function(){
+  localStorage.removeItem(SAVE_KEY);
+};
+
+showDeleteCharacterConfirm = function(mode, slotIndex){
+  stopAuto();
+  const safeMode = mode || activeLoginMode || 'guest';
+  const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
+  const ch = slots[slotIndex];
+  const name = ch ? ch.nickname : `슬롯 ${Number(slotIndex)+1}`;
+  showModal(`<h1 class="srOnly">캐릭터 삭제 확인</h1>
+    <div class="startMenuPanel">
+      <h2 style="margin:0 0 8px">캐릭터 삭제</h2>
+      <p class="muted"><b class="badtxt">${escapeText(name)}</b> 캐릭터를 삭제하시겠습니까?</p>
+      <p class="muted">캐릭터 삭제 시 해당 슬롯의 최고기록 랭킹도 함께 삭제됩니다.</p>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn bad" id="deleteCharacterConfirmBtn">삭제하기</button>
+        <button class="btn" id="deleteCharacterCancelBtn">취소</button>
+      </div>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+
+  $('deleteCharacterCancelBtn').onclick=()=>showCharacterSlots(safeMode);
+  $('deleteCharacterConfirmBtn').onclick=async()=>{
+    const btn = $('deleteCharacterConfirmBtn');
+    btn.disabled = true;
+    btn.textContent = '삭제 중...';
+    try{
+      await deleteCharacterSlotAndRankingOnly(safeMode, Number(slotIndex));
+      toast('캐릭터와 랭킹 기록을 삭제했습니다.');
+      showCharacterSlots(safeMode);
+    }catch(e){
+      btn.disabled = false;
+      btn.textContent = '삭제하기';
+      toast('삭제 저장 실패: ' + (e.message || e));
+    }
+  };
+};
+
+showDeleteCurrentCharacterConfirm = function(mode){
+  const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
+  const slot = activeCharacterSlot != null ? activeCharacterSlot : ((S && S.characterSlotIndex != null) ? S.characterSlotIndex : 0);
+  const p = S && S.player ? S.player : null;
+  const name = p ? (p.name || p.className || '현재 캐릭터') : '현재 캐릭터';
+  showModal(`<h2>현재 캐릭터 삭제</h2>
+    <p class="muted"><b class="badtxt">${escapeText(name)}</b> 캐릭터를 삭제하고 캐릭터 선택 화면으로 돌아가시겠습니까?</p>
+    <p class="muted">캐릭터 삭제 시 해당 슬롯의 최고기록 랭킹도 함께 삭제됩니다.</p>
+    <div class="grid2" style="margin-top:12px">
+      <button class="btn bad" id="deleteCurrentConfirmBtn">삭제하기</button>
+      <button class="btn" id="deleteCurrentCancelBtn">취소</button>
+    </div>`, true);
+  $('deleteCurrentCancelBtn').onclick = ()=>showSystemMenu();
+  $('deleteCurrentConfirmBtn').onclick = async()=>{
+    const btn = $('deleteCurrentConfirmBtn');
+    btn.disabled = true;
+    btn.textContent = '삭제 중...';
+    try{
+      await deleteCharacterSlotAndRankingOnly(safeMode, slot);
+      toast('현재 캐릭터와 랭킹 기록을 삭제했습니다.');
+      showCharacterSlots(safeMode);
+    }catch(e){
+      btn.disabled = false;
+      btn.textContent = '삭제하기';
+      toast('삭제 저장 실패: ' + (e.message || e));
+    }
+  };
+};
+
+// 카카오 클라우드 저장 시 랭킹은 존재하는 슬롯의 bestRank/current 기록만 재생성한다.
+// 따라서 사망/새 원정으로는 삭제되지 않고, 슬롯 삭제 또는 회원탈퇴로만 빠진다.
+const saveCloudCharacterProfileRankDeleteGuard = saveCloudCharacterProfile;
+saveCloudCharacterProfile = async function(){
+  if(activeLoginMode !== 'kakao') return false;
+  const client = getCloudClient();
+  if(!client) return false;
+  const user = await currentCloudUser();
+  if(!user) return false;
+
+  const slots = normalizeCharacterSlots(cloudCharacterSlots, 3);
+  const rankings = slots.map(ch=>buildRankRecordFromCharacter(ch, meta)).filter(Boolean);
+  const active = activeCharacterSlot != null ? slots[activeCharacterSlot] : slots.find(Boolean);
+  const {error} = await client.from('game_saves').upsert({
+    user_id:user.id,
+    nickname:active ? active.nickname : null,
+    save_data:{version:3, characters:slots, rankings},
+    meta_data:meta || {},
+    updated_at:new Date().toISOString()
+  }, {onConflict:'user_id'});
+  if(error) throw error;
+  return true;
+};
+
+async function deleteOwnRankingSaveForWithdrawal(){
+  try{
+    const client = getCloudClient && getCloudClient();
+    const user = await currentCloudUser();
+    if(client && user && client.from){
+      await client.from('game_saves').delete().eq('user_id', user.id);
+    }
+  }catch(e){
+    console.warn('withdrawal ranking cleanup skipped:', e);
+  }
+}
+const deleteSupabaseAccountPermanentlyRankingCleanup = deleteSupabaseAccountPermanently;
+deleteSupabaseAccountPermanently = async function(){
+  await deleteOwnRankingSaveForWithdrawal();
+  return deleteSupabaseAccountPermanentlyRankingCleanup();
+};
+
 initStartPage();
 render();
 
