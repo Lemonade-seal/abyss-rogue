@@ -2221,6 +2221,38 @@ body.liveKeymapMode .keymapLiveDragging{
     }
   }
 
+
+
+  /* PC 시작화면 배경: 전체 이미지가 보이도록 contain 적용 */
+  @media (min-width:821px) and (hover:hover) and (pointer:fine){
+    #modal.startPage{
+      background:
+        linear-gradient(180deg,rgba(2,6,23,.04) 0%,rgba(2,6,23,.10) 44%,rgba(2,6,23,.70) 100%),
+        url("./abyss_rogue_start_background.png") center center / contain no-repeat!important;
+      background-color:#020617!important;
+    }
+  }
+
+  /* 폰/패드 가로모드 차단: 세로 전용 안내 */
+  #orientationBlocker{
+    position:fixed;inset:0;z-index:10000;display:none;align-items:center;justify-content:center;
+    padding:calc(20px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left));
+    background:radial-gradient(circle at 50% 15%,rgba(30,41,59,.98),rgba(2,6,23,.98) 62%);
+    color:#eef3ff;text-align:center;pointer-events:auto;
+  }
+  #orientationBlocker .orientationBlockerCard{
+    width:min(520px,100%);border:1px solid rgba(148,163,184,.42);border-radius:20px;
+    background:rgba(15,23,42,.72);box-shadow:0 20px 70px rgba(0,0,0,.50);padding:22px 18px;
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  }
+  #orientationBlocker h2{margin:0 0 10px;font-size:23px;letter-spacing:-.4px}
+  #orientationBlocker p{margin:6px 0 0;color:#cbd5e1;font-size:14px;line-height:1.55;word-break:keep-all}
+  #orientationBlocker .rotateIcon{font-size:44px;line-height:1;margin-bottom:10px;filter:drop-shadow(0 0 18px rgba(96,165,250,.55))}
+  @media (orientation:landscape) and (any-pointer:coarse) and (max-width:1400px){
+    #orientationBlocker{display:flex!important}
+    body > #app, body > #modal{filter:blur(3px);pointer-events:none!important;user-select:none!important}
+  }
+
 </style>
 </head>
 <body>
@@ -2289,6 +2321,14 @@ body.liveKeymapMode .keymapLiveDragging{
 </div>
 
 <div id="modal" class="modal"><div id="modalCard" class="card"></div></div>
+<div id="orientationBlocker" aria-live="polite" role="alert">
+  <div class="orientationBlockerCard">
+    <div class="rotateIcon">↻</div>
+    <h2>세로모드 전용 게임입니다</h2>
+    <p>폰과 패드에서는 가로모드를 지원하지 않습니다.</p>
+    <p>기기를 세로로 돌린 뒤 계속 플레이해 주세요. PC에서는 키보드와 마우스로 플레이할 수 있습니다.</p>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -9448,6 +9488,282 @@ ensureKeymapLiveBar = function(){
   `;
   document.head.appendChild(keymapSmoothStyle);
 })();
+
+
+/* ===== PC/세로모드/도움말 최종 적용 ===== */
+function isPhoneTabletLandscapeBlocked(){
+  try{
+    return !!(window.matchMedia && window.matchMedia('(orientation: landscape) and (any-pointer: coarse) and (max-width: 1400px)').matches);
+  }catch(e){ return false; }
+}
+function pcKeyHelpRows(){
+  return [
+    ['WASD / 방향키', '상하좌우 이동. 조준 중이면 해당 방향으로 스킬을 사용합니다.'],
+    ['Space / .', '한 턴 대기. HP/MP 회복 판정과 적 턴이 진행됩니다.'],
+    ['1 / 2 / 3', '스킬 1 / 스킬 2 / 스킬 3 사용.'],
+    ['Q', '물약 사용.'],
+    ['F / 마우스 오른쪽 클릭', '기본공격. 인접 적 우선, 마도사/궁수는 사거리 적도 공격합니다.'],
+    ['E', '안전오토 시작/정지.'],
+    ['Shift + E', '완전오토 시작/정지. 공격·스킬·물약까지 자동 사용합니다.'],
+    ['M', '미니맵 표시/숨김.'],
+    ['Shift + M', '전체맵 열기.'],
+    ['I', '가방 열기.'],
+    ['K', '스킬 메뉴 열기.'],
+    ['C', '스탯 열기.'],
+    ['L', '로그/채팅/숨김 전환.'],
+    ['R', '랭킹 열기.'],
+    ['O / H', '설정 / 도움말 열기.'],
+    ['Esc', '닫을 수 있는 팝업 닫기.']
+  ];
+}
+function renderHelpTable(rows){
+  return `<div class="helpTable">${rows.map(r=>`<div><b>${escHtml(r[0])}</b><span>${escHtml(r[1])}</span></div>`).join('')}</div>`;
+}
+function showHelpMenu(){
+  if(S) pauseAutoForChoice();
+  const keyRows = pcKeyHelpRows();
+  showModal(`<h2>도움말</h2>
+    <p class="muted">폰/패드는 세로모드 전용입니다. PC에서는 키보드와 마우스 조작을 같이 사용할 수 있습니다.</p>
+    <h3 style="margin:14px 0 7px">기본 버튼</h3>
+    ${renderHelpTable([
+      ['아날로그 패드', '짧게 누르거나 끌어서 이동. 가운데는 대기입니다.'],
+      ['스킬 1~3', '짧게 누르면 사용. 방향 지정 스킬은 누른 뒤 방향을 입력합니다.'],
+      ['물약', '현재 보유 물약을 사용합니다. 쿨타임이 있으면 사용할 수 없습니다.'],
+      ['공격', '인접한 적을 공격합니다. 마도사/궁수는 사거리 안의 적도 기본공격합니다.'],
+      ['오토 짧게 누름', '안전오토 시작/정지.'],
+      ['오토 길게 누름', '완전오토 시작. 공격·스킬·물약까지 자동 처리합니다.'],
+      ['미니맵 짧게 누름', '화면 위 미니맵 표시/숨김.'],
+      ['미니맵 길게 누름', '전체맵 팝업을 엽니다.'],
+      ['로그 버튼', '로그 → 채팅 → 숨김 순서로 전환합니다.'],
+      ['설정', '키맵핑, 도움말, 캐릭터 선택, 캐릭터 삭제 메뉴입니다.']
+    ])}
+    <h3 style="margin:14px 0 7px">키보드 사용법</h3>
+    ${renderHelpTable(keyRows)}
+    <h3 style="margin:14px 0 7px">마우스 사용법</h3>
+    ${renderHelpTable([
+      ['좌클릭: 플레이어 주변 칸', '해당 방향으로 1칸 이동합니다. 인접 적을 누르면 그 적을 공격합니다.'],
+      ['좌클릭: 먼 칸', '클릭한 방향으로 한 칸 이동합니다. 조준 중이면 그 방향으로 스킬을 사용합니다.'],
+      ['우클릭', '기본공격을 실행합니다.'],
+      ['휠', '게임 화면 배율을 조정합니다.'],
+      ['설정 → 키맵핑', '하단 버튼과 아날로그 위치를 실제 게임 화면에서 드래그해 재배치합니다.']
+    ])}
+    <div class="grid2" style="margin-top:14px"><button class="btn" id="helpBackBtn">설정으로</button><button class="btn good" id="helpCloseBtn">닫기</button></div>`, false);
+  const back=$('helpBackBtn'); if(back) back.onclick=showSystemMenu;
+  const close=$('helpCloseBtn'); if(close) close.onclick=()=>{ hideModal(); renderAll(); };
+}
+
+showSystemMenu = function(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const mode = activeLoginMode || S.loginMode || 'guest';
+  const accountDeleteDisabled = mode === 'kakao' ? '' : ' disabled';
+  showModal(`<h2>설정</h2>
+    <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn good" id="menuKeymapBtn">키맵핑</button>
+      <button class="btn" id="menuHelpBtn">도움말</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn" id="menuCharacterBtn">캐릭터 선택</button>
+      <button class="btn warn" id="menuWithdrawBtn"${accountDeleteDisabled}>회원탈퇴</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn bad" id="menuDeleteCharBtn">현재 캐릭터 삭제</button>
+      <button class="btn" id="menuCloseBtn">닫기</button>
+    </div>`, false);
+  const keymapBtn=$('menuKeymapBtn'); if(keymapBtn) keymapBtn.onclick = startLiveKeymapMode;
+  const helpBtn=$('menuHelpBtn'); if(helpBtn) helpBtn.onclick = showHelpMenu;
+  const charBtn=$('menuCharacterBtn'); if(charBtn) charBtn.onclick = ()=>{ saveRun(); S = null; showCharacterSlots(mode); };
+  const withdrawBtn = $('menuWithdrawBtn'); if(withdrawBtn) withdrawBtn.onclick = ()=>showAccountWithdrawalConfirm(mode);
+  const delBtn=$('menuDeleteCharBtn'); if(delBtn) delBtn.onclick = ()=>showDeleteCurrentCharacterConfirm(mode);
+  const closeBtn=$('menuCloseBtn'); if(closeBtn) closeBtn.onclick = ()=>{ hideModal(); renderAll(); };
+};
+if($('menuMenuBtn')){
+  const b=$('menuMenuBtn').querySelector('b');
+  if(b) b.textContent='설정';
+  $('menuMenuBtn').onclick = showSystemMenu;
+}
+
+function handleDesktopShortcut(e){
+  if(e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return false;
+  if(e.repeat) return false;
+  const k = e.key.toLowerCase();
+  const block = ()=>{ e.preventDefault(); e.stopImmediatePropagation(); return true; };
+  if(k==='e' && e.shiftKey){
+    block();
+    if(autoMode==='full') stopAuto(); else startFullAuto();
+    return true;
+  }
+  if(k==='escape'){
+    if(modalOpen && !document.body.classList.contains('startScreen')){ block(); hideModal(); renderAll(); return true; }
+    return false;
+  }
+  if(modalOpen || !S) return false;
+  if(k==='m' && e.shiftKey){ block(); showMapMenu(); return true; }
+  if(k==='m'){ block(); toggleMiniMap(); return true; }
+  if(k==='i' || k==='b'){ block(); showBagMenu(); return true; }
+  if(k==='k'){ block(); showSkillMenu(); return true; }
+  if(k==='c'){ block(); showStatsMenu(); return true; }
+  if(k==='l'){ block(); toggleLogChatPanel(); return true; }
+  if(k==='r'){ block(); showRankingMenu(); return true; }
+  if(k==='o'){ block(); showSystemMenu(); return true; }
+  if(k==='h'){ block(); showHelpMenu(); return true; }
+  return false;
+}
+document.addEventListener('keydown', handleDesktopShortcut, true);
+
+function canvasTileFromMouseEvent(e){
+  const rect = canvas.getBoundingClientRect();
+  if(!rect.width || !rect.height) return null;
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
+  if(x<0 || y<0 || x>1 || y>1) return null;
+  return {tx:Math.floor(x*VIEW), ty:Math.floor(y*VIEW)};
+}
+function handlePcCanvasPointer(e){
+  if(e.pointerType && e.pointerType !== 'mouse') return;
+  if(isPhoneTabletLandscapeBlocked()) return;
+  if(e.button===2){
+    e.preventDefault();
+    basicAttackButton();
+    return;
+  }
+  if(e.button!==0 || !S || modalOpen) return;
+  const tile = canvasTileFromMouseEvent(e);
+  if(!tile) return;
+  const center = Math.floor(VIEW/2);
+  const rawDx = tile.tx - center;
+  const rawDy = tile.ty - center;
+  e.preventDefault();
+  if(rawDx===0 && rawDy===0){ waitTurn(); return; }
+  let dx=0, dy=0;
+  if(Math.abs(rawDx) >= Math.abs(rawDy)) dx = rawDx>0 ? 1 : -1;
+  else dy = rawDy>0 ? 1 : -1;
+  if(S.player.awaitAim){ handleMove(dx,dy); return; }
+  const targetX=S.player.x+dx, targetY=S.player.y+dy;
+  const eTarget = enemyAt(targetX,targetY);
+  if(eTarget){
+    faceToward(eTarget.x,eTarget.y);
+    playerAttack(eTarget,false);
+    addLog('마우스 기본공격.');
+    afterPlayerAction();
+    return;
+  }
+  handleMove(dx,dy);
+}
+canvas.addEventListener('pointerdown', handlePcCanvasPointer);
+canvas.addEventListener('contextmenu', e=>{ e.preventDefault(); basicAttackButton(); });
+
+const pcHelpStyle = document.createElement('style');
+pcHelpStyle.textContent = `
+  .helpTable{display:grid;grid-template-columns:1fr;gap:6px;margin:7px 0 0}
+  .helpTable>div{display:grid;grid-template-columns:minmax(104px,.45fr) minmax(0,1fr);gap:8px;align-items:start;padding:8px 9px;border:1px solid rgba(203,213,225,.24);border-radius:10px;background:rgba(15,23,42,.18)}
+  .helpTable b{color:#fff;font-size:12px;line-height:1.35}
+  .helpTable span{color:#cbd5e1;font-size:12px;line-height:1.38;word-break:keep-all}
+  @media(max-width:520px){.helpTable>div{grid-template-columns:1fr;gap:3px}.helpTable b,.helpTable span{font-size:11px}}
+`;
+document.head.appendChild(pcHelpStyle);
+
+
+/* ===== 요청 반영: 턴제/기능 도움말 접힘 카테고리 + 랭킹 스크롤 ===== */
+function renderHelpSection(title, rows, open){
+  return `<details class="helpSection"${open ? ' open' : ''}>
+    <summary>${escHtml(title)}</summary>
+    ${renderHelpTable(rows)}
+  </details>`;
+}
+function showHelpMenu(){
+  if(S) pauseAutoForChoice();
+  const keyRows = pcKeyHelpRows();
+  showModal(`<h2>도움말</h2>
+    <p class="muted">이 게임은 <b>세로모드 전용 턴제 로그라이크</b>입니다. 이동, 공격, 스킬, 물약, 대기는 각각 턴 판단에 포함됩니다. 폰/패드는 세로모드로 플레이하고, PC에서는 키보드와 마우스를 함께 사용할 수 있습니다.</p>
+    ${renderHelpSection('1. 게임 방식 / 턴제 규칙', [
+      ['턴제 진행', '유저가 이동·공격·스킬·물약·대기 같은 행동을 하면 그 행동이 한 번 처리되고, 이후 몬스터가 탐색·이동·공격을 계산합니다.'],
+      ['계산된 플레이', '무작정 맞붙는 게임이 아니라 사거리, 위치, 통로, 대기 타이밍을 계산해서 몬스터를 끌어오거나 거리를 벌리는 방식입니다.'],
+      ['대기', '아날로그 가운데, Space, . 키로 대기합니다. 대기하면 턴을 소비하는 대신 회복 판정과 몬스터 행동이 진행됩니다.'],
+      ['몬스터 탐색', '대기하거나 행동을 넘기면 몬스터가 유저를 탐색해서 접근합니다. 일부 상황에서는 대기로 적을 원하는 위치까지 유도할 수 있습니다.'],
+      ['위치 관리', '좁은 통로, 문, 벽, 사거리 차이를 이용하면 여러 몬스터를 한 번에 상대하지 않고 순서대로 처리할 수 있습니다.']
+    ], true)}
+    ${renderHelpSection('2. 공격 / 스킬 / 사거리', [
+      ['기본공격', '전사·도적은 인접한 적 중심으로 공격합니다. 마도사·궁수는 사거리 안의 적도 기본공격 대상이 됩니다.'],
+      ['스킬 사용', '스킬 버튼을 누른 뒤 방향 입력이 필요한 스킬은 방향키, WASD, 패드, 마우스 클릭 방향으로 조준합니다.'],
+      ['사거리 판단', '공격과 스킬은 각자 사거리 조건을 가집니다. 사거리 밖이면 이동, 대기, 유도 플레이로 거리를 맞춰야 합니다.'],
+      ['턴 소비', '스킬과 공격도 턴을 소비합니다. 사용 후 몬스터가 행동하므로 남은 HP와 적 위치를 보고 사용해야 합니다.'],
+      ['쿨타임', '스킬과 물약은 쿨타임이 있을 수 있습니다. 쿨타임 중에는 다른 행동으로 턴을 조절해야 합니다.']
+    ], false)}
+    ${renderHelpSection('3. 화면 버튼 / 길게 누르는 기능', [
+      ['아날로그 패드', '짧게 누르거나 끌어서 이동합니다. 가운데는 대기입니다.'],
+      ['스킬 1~3', '짧게 누르면 스킬을 사용합니다. 조준형 스킬은 누른 뒤 방향을 입력합니다.'],
+      ['물약', '현재 설정된 물약을 사용합니다. 쿨타임 또는 보유 수량 조건이 맞지 않으면 사용할 수 없습니다.'],
+      ['공격', '가장 적절한 기본공격을 실행합니다. 인접 적이 있으면 우선 공격합니다.'],
+      ['오토 짧게 누름', '안전오토를 시작하거나 정지합니다.'],
+      ['오토 길게 누름', '완전오토를 시작합니다. 공격·스킬·물약 사용까지 자동 처리합니다.'],
+      ['미니맵 짧게 누름', '화면 위 미니맵을 표시하거나 숨깁니다.'],
+      ['미니맵 길게 누름', '전체맵 팝업을 엽니다.'],
+      ['로그 버튼', '로그 → 채팅 → 숨김 순서로 전환합니다.'],
+      ['설정', '키맵핑, 도움말, 캐릭터 선택, 회원탈퇴, 캐릭터 삭제 메뉴가 있습니다.']
+    ], false)}
+    ${renderHelpSection('4. 키보드 사용법 / PC 모드', keyRows, false)}
+    ${renderHelpSection('5. 마우스 사용법 / PC 모드', [
+      ['좌클릭: 플레이어 주변 칸', '해당 방향으로 1칸 이동합니다. 인접 적을 누르면 그 적을 공격합니다.'],
+      ['좌클릭: 먼 칸', '클릭한 방향으로 한 칸 이동합니다. 조준 중이면 그 방향으로 스킬을 사용합니다.'],
+      ['우클릭', '기본공격을 실행합니다.'],
+      ['휠', '게임 화면 배율을 조정합니다.'],
+      ['드래그 키맵핑', '설정 → 키맵핑에서 하단 버튼과 아날로그 위치를 실제 게임 화면 위에서 재배치합니다.']
+    ], false)}
+    ${renderHelpSection('6. 지도 / 로그 / 채팅', [
+      ['미니맵', '짧게 누르면 현재 화면 위에 작은 지도를 켜거나 끕니다.'],
+      ['전체맵', '미니맵을 길게 누르거나 Shift+M을 누르면 전체맵을 확인합니다.'],
+      ['로그', '전투, 아이템 획득, 시스템 메시지를 확인합니다.'],
+      ['채팅', '로그 버튼을 눌러 채팅 화면으로 전환할 수 있습니다. 입력 중에는 키보드 단축키가 게임 조작으로 처리되지 않습니다.']
+    ], false)}
+    ${renderHelpSection('7. 가방 / 장비 / 스킬 / 도감', [
+      ['가방', '획득한 장비와 아이템을 확인하고 장착, 비교, 판매, 창고 이동 등을 처리합니다.'],
+      ['장비', '현재 착용 중인 장비와 공격력·방어력 등 주요 능력치를 확인합니다.'],
+      ['스킬', '보유 스킬, 강화 상태, 쿨타임, 효과를 확인합니다.'],
+      ['도감', '몬스터와 보스 정보를 확인하는 메뉴입니다. 진행 상황에 따라 정보가 채워집니다.']
+    ], false)}
+    ${renderHelpSection('8. 랭킹 / 저장', [
+      ['랭킹 기준', '랭킹은 접속 상태가 아니라 저장된 최고기록 기준으로 표시됩니다.'],
+      ['게스트', '게스트 로그인은 닉네임을 설정하지 않으며 랭킹에도 등록되지 않습니다.'],
+      ['목록 스크롤', '등록 유저가 많아지면 랭킹 목록 영역 안에서 스크롤해서 확인할 수 있습니다.'],
+      ['저장', '카카오/Supabase 저장 모드에서는 캐릭터와 최고기록을 저장해 랭킹에 반영합니다.']
+    ], false)}
+    <div class="grid2" style="margin-top:14px"><button class="btn" id="helpBackBtn">설정으로</button><button class="btn good" id="helpCloseBtn">닫기</button></div>`, false);
+  const back=$('helpBackBtn'); if(back) back.onclick=showSystemMenu;
+  const close=$('helpCloseBtn'); if(close) close.onclick=()=>{ hideModal(); renderAll(); };
+}
+
+function enhanceRankingScroll(){
+  const table = document.querySelector('#modalCard .rankingTable');
+  if(!table || table.parentElement.classList.contains('rankingScroll')) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'rankingScroll';
+  table.parentNode.insertBefore(wrap, table);
+  wrap.appendChild(table);
+}
+const showRankingMenuBeforeScrollablePatch = showRankingMenu;
+showRankingMenu = async function(){
+  const result = await showRankingMenuBeforeScrollablePatch.apply(this, arguments);
+  setTimeout(enhanceRankingScroll, 0);
+  return result;
+};
+if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+
+const helpAccordionAndRankingScrollStyle = document.createElement('style');
+helpAccordionAndRankingScrollStyle.textContent = `
+  .helpSection{margin:8px 0;border:1px solid rgba(203,213,225,.24);border-radius:12px;background:rgba(15,23,42,.12);overflow:hidden}
+  .helpSection summary{cursor:pointer;list-style:none;padding:10px 12px;font-size:13px;font-weight:900;color:#eef3ff;background:rgba(15,23,42,.24);border-bottom:1px solid rgba(203,213,225,.16)}
+  .helpSection summary::-webkit-details-marker{display:none}
+  .helpSection summary:before{content:'+';display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;margin-right:7px;border:1px solid rgba(203,213,225,.28);border-radius:6px;color:#dbeafe;font-weight:900}
+  .helpSection[open] summary:before{content:'−'}
+  .helpSection .helpTable{padding:8px;margin:0}
+  .rankingScroll{max-height:min(62dvh,520px);overflow:auto;margin-top:10px;border:1px solid rgba(203,213,225,.24);border-radius:12px;background:rgba(15,23,42,.12);-webkit-overflow-scrolling:touch}
+  .rankingScroll .rankingTable{margin-top:0;min-width:620px}
+  .rankingScroll .rankingTable thead th{position:sticky;top:0;z-index:2;background:rgba(15,23,42,.94);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  @media(max-width:520px){.rankingScroll{max-height:58dvh}.rankingScroll .rankingTable{min-width:560px}}
+`;
+document.head.appendChild(helpAccordionAndRankingScrollStyle);
 
 initStartPage();
 render();
