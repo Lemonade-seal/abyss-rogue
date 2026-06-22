@@ -2434,8 +2434,8 @@ const HERO_SPRITE_URLS = [
 const HERO_CLASS_ROW = {warrior:0, rogue:1, mage:2, hunter:3};
 const HERO_DIR_COL = {down:0, up:1, left:2, right:3};
 const HERO_SPRITES = HERO_SPRITE_URLS.map(row=>row.map(src=>{ const img=new Image(); img.src=src; return img; }));
-/* Applied dungeon item image icons: gold, chest, potion, skillgem, soul, relic, shrine, camp, vault, oracle */
-const ITEM_ICON_URLS = {"gold": "./assets/icons/items/gold.png", "chest": "./assets/icons/items/chest.png", "potion": "./assets/icons/items/potion.png", "skillgem": "./assets/icons/items/skillgem.png", "soul": "./assets/icons/items/soul.png", "relic": "./assets/icons/items/relic.png", "shrine": "./assets/icons/items/shrine.png", "camp": "./assets/icons/items/camp.png", "vault": "./assets/icons/items/vault.png", "oracle": "./assets/icons/items/oracle.png"};
+/* Applied dungeon item image icons: gold, chest, potion, skillgem, soul, relic, shrine, camp, vault, oracle, merchant, stairs/exit */
+const ITEM_ICON_URLS = {"gold": "./assets/icons/items/gold.png", "chest": "./assets/icons/items/chest.png", "potion": "./assets/icons/items/potion.png", "skillgem": "./assets/icons/items/skillgem.png", "soul": "./assets/icons/items/soul.png", "relic": "./assets/icons/items/relic.png", "shrine": "./assets/icons/items/shrine.png", "camp": "./assets/icons/items/camp.png", "vault": "./assets/icons/items/vault.png", "oracle": "./assets/icons/items/oracle.png", "merchant": "./assets/icons/items/merchant.png", "stairs": "./assets/icons/items/stairs.png", "exit": "./assets/icons/items/stairs.png"};
 const ITEM_ICONS = Object.fromEntries(Object.entries(ITEM_ICON_URLS).map(([key,src])=>{ const img=new Image(); img.src=src; return [key,img]; }));
 function applyCurrencyHeaderIcons(){
   const goldIcon=$('goldIconImg'), soulIcon=$('soulIconImg');
