@@ -3082,6 +3082,114 @@ MONSTER_NAME_SEQUENCE.forEach((m, i)=>{
   m.name = `${no} ${baseName}`;
   if(MATCHED_MONSTER_DESCS[i]) m.desc = MATCHED_MONSTER_DESCS[i];
 });
+const MONSTER_ATTACK_TYPE_LIST = [
+  'melee', // 001 초록 슬라임,
+  'melee', // 002 붉은 뿔악마,
+  'melee', // 003 보라 박쥐,
+  'melee', // 004 해골 검사,
+  'melee', // 005 단검 고블린,
+  'melee', // 006 회색 늑대,
+  'melee', // 007 동굴 멧돼지,
+  'melee', // 008 식인초 괴수,
+  'ranged', // 009 푸른 원혼,
+  'ranged', // 010 해골 지팡이 사신,
+  'melee', // 011 고목 괴수,
+  'ranged', // 012 핏줄 외눈알,
+  'melee', // 013 얼음 골렘,
+  'melee', // 014 보라 독거미,
+  'melee', // 015 저주받은 미라,
+  'melee', // 016 주황 전갈,
+  'melee', // 017 푸른 어인 검사,
+  'ranged', // 018 광대 악령,
+  'ranged', // 019 기계 감시구,
+  'ranged', // 020 검은 망령,
+  'melee', // 021 화염 정령,
+  'melee', // 022 갈색 미노타우로스,
+  'melee', // 023 푸른 해파리 괴수,
+  'melee', // 024 방패 숲기사,
+  'ranged', // 025 붉은 오징어 주술사,
+  'melee', // 026 해골 바위괴수,
+  'ranged', // 027 까마귀 역병의사,
+  'ranged', // 028 분홍 촉수눈,
+  'melee', // 029 황금 말벌,
+  'ranged', // 030 보라 수정탑,
+  'melee', // 031 소형 전투로봇,
+  'ranged', // 032 붉은 화염술사,
+  'melee', // 033 가시 멧돼지,
+  'melee', // 034 푸른 도깨비불,
+  'melee', // 035 굶주린 미믹,
+  'ranged', // 036 독액 슬라임,
+  'melee', // 037 흡혈귀 백작,
+  'melee', // 038 석벽 수호자,
+  'melee', // 039 갈색 오우거,
+  'melee', // 040 회색 쥐인간,
+  'melee', // 041 늑대인간,
+  'ranged', // 042 초록 메두사,
+  'melee', // 043 푸른 갑각전사,
+  'melee', // 044 보라 후드암살자,
+  'ranged', // 045 고블린 총잡이,
+  'ranged', // 046 보라 감시눈,
+  'melee', // 047 황금 민달팽이,
+  'melee', // 048 붉은 흑기사,
+  'ranged', // 049 창백한 밴시,
+  'melee', // 050 청록 집게괴수,
+  'ranged', // 051 저주받은 마도서,
+  'melee', // 052 해골 젤리큐브,
+  'melee', // 053 협곡 하피,
+  'melee', // 054 이끼 석상,
+  'melee', // 055 보라 포식벌레,
+  'melee', // 056 작은 얼음골렘,
+  'melee', // 057 뿔 달린 암흑군주,
+  'ranged', // 058 비행 기계눈,
+  'ranged', // 059 녹색 영혼불,
+  'melee', // 060 가시 굴림괴수,
+  'melee', // 061 녹색 후드도적,
+  'melee', // 062 붉은 수정골렘,
+  'melee', // 063 왕관 모래슬라임,
+  'melee', // 064 푸른 리자드맨,
+  'melee', // 065 검은 낫사신,
+  'melee', // 066 황금 풍뎅이,
+  'melee', // 067 보라 문어괴수,
+  'ranged', // 068 버섯 포자괴수,
+  'melee', // 069 장갑 로봇병,
+  'melee', // 070 고목 그루터기,
+  'melee', // 071 화염 꼬마악마,
+  'melee', // 072 해적 해골,
+  'ranged', // 073 분홍 외눈촉수,
+  'melee', // 074 숲의 나무정령,
+  'melee', // 075 뼈 드래곤,
+  'ranged', // 076 보라 날개요정,
+  'melee', // 077 붉은 마룡수,
+  'melee', // 078 나무껍질 괴수,
+  'ranged', // 079 푸른 수정군집,
+  'ranged', // 080 보라 상자괴수,
+  'melee', // 081 암흑 그림자,
+  'melee', // 082 설산 예티,
+  'melee', // 083 황금 로봇,
+  'melee', // 084 녹색 코브라,
+  'melee', // 085 붉은 가시구체,
+  'ranged', // 086 녹색 촉수망령,
+  'ranged', // 087 중장갑 기계눈,
+  'melee', // 088 천사 수호자,
+  'melee', // 089 분홍 토끼괴수,
+  'ranged', // 090 황금 태양눈,
+  'melee', // 091 왕관 슬라임왕,
+  'melee', // 092 오크 투사장,
+  'melee', // 093 고대 수목왕,
+  'melee', // 094 빙결 골렘왕,
+  'ranged', // 095 보라 날개악마,
+  'ranged', // 096 심연 외눈군주,
+  'ranged', // 097 암흑 사신왕,
+  'ranged', // 098 얼음 해골군주,
+  'ranged', // 099 흑룡 바르카르,
+  'ranged', // 100 지옥군주 아그론
+];
+MONSTER_NAME_SEQUENCE.forEach((m, i)=>{
+  const attackType = MONSTER_ATTACK_TYPE_LIST[i] || 'melee';
+  m.attackType = attackType;
+  m.ranged = attackType === 'ranged';
+});
+function monsterAttackTypeLabel(m){ return m && m.ranged ? '원거리' : '근거리'; }
 function normalizeEquipSlots(equip, clsId='warrior'){
   const src = equip || {};
   const next = {};
@@ -3637,6 +3745,7 @@ function makeEnemy(x,y,floor,boss){
     gold:Math.floor(t.gold*scale*(mod.gold||1)),
     fast:!!t.fast,
     ranged:!!t.ranged,
+    attackType:t.attackType || (t.ranged ? 'ranged' : 'melee'),
     boss:!!t.boss,
     burn:0,
     tier:t.tier,
@@ -3976,9 +4085,39 @@ function enemyTurn(){
     }
   }
 }
+function monsterAttackFxStyle(e){
+  const name = e?.name || '';
+  if(e?.ranged){
+    if(/총잡이|감시구|기계눈|로봇|전투로봇|감시/.test(name)) return {shape:'arrow', color:'#f59e0b', spark:'#fde68a', core:'#fff7ed'};
+    if(/수정|도깨비불|영혼|원혼|망령|악령|메두사|마도서|주술사|태양눈|외눈|군주|사신/.test(name)) return {shape:'magicOrb', color:'#a78bfa', spark:'#e9d5ff', core:'#f5d0fe'};
+    if(/해골|밴시|드래곤|흑룡/.test(name)) return {shape:'magicOrb', color:'#93c5fd', spark:'#e0f2fe', core:'#ffffff'};
+    return {shape:'arrow', color:'#fb7185', spark:'#fee2e2', core:'#fff1f2'};
+  }
+  if(/얼음|빙결/.test(name)) return {color:'#93c5fd', spark:'#e0f2fe'};
+  if(/독|전갈|코브라|거미|포자/.test(name)) return {color:'#86efac', spark:'#dcfce7'};
+  if(/화염|악마|지옥|마룡|드래곤/.test(name)) return {color:'#fb7185', spark:'#fff7ed'};
+  if(/고목|나무|식인초|수목/.test(name)) return {color:'#84cc16', spark:'#ecfccb'};
+  return {color:'#fca5a5', spark:'#ffffff'};
+}
+function addEnemyAttackFx(e, dodged=false){
+  if(!e || !S || !S.player) return;
+  const p = S.player;
+  const style = monsterAttackFxStyle(e);
+  if(e.ranged){
+    addFx({kind:'projectile', shape:style.shape||'arrow', x1:e.x, y1:e.y, x2:p.x, y2:p.y, color:style.color, spark:style.spark, core:style.core, dur:(style.shape==='magicOrb'?320:190)});
+    addFx({kind:'burst', x:p.x, y:p.y, color:style.color, spark:style.spark, dur:200});
+  } else {
+    addFx({kind:'stab', x1:e.x, y1:e.y, x2:p.x, y2:p.y, color:style.color, spark:style.spark, dur:160});
+    addFx({kind:'slash', x:p.x, y:p.y, color:style.color, dur:190, angle:Math.atan2(p.y-e.y, p.x-e.x)});
+    addFx({kind:'burst', x:p.x, y:p.y, color:style.color, spark:style.spark, dur:150});
+  }
+  if(dodged) addFx({kind:'ring', x:p.x, y:p.y, color:'#fde68a', dur:220});
+}
 function enemyAttack(e, st){
   const p=S.player;
-  if(chance(st.eva/100)){ addLog(`${e.name}의 공격을 회피.`); return; }
+  const dodged = chance(st.eva/100);
+  addEnemyAttackFx(e, dodged);
+  if(dodged){ addLog(`${e.name}의 공격을 회피.`); return; }
   let dmg = Math.max(1, Math.floor(e.atk - st.def*.55 + rand(4) + Math.floor(S.player.floor/6) + st.taken - st.flatReduce));
   p.hp -= dmg;
   addLog(`<span class="badtxt">${e.name}</span>에게 ${dmg} 피해를 받음.`);
@@ -4560,7 +4699,7 @@ function showCodexMenu(filter={}){
     if(f.status==='unknown' && seen) return false;
     if(f.tier!=='all' && String(m.tier)!==String(f.tier)) return false;
     if(q){
-      const hay = `${m.name} ${m.desc} ${m.boss?'보스':'일반'} 티어 ${m.tier}`.toLowerCase();
+      const hay = `${m.name} ${m.desc} ${m.boss?'보스':'일반'} 티어 ${m.tier} ${monsterAttackTypeLabel(m)} 공격`.toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
@@ -4568,7 +4707,7 @@ function showCodexMenu(filter={}){
   const rows=list.map(m=>{
     const seen = discovered(m.id);
     const img = getSpriteImageUrl(m.id);
-    return `<div class="choice ${seen?'':'codexUnknown'} ${m.boss?'codexBoss':''}"><div class="codexEntry"><div class="codexSpriteWrap">${img?`<img src="${img}" alt="${escHtml(m.name)}">`:''}</div><div><h4>${seen?escHtml(m.name):'????'}</h4><p>${seen?escHtml(m.desc):'아직 조우하지 못한 몬스터다.'}</p><p class="muted">${m.boss?'보스':'일반'} · 티어 ${m.tier}</p></div></div></div>`;
+    return `<div class="choice ${seen?'':'codexUnknown'} ${m.boss?'codexBoss':''}"><div class="codexEntry"><div class="codexSpriteWrap">${img?`<img src="${img}" alt="${escHtml(m.name)}">`:''}</div><div><h4>${seen?escHtml(m.name):'????'}</h4><p>${seen?escHtml(m.desc):'아직 조우하지 못한 몬스터다.'}</p><p class="muted">${m.boss?'보스':'일반'} · 티어 ${m.tier} · ${monsterAttackTypeLabel(m)} 공격</p></div></div></div>`;
   }).join('') || '<p class="muted">조건에 맞는 몬스터가 없다.</p>';
   const tierOptions = ['<option value="all">전체 티어</option>'].concat(tiers.map(t=>`<option value="${t}" ${String(f.tier)===String(t)?'selected':''}>티어 ${t}</option>`)).join('');
   showModal(`<h2>도감</h2><p class="muted">총 ${MONSTER_BOOK.length}종의 몬스터 정보.</p>
