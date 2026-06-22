@@ -1564,6 +1564,56 @@
   #confirmEquipBtn:disabled{opacity:.45;filter:grayscale(.5);cursor:not-allowed}
   @media(max-width:420px){.equipComparePair{gap:6px}.equipSideBox{padding:7px}.equipNameLine{font-size:11px}.equipMetaLine,.equipStatLine{font-size:10px}}
 
+
+  /* 키맵핑 + 게임화면 확대/축소 */
+  #app.layoutAnalogRight .footer{grid-template-columns:minmax(0,1fr) 170px!important}
+  #app.layoutAnalogRight #analogPad{order:2!important}
+  #app.layoutAnalogRight .rightui{order:1!important}
+  #gamePanel{touch-action:none}
+  #game{transform:scale(var(--gameZoom,1));transform-origin:center center;transition:transform .08s linear}
+  .footer,.rightui,#analogPad,.skillbar,.menubar,.skill,.menuBtn{transition:transform .18s ease, order .18s ease, opacity .18s ease, box-shadow .18s ease}
+  .keymapWrap{display:grid;gap:10px;margin-top:10px}
+  .keymapPreview{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:stretch}
+  .keymapPreview.analogRight{grid-template-columns:1fr 120px}
+  .keymapPreview.analogRight .keymapAnalogPreview{order:2}
+  .keymapPreview.analogRight .keymapActionPreview{order:1}
+  .keymapBlock{border:1px solid rgba(148,163,184,.48);background:rgba(15,23,42,.62);border-radius:14px;padding:10px;min-height:96px;touch-action:none;transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease}
+  .keymapBlock h4{margin:0 0 8px;font-size:13px;color:#dbe7ff}
+  .keymapAnalogPreview{display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:grab}
+  .keymapAnalogPreview.dragging{box-shadow:0 12px 28px rgba(0,0,0,.35);border-color:#facc15;z-index:10}
+  .keymapAnalogMini{width:70px;height:70px;border-radius:50%;border:2px solid #475569;position:relative;background:radial-gradient(circle,#1e293b,#0f172a)}
+  .keymapAnalogMini:before,.keymapAnalogMini:after{content:"";position:absolute;background:#64748b;left:50%;top:50%;transform:translate(-50%,-50%)}
+  .keymapAnalogMini:before{width:48px;height:2px}.keymapAnalogMini:after{width:2px;height:48px}
+  .keymapDragHint{font-size:11px;color:#94a3b8;margin-top:7px;text-align:center;line-height:1.25}
+  .keymapActionPreview{display:grid;gap:9px}
+  .keymapSubTitle{font-size:11px;color:#93c5fd;font-weight:900;margin:2px 0 -2px}
+  .keymapActionList,.keymapMenuList{display:grid;gap:7px}
+  .keymapActionList{grid-template-columns:repeat(3,1fr)}
+  .keymapMenuList{grid-template-columns:repeat(5,1fr)}
+  .keymapBtnItem{border:1px solid #475569;background:linear-gradient(180deg,#25324a,#101827);border-radius:12px;padding:8px 5px;min-height:45px;text-align:center;font-size:11px;font-weight:900;cursor:grab;touch-action:none;user-select:none;transition:transform .16s ease, opacity .16s ease, outline-color .16s ease, box-shadow .16s ease, border-color .16s ease}
+  .keymapMenuList .keymapBtnItem{min-height:35px;padding:7px 3px;font-size:10px;border-radius:10px}
+  .keymapBtnItem.dragging{opacity:.86;outline:2px solid #facc15;box-shadow:0 12px 24px rgba(0,0,0,.42);z-index:20;position:relative}
+  .keymapBtnItem.dropTarget{outline:2px solid #38bdf8;transform:scale(1.05)}
+  .keymapChoiceBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .keymapSelectedSide{font-size:12px;color:#cbd5e1;text-align:center}
+  .zoomHelpLine{font-size:12px;color:#94a3b8;line-height:1.35}
+
+
+
+  /* 키맵핑 드래그 정렬 안정화 + 패드/버튼 크기 고정 */
+  #analogPad{justify-self:center;align-self:start;flex:0 0 auto;min-width:170px;min-height:170px}
+  #app.layoutAnalogRight .footer{grid-template-columns:minmax(0,1fr) 170px!important}
+  #app.layoutAnalogRight #analogPad{order:2!important;justify-self:center!important;align-self:start!important;transform:none}
+  #app.layoutAnalogRight .rightui{order:1!important;min-width:0!important;transform:none}
+  .keymapActionList,.keymapMenuList{position:relative;align-items:stretch}
+  .keymapBtnItem{transform-origin:center center;will-change:transform}
+  .keymapBtnItem.dragging{position:fixed!important;left:0;top:0;width:var(--drag-w,80px)!important;height:var(--drag-h,44px)!important;min-height:0!important;pointer-events:none!important;opacity:.94;z-index:9999!important;transform:none!important;transition:none!important}
+  .keymapBtnItem.keymapPlaceholder{border:1px dashed #facc15!important;background:rgba(250,204,21,.08)!important;color:#facc15!important;box-shadow:inset 0 0 0 1px rgba(250,204,21,.12);opacity:.9}
+  .keymapBtnItem.moving{transition:transform .16s ease!important}
+  .keymapBtnItem.dropTarget{outline:2px solid #38bdf8;transform:none!important}
+  @media(max-width:820px){#analogPad{min-width:136px;min-height:136px}#app.layoutAnalogRight .footer{grid-template-columns:minmax(0,1fr) 142px!important}}
+  @media(max-height:700px){#analogPad{min-width:116px;min-height:116px}#app.layoutAnalogRight .footer{grid-template-columns:minmax(0,1fr) 122px!important}}
+
 </style>
 </head>
 <body>
@@ -1625,7 +1675,7 @@
         <button id="codexMenuBtn" class="menuBtn"><b>도감</b></button>
         <button id="logChatBtn" class="menuBtn"><b>로그</b></button>
         <button id="rankingMenuBtn" class="menuBtn"><b>랭킹</b></button>
-        <button id="menuMenuBtn" class="menuBtn"><b>메뉴</b></button>
+        <button id="menuMenuBtn" class="menuBtn"><b>설정</b></button>
       </div>
     </div>
   </div>
@@ -7205,6 +7255,419 @@ showStatsMenu = function(){
   bindCloseOnly();
 };
 if($('statMenuBtn')) $('statMenuBtn').onclick = showStatsMenu;
+
+
+
+
+/* 설정 메뉴 / 키맵핑 / 게임 화면 핀치 확대축소 */
+const CONTROL_LAYOUT_KEY = 'abyss_control_layout_v3';
+const GAME_ZOOM_KEY = 'abyss_game_zoom_v1';
+const DEFAULT_ACTION_ORDER = ['skill1','skill2','skill3','potionBtn','attackBtn'];
+const DEFAULT_MENU_ORDER = ['statMenuBtn','equipMenuBtn','bagMenuBtn','skillMenuBtn','autoBtn','mapMenuBtn','codexMenuBtn','logChatBtn','rankingMenuBtn','menuMenuBtn'];
+
+function clampGameZoom(v){
+  return Math.max(0.85, Math.min(1.85, Number(v)||1));
+}
+let gameZoomValue = clampGameZoom(localStorage.getItem(GAME_ZOOM_KEY) || 1);
+function applyGameZoom(){
+  document.documentElement.style.setProperty('--gameZoom', String(clampGameZoom(gameZoomValue).toFixed(2)));
+}
+function setGameZoom(v){
+  gameZoomValue = clampGameZoom(v);
+  localStorage.setItem(GAME_ZOOM_KEY, String(gameZoomValue.toFixed(2)));
+  applyGameZoom();
+}
+function normalizedOrder(saved, defaults){
+  const arr = Array.isArray(saved) ? saved.filter(id=>defaults.includes(id)) : [];
+  defaults.forEach(id=>{ if(!arr.includes(id)) arr.push(id); });
+  return arr;
+}
+function loadControlLayout(){
+  let data = null;
+  try{ data = JSON.parse(localStorage.getItem(CONTROL_LAYOUT_KEY) || 'null'); }catch(e){}
+  if(!data){
+    try{ data = JSON.parse(localStorage.getItem('abyss_control_layout_v2') || 'null'); }catch(e){}
+  }
+  return {
+    analog: data?.analog === 'right' ? 'right' : 'left',
+    actionOrder: normalizedOrder(data?.actionOrder, DEFAULT_ACTION_ORDER),
+    menuOrder: normalizedOrder(data?.menuOrder, DEFAULT_MENU_ORDER)
+  };
+}
+function saveControlLayout(layout){
+  localStorage.setItem(CONTROL_LAYOUT_KEY, JSON.stringify({
+    analog: layout.analog === 'right' ? 'right' : 'left',
+    actionOrder: normalizedOrder(layout.actionOrder, DEFAULT_ACTION_ORDER),
+    menuOrder: normalizedOrder(layout.menuOrder, DEFAULT_MENU_ORDER)
+  }));
+}
+function applyControlLayout(){
+  const layout = loadControlLayout();
+  const app = $('app');
+  if(app) app.classList.toggle('layoutAnalogRight', layout.analog === 'right');
+  const skillBar = document.querySelector('.skillbar');
+  if(skillBar){
+    layout.actionOrder.forEach(id=>{
+      const el = $(id);
+      if(el && el.parentElement === skillBar) skillBar.appendChild(el);
+    });
+  }
+  const menuBar = document.querySelector('.menubar');
+  if(menuBar){
+    layout.menuOrder.forEach(id=>{
+      const el = $(id);
+      if(el && el.parentElement === menuBar) menuBar.appendChild(el);
+    });
+  }
+  const menuBtn = $('menuMenuBtn');
+  if(menuBtn){
+    const b = menuBtn.querySelector('b');
+    if(b) b.textContent = '설정';
+  }
+}
+function getKeymapButtonLabel(id){
+  const el = $(id);
+  const main = el?.querySelector('b')?.textContent?.trim();
+  const sub = el?.querySelector('small')?.textContent?.trim();
+  const fallback = {
+    skill1:'스킬1',skill2:'스킬2',skill3:'스킬3',potionBtn:'물약',attackBtn:'공격',
+    statMenuBtn:'스탯',equipMenuBtn:'장비',bagMenuBtn:'가방',skillMenuBtn:'스킬',autoBtn:'오토',
+    mapMenuBtn:'미니맵',codexMenuBtn:'도감',logChatBtn:'로그',rankingMenuBtn:'랭킹',menuMenuBtn:'설정'
+  }[id] || id;
+  return main || sub || fallback;
+}
+function renderKeymapItems(order){
+  return order.map(id=>`<div class="keymapBtnItem" data-keymap-btn="${id}">${escapeText(getKeymapButtonLabel(id))}</div>`).join('');
+}
+function renderKeymapPreview(layout){
+  const sideText = layout.analog === 'right' ? '아날로그 오른쪽 / 버튼 덩어리 왼쪽' : '아날로그 왼쪽 / 버튼 덩어리 오른쪽';
+  return `
+    <div class="keymapWrap">
+      <p class="muted">아날로그 패드는 한 덩어리, 하단 전투 버튼과 메뉴 버튼은 반대편 덩어리로 처리합니다.</p>
+      <div class="keymapSelectedSide">현재 배치: <b class="legend">${sideText}</b></div>
+      <div class="keymapPreview ${layout.analog === 'right' ? 'analogRight' : ''}" id="keymapPreview">
+        <div class="keymapBlock keymapAnalogPreview" id="keymapAnalogPreview">
+          <h4>아날로그</h4>
+          <div class="keymapAnalogMini"></div>
+          <div class="keymapDragHint">이 덩어리를 좌/우로 드래그하면<br>하단 버튼 덩어리는 반대편으로 이동</div>
+        </div>
+        <div class="keymapBlock keymapActionPreview">
+          <h4>하단 버튼</h4>
+          <div class="keymapSubTitle">전투 버튼</div>
+          <div class="keymapActionList" id="keymapActionList">${renderKeymapItems(layout.actionOrder)}</div>
+          <div class="keymapSubTitle">메뉴 버튼</div>
+          <div class="keymapMenuList" id="keymapMenuList">${renderKeymapItems(layout.menuOrder)}</div>
+          <div class="keymapDragHint">버튼을 직접 끌면 손가락을 따라 움직이고<br>놓은 위치 기준으로 순서가 바뀝니다.</div>
+        </div>
+      </div>
+      <div class="keymapChoiceBtns">
+        <button class="btn" id="keymapAnalogLeftBtn">아날로그 왼쪽</button>
+        <button class="btn" id="keymapAnalogRightBtn">아날로그 오른쪽</button>
+      </div>
+      <div class="grid2">
+        <button class="btn warn" id="keymapResetBtn">기본 배치</button>
+        <button class="btn good" id="keymapDoneBtn">완료</button>
+      </div>
+      <p class="zoomHelpLine">게임 화면은 손가락 두 개로 벌리면 확대, 좁히면 축소됩니다. 확대값은 저장됩니다.</p>
+    </div>`;
+}
+function showKeymapMenu(){
+  const layout = loadControlLayout();
+  showModal(`<h2>키맵핑</h2>${renderKeymapPreview(layout)}`, false);
+  bindKeymapModalHandlers();
+}
+function bindKeymapModalHandlers(){
+  const getLayout = () => loadControlLayout();
+  const setSide = side => {
+    const layout = getLayout();
+    layout.analog = side === 'right' ? 'right' : 'left';
+    saveControlLayout(layout);
+    applyControlLayout();
+    showKeymapMenu();
+  };
+  const leftBtn = $('keymapAnalogLeftBtn');
+  const rightBtn = $('keymapAnalogRightBtn');
+  const resetBtn = $('keymapResetBtn');
+  const doneBtn = $('keymapDoneBtn');
+  if(leftBtn) leftBtn.onclick = () => setSide('left');
+  if(rightBtn) rightBtn.onclick = () => setSide('right');
+  if(resetBtn) resetBtn.onclick = () => {
+    saveControlLayout({analog:'left', actionOrder:[...DEFAULT_ACTION_ORDER], menuOrder:[...DEFAULT_MENU_ORDER]});
+    applyControlLayout();
+    showKeymapMenu();
+  };
+  if(doneBtn) doneBtn.onclick = () => { hideModal(); renderAll(); };
+
+  const analog = $('keymapAnalogPreview');
+  if(analog){
+    let startX=0, startY=0, pid=null;
+    analog.addEventListener('pointerdown', e=>{
+      pid=e.pointerId; startX=e.clientX; startY=e.clientY;
+      analog.setPointerCapture?.(pid);
+      analog.classList.add('dragging');
+      analog.style.transition='none';
+      e.preventDefault();
+    });
+    analog.addEventListener('pointermove', e=>{
+      if(pid!==e.pointerId) return;
+      const dx=e.clientX-startX, dy=e.clientY-startY;
+      analog.style.transform=`translate(${dx}px,${dy}px) scale(1.04)`;
+    });
+    const finish=e=>{
+      if(pid!==e.pointerId) return;
+      const side = e.clientX > window.innerWidth/2 ? 'right' : 'left';
+      analog.style.transition='transform .18s ease';
+      analog.style.transform='';
+      analog.classList.remove('dragging');
+      pid=null;
+      setTimeout(()=>setSide(side), 80);
+    };
+    analog.addEventListener('pointerup', finish);
+    analog.addEventListener('pointercancel', ()=>{ analog.style.transition=''; analog.style.transform=''; analog.classList.remove('dragging'); pid=null; });
+  }
+
+  function bindSortableList(listId, orderKey){
+    const list = $(listId);
+    if(!list) return;
+
+    const animateReflow = (mutate)=>{
+      const moving = [...list.querySelectorAll('.keymapBtnItem:not(.dragging)')];
+      const first = new Map(moving.map(el=>[el, el.getBoundingClientRect()]));
+      mutate();
+      requestAnimationFrame(()=>{
+        moving.forEach(el=>{
+          const a = first.get(el);
+          if(!a || !el.isConnected) return;
+          const b = el.getBoundingClientRect();
+          const dx = a.left - b.left;
+          const dy = a.top - b.top;
+          if(Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+          el.classList.add('moving');
+          el.style.transition = 'none';
+          el.style.transform = `translate(${dx}px,${dy}px)`;
+          requestAnimationFrame(()=>{
+            el.style.transition = 'transform .16s ease';
+            el.style.transform = '';
+            setTimeout(()=>{ el.classList.remove('moving'); el.style.transition=''; }, 180);
+          });
+        });
+      });
+    };
+
+    let dragId=null, dragEl=null, placeholder=null, pid=null, grabX=0, grabY=0;
+    const defaults = orderKey === 'menuOrder' ? DEFAULT_MENU_ORDER : DEFAULT_ACTION_ORDER;
+    const clearDrop = ()=>list.querySelectorAll('.keymapBtnItem').forEach(x=>x.classList.remove('dropTarget'));
+    const cleanupDrag = ()=>{
+      if(dragEl){
+        dragEl.classList.remove('dragging');
+        dragEl.style.left=''; dragEl.style.top=''; dragEl.style.width=''; dragEl.style.height='';
+        dragEl.style.setProperty('--drag-w',''); dragEl.style.setProperty('--drag-h','');
+        dragEl.style.zIndex=''; dragEl.style.pointerEvents=''; dragEl.style.transform=''; dragEl.style.transition='';
+      }
+      if(placeholder && placeholder.parentNode) placeholder.remove();
+      clearDrop();
+      dragId=null; dragEl=null; placeholder=null; pid=null;
+    };
+    const readOrderFromDom = ()=>{
+      const order=[];
+      [...list.children].forEach(el=>{
+        if(el === placeholder){ if(dragId) order.push(dragId); return; }
+        if(el === dragEl) return;
+        const id = el.dataset?.keymapBtn;
+        if(id && defaults.includes(id) && !order.includes(id)) order.push(id);
+      });
+      defaults.forEach(id=>{ if(!order.includes(id)) order.push(id); });
+      return order;
+    };
+    const movePlaceholderNear = (target, clientX, clientY)=>{
+      if(!target || target === dragEl || target === placeholder || target.closest(`#${listId}`) !== list) return;
+      const r = target.getBoundingClientRect();
+      const horizontal = getComputedStyle(list).gridTemplateColumns.split(' ').length > 1;
+      const before = horizontal ? clientX < r.left + r.width/2 : clientY < r.top + r.height/2;
+      const nextNode = before ? target : target.nextSibling;
+      if(nextNode === placeholder) return;
+      animateReflow(()=>list.insertBefore(placeholder, nextNode));
+    };
+
+    list.querySelectorAll('.keymapBtnItem').forEach(item=>{
+      item.addEventListener('pointerdown', e=>{
+        dragId = item.dataset.keymapBtn;
+        if(!dragId) return;
+        dragEl = item;
+        pid = e.pointerId;
+        const rect = item.getBoundingClientRect();
+        grabX = e.clientX - rect.left;
+        grabY = e.clientY - rect.top;
+        placeholder = document.createElement('div');
+        placeholder.className = 'keymapBtnItem keymapPlaceholder';
+        placeholder.textContent = '빈자리';
+        placeholder.style.minHeight = rect.height + 'px';
+        list.insertBefore(placeholder, item.nextSibling);
+        item.setPointerCapture?.(pid);
+        item.style.setProperty('--drag-w', rect.width + 'px');
+        item.style.setProperty('--drag-h', rect.height + 'px');
+        item.style.left = rect.left + 'px';
+        item.style.top = rect.top + 'px';
+        item.classList.add('dragging');
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      item.addEventListener('pointermove', e=>{
+        if(!dragId || dragEl!==item || pid!==e.pointerId) return;
+        item.style.left = (e.clientX - grabX) + 'px';
+        item.style.top = (e.clientY - grabY) + 'px';
+        const under = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.keymapBtnItem');
+        clearDrop();
+        if(under && under !== item && under !== placeholder && under.closest(`#${listId}`) === list){
+          under.classList.add('dropTarget');
+          movePlaceholderNear(under, e.clientX, e.clientY);
+        }
+        e.preventDefault();
+      });
+
+      const finish = e=>{
+        if(!dragId || dragEl!==item || pid!==e.pointerId) return;
+        const layout = getLayout();
+        layout[orderKey] = normalizedOrder(readOrderFromDom(), defaults);
+        saveControlLayout(layout);
+        applyControlLayout();
+        cleanupDrag();
+        setTimeout(showKeymapMenu, 70);
+        e.preventDefault();
+        e.stopPropagation();
+      };
+
+      item.addEventListener('pointerup', finish);
+      item.addEventListener('pointercancel', cleanupDrag);
+      item.addEventListener('lostpointercapture', ()=>{
+        if(dragEl === item) cleanupDrag();
+      });
+    });
+  }
+  bindSortableList('keymapActionList', 'actionOrder');
+  bindSortableList('keymapMenuList', 'menuOrder');
+}
+
+/* 설정 메뉴 재정의: 메뉴 문구를 설정으로 변경하고 게임계속 자리에는 키맵핑 배치 */
+const previousShowSystemMenuForKeymap = typeof showSystemMenu === 'function' ? showSystemMenu : null;
+showSystemMenu = function(){
+  if(!S) return;
+  pauseAutoForChoice();
+  showModal(`<h2>설정</h2>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn good" id="menuKeymapBtn">키맵핑</button>
+      <button class="btn bad" id="menuResetBtn">초기화</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn" id="cloudMenuBtn">Supabase</button>
+      <button class="btn good" id="cloudQuickSaveBtn">클라우드 저장</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn" id="menuStartBtn">슬롯/시작 화면</button>
+      <button class="btn" id="menuCloseBtn">닫기</button>
+    </div>
+    <p class="muted" style="margin-top:8px">${cloudEscape(cloudStatusText())}</p>`, false);
+  $('menuKeymapBtn').onclick = showKeymapMenu;
+  $('menuStartBtn').onclick = ()=>{ startMenuResumeClassId = S?.player?.classId || null; hideModal(); showStart(); };
+  $('menuCloseBtn').onclick = ()=>{ hideModal(); renderAll(); };
+  $('cloudMenuBtn').onclick = showCloudMenu;
+  $('cloudQuickSaveBtn').onclick = async()=>{
+    try{ const ok=await saveCloud(); toast(ok?'클라우드 저장 완료.':'클라우드 저장 실패. Supabase 설정을 확인하세요.'); }
+    catch(e){ toast('클라우드 저장 실패: '+e.message); }
+  };
+  $('menuResetBtn').onclick=()=>{
+    if(confirm('저장 원정과 영혼 강화 데이터를 모두 초기화하시겠습니까?')){
+      localStorage.removeItem(SAVE_KEY);
+      localStorage.removeItem(META_KEY);
+      meta=loadMeta();
+      S=null;
+      startMenuResumeClassId=null;
+      stopAuto();
+      showStart();
+    }
+  };
+};
+if($('menuMenuBtn')){
+  const b=$('menuMenuBtn').querySelector('b');
+  if(b) b.textContent='설정';
+  $('menuMenuBtn').onclick = showSystemMenu;
+}
+
+/* 게임 화면 핀치 확대/축소 */
+function bindGamePinchZoom(){
+  applyGameZoom();
+  const panel = $('gamePanel');
+  if(!panel || panel.dataset.pinchBound === '1') return;
+  panel.dataset.pinchBound = '1';
+  const points = new Map();
+  let startDist = 0;
+  let startZoom = gameZoomValue;
+  const dist = (a,b)=>Math.hypot(a.x-b.x, a.y-b.y);
+  const resetStart = ()=>{
+    const arr=[...points.values()];
+    if(arr.length>=2){
+      startDist = dist(arr[0], arr[1]) || 1;
+      startZoom = gameZoomValue;
+    }
+  };
+  panel.addEventListener('pointerdown', e=>{
+    if(modal && modal.classList.contains('show')) return;
+    points.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(points.size===2) resetStart();
+  }, {passive:false});
+  panel.addEventListener('pointermove', e=>{
+    if(!points.has(e.pointerId)) return;
+    points.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(points.size>=2){
+      e.preventDefault();
+      const arr=[...points.values()];
+      const d = dist(arr[0],arr[1]) || startDist || 1;
+      setGameZoom(startZoom * (d / (startDist || d || 1)));
+    }
+  }, {passive:false});
+  ['pointerup','pointercancel','pointerleave'].forEach(type=>{
+    panel.addEventListener(type, e=>{
+      points.delete(e.pointerId);
+      if(points.size<2){ startDist=0; startZoom=gameZoomValue; }
+      else resetStart();
+    }, {passive:false});
+  });
+
+  // iOS Safari용 터치 핀치 fallback
+  let touchStartDist = 0;
+  let touchStartZoom = gameZoomValue;
+  const touchDist = touches=>{
+    if(!touches || touches.length < 2) return 0;
+    const a = touches[0], b = touches[1];
+    return Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+  };
+  panel.addEventListener('touchstart', e=>{
+    if(modal && modal.classList.contains('show')) return;
+    if(e.touches && e.touches.length >= 2){
+      touchStartDist = touchDist(e.touches) || 1;
+      touchStartZoom = gameZoomValue;
+      e.preventDefault();
+    }
+  }, {passive:false});
+  panel.addEventListener('touchmove', e=>{
+    if(modal && modal.classList.contains('show')) return;
+    if(e.touches && e.touches.length >= 2){
+      const d = touchDist(e.touches) || touchStartDist || 1;
+      setGameZoom(touchStartZoom * (d / (touchStartDist || d || 1)));
+      e.preventDefault();
+    }
+  }, {passive:false});
+  panel.addEventListener('touchend', e=>{
+    if(!e.touches || e.touches.length < 2){
+      touchStartDist = 0;
+      touchStartZoom = gameZoomValue;
+    }
+  }, {passive:false});
+  window.addEventListener('blur', ()=>points.clear());
+}
+applyControlLayout();
+bindGamePinchZoom();
 
 
 initStartPage();
