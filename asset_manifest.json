@@ -1,0 +1,518 @@
+[
+  {
+    "path": "assets/backgrounds/abyss_rogue_start_background.jpeg",
+    "bytes": 529665
+  },
+  {
+    "path": "assets/icons/items/camp.png",
+    "bytes": 43688
+  },
+  {
+    "path": "assets/icons/items/chest.png",
+    "bytes": 53140
+  },
+  {
+    "path": "assets/icons/items/gold.png",
+    "bytes": 60937
+  },
+  {
+    "path": "assets/icons/items/oracle.png",
+    "bytes": 50543
+  },
+  {
+    "path": "assets/icons/items/potion.png",
+    "bytes": 38191
+  },
+  {
+    "path": "assets/icons/items/relic.png",
+    "bytes": 46103
+  },
+  {
+    "path": "assets/icons/items/shrine.png",
+    "bytes": 49279
+  },
+  {
+    "path": "assets/icons/items/skillgem.png",
+    "bytes": 43126
+  },
+  {
+    "path": "assets/icons/items/soul.png",
+    "bytes": 40474
+  },
+  {
+    "path": "assets/icons/items/vault.png",
+    "bytes": 57231
+  },
+  {
+    "path": "assets/source_sheets/hero_sprite_sheet_reference.jpeg",
+    "bytes": 391722
+  },
+  {
+    "path": "assets/source_sheets/monster_sprite_sheet_reference.jpeg",
+    "bytes": 753909
+  },
+  {
+    "path": "assets/sprites/bosses/boss_001.png",
+    "bytes": 21672
+  },
+  {
+    "path": "assets/sprites/bosses/boss_002.png",
+    "bytes": 16289
+  },
+  {
+    "path": "assets/sprites/bosses/boss_003.png",
+    "bytes": 18430
+  },
+  {
+    "path": "assets/sprites/bosses/boss_004.png",
+    "bytes": 16699
+  },
+  {
+    "path": "assets/sprites/bosses/boss_005.png",
+    "bytes": 17013
+  },
+  {
+    "path": "assets/sprites/bosses/boss_006.png",
+    "bytes": 18080
+  },
+  {
+    "path": "assets/sprites/bosses/boss_007.png",
+    "bytes": 11328
+  },
+  {
+    "path": "assets/sprites/bosses/boss_008.png",
+    "bytes": 15034
+  },
+  {
+    "path": "assets/sprites/bosses/boss_009.png",
+    "bytes": 14050
+  },
+  {
+    "path": "assets/sprites/bosses/boss_010.png",
+    "bytes": 22579
+  },
+  {
+    "path": "assets/sprites/heroes/hunter_down.png",
+    "bytes": 92328
+  },
+  {
+    "path": "assets/sprites/heroes/hunter_left.png",
+    "bytes": 84835
+  },
+  {
+    "path": "assets/sprites/heroes/hunter_right.png",
+    "bytes": 84296
+  },
+  {
+    "path": "assets/sprites/heroes/hunter_up.png",
+    "bytes": 83939
+  },
+  {
+    "path": "assets/sprites/heroes/mage_down.png",
+    "bytes": 111982
+  },
+  {
+    "path": "assets/sprites/heroes/mage_left.png",
+    "bytes": 96824
+  },
+  {
+    "path": "assets/sprites/heroes/mage_right.png",
+    "bytes": 95376
+  },
+  {
+    "path": "assets/sprites/heroes/mage_up.png",
+    "bytes": 93935
+  },
+  {
+    "path": "assets/sprites/heroes/rogue_down.png",
+    "bytes": 86259
+  },
+  {
+    "path": "assets/sprites/heroes/rogue_left.png",
+    "bytes": 83601
+  },
+  {
+    "path": "assets/sprites/heroes/rogue_right.png",
+    "bytes": 78423
+  },
+  {
+    "path": "assets/sprites/heroes/rogue_up.png",
+    "bytes": 81932
+  },
+  {
+    "path": "assets/sprites/heroes/warrior_down.png",
+    "bytes": 98506
+  },
+  {
+    "path": "assets/sprites/heroes/warrior_left.png",
+    "bytes": 78782
+  },
+  {
+    "path": "assets/sprites/heroes/warrior_right.png",
+    "bytes": 73623
+  },
+  {
+    "path": "assets/sprites/heroes/warrior_up.png",
+    "bytes": 89488
+  },
+  {
+    "path": "assets/sprites/monsters/monster_001.png",
+    "bytes": 10405
+  },
+  {
+    "path": "assets/sprites/monsters/monster_002.png",
+    "bytes": 11530
+  },
+  {
+    "path": "assets/sprites/monsters/monster_003.png",
+    "bytes": 7765
+  },
+  {
+    "path": "assets/sprites/monsters/monster_004.png",
+    "bytes": 10838
+  },
+  {
+    "path": "assets/sprites/monsters/monster_005.png",
+    "bytes": 11673
+  },
+  {
+    "path": "assets/sprites/monsters/monster_006.png",
+    "bytes": 11129
+  },
+  {
+    "path": "assets/sprites/monsters/monster_007.png",
+    "bytes": 10700
+  },
+  {
+    "path": "assets/sprites/monsters/monster_008.png",
+    "bytes": 13198
+  },
+  {
+    "path": "assets/sprites/monsters/monster_009.png",
+    "bytes": 11132
+  },
+  {
+    "path": "assets/sprites/monsters/monster_010.png",
+    "bytes": 12125
+  },
+  {
+    "path": "assets/sprites/monsters/monster_011.png",
+    "bytes": 11960
+  },
+  {
+    "path": "assets/sprites/monsters/monster_012.png",
+    "bytes": 13211
+  },
+  {
+    "path": "assets/sprites/monsters/monster_013.png",
+    "bytes": 13408
+  },
+  {
+    "path": "assets/sprites/monsters/monster_014.png",
+    "bytes": 8735
+  },
+  {
+    "path": "assets/sprites/monsters/monster_015.png",
+    "bytes": 11032
+  },
+  {
+    "path": "assets/sprites/monsters/monster_016.png",
+    "bytes": 10172
+  },
+  {
+    "path": "assets/sprites/monsters/monster_017.png",
+    "bytes": 12850
+  },
+  {
+    "path": "assets/sprites/monsters/monster_018.png",
+    "bytes": 12822
+  },
+  {
+    "path": "assets/sprites/monsters/monster_019.png",
+    "bytes": 13297
+  },
+  {
+    "path": "assets/sprites/monsters/monster_020.png",
+    "bytes": 8112
+  },
+  {
+    "path": "assets/sprites/monsters/monster_021.png",
+    "bytes": 11118
+  },
+  {
+    "path": "assets/sprites/monsters/monster_022.png",
+    "bytes": 12015
+  },
+  {
+    "path": "assets/sprites/monsters/monster_023.png",
+    "bytes": 13641
+  },
+  {
+    "path": "assets/sprites/monsters/monster_024.png",
+    "bytes": 11036
+  },
+  {
+    "path": "assets/sprites/monsters/monster_025.png",
+    "bytes": 11762
+  },
+  {
+    "path": "assets/sprites/monsters/monster_026.png",
+    "bytes": 12561
+  },
+  {
+    "path": "assets/sprites/monsters/monster_027.png",
+    "bytes": 9879
+  },
+  {
+    "path": "assets/sprites/monsters/monster_028.png",
+    "bytes": 12149
+  },
+  {
+    "path": "assets/sprites/monsters/monster_029.png",
+    "bytes": 10748
+  },
+  {
+    "path": "assets/sprites/monsters/monster_030.png",
+    "bytes": 10237
+  },
+  {
+    "path": "assets/sprites/monsters/monster_031.png",
+    "bytes": 9385
+  },
+  {
+    "path": "assets/sprites/monsters/monster_032.png",
+    "bytes": 10965
+  },
+  {
+    "path": "assets/sprites/monsters/monster_033.png",
+    "bytes": 10991
+  },
+  {
+    "path": "assets/sprites/monsters/monster_034.png",
+    "bytes": 10812
+  },
+  {
+    "path": "assets/sprites/monsters/monster_035.png",
+    "bytes": 14866
+  },
+  {
+    "path": "assets/sprites/monsters/monster_036.png",
+    "bytes": 10784
+  },
+  {
+    "path": "assets/sprites/monsters/monster_037.png",
+    "bytes": 11032
+  },
+  {
+    "path": "assets/sprites/monsters/monster_038.png",
+    "bytes": 12745
+  },
+  {
+    "path": "assets/sprites/monsters/monster_039.png",
+    "bytes": 13025
+  },
+  {
+    "path": "assets/sprites/monsters/monster_040.png",
+    "bytes": 10672
+  },
+  {
+    "path": "assets/sprites/monsters/monster_041.png",
+    "bytes": 12458
+  },
+  {
+    "path": "assets/sprites/monsters/monster_042.png",
+    "bytes": 13494
+  },
+  {
+    "path": "assets/sprites/monsters/monster_043.png",
+    "bytes": 12654
+  },
+  {
+    "path": "assets/sprites/monsters/monster_044.png",
+    "bytes": 10080
+  },
+  {
+    "path": "assets/sprites/monsters/monster_045.png",
+    "bytes": 11733
+  },
+  {
+    "path": "assets/sprites/monsters/monster_046.png",
+    "bytes": 11529
+  },
+  {
+    "path": "assets/sprites/monsters/monster_047.png",
+    "bytes": 11925
+  },
+  {
+    "path": "assets/sprites/monsters/monster_048.png",
+    "bytes": 12078
+  },
+  {
+    "path": "assets/sprites/monsters/monster_049.png",
+    "bytes": 12606
+  },
+  {
+    "path": "assets/sprites/monsters/monster_050.png",
+    "bytes": 11107
+  },
+  {
+    "path": "assets/sprites/monsters/monster_051.png",
+    "bytes": 13079
+  },
+  {
+    "path": "assets/sprites/monsters/monster_052.png",
+    "bytes": 14013
+  },
+  {
+    "path": "assets/sprites/monsters/monster_053.png",
+    "bytes": 12469
+  },
+  {
+    "path": "assets/sprites/monsters/monster_054.png",
+    "bytes": 13037
+  },
+  {
+    "path": "assets/sprites/monsters/monster_055.png",
+    "bytes": 13066
+  },
+  {
+    "path": "assets/sprites/monsters/monster_056.png",
+    "bytes": 14478
+  },
+  {
+    "path": "assets/sprites/monsters/monster_057.png",
+    "bytes": 11647
+  },
+  {
+    "path": "assets/sprites/monsters/monster_058.png",
+    "bytes": 9752
+  },
+  {
+    "path": "assets/sprites/monsters/monster_059.png",
+    "bytes": 10853
+  },
+  {
+    "path": "assets/sprites/monsters/monster_060.png",
+    "bytes": 13082
+  },
+  {
+    "path": "assets/sprites/monsters/monster_061.png",
+    "bytes": 11060
+  },
+  {
+    "path": "assets/sprites/monsters/monster_062.png",
+    "bytes": 11870
+  },
+  {
+    "path": "assets/sprites/monsters/monster_063.png",
+    "bytes": 10386
+  },
+  {
+    "path": "assets/sprites/monsters/monster_064.png",
+    "bytes": 10420
+  },
+  {
+    "path": "assets/sprites/monsters/monster_065.png",
+    "bytes": 9472
+  },
+  {
+    "path": "assets/sprites/monsters/monster_066.png",
+    "bytes": 12291
+  },
+  {
+    "path": "assets/sprites/monsters/monster_067.png",
+    "bytes": 10881
+  },
+  {
+    "path": "assets/sprites/monsters/monster_068.png",
+    "bytes": 13965
+  },
+  {
+    "path": "assets/sprites/monsters/monster_069.png",
+    "bytes": 11795
+  },
+  {
+    "path": "assets/sprites/monsters/monster_070.png",
+    "bytes": 12391
+  },
+  {
+    "path": "assets/sprites/monsters/monster_071.png",
+    "bytes": 12193
+  },
+  {
+    "path": "assets/sprites/monsters/monster_072.png",
+    "bytes": 12045
+  },
+  {
+    "path": "assets/sprites/monsters/monster_073.png",
+    "bytes": 12007
+  },
+  {
+    "path": "assets/sprites/monsters/monster_074.png",
+    "bytes": 11449
+  },
+  {
+    "path": "assets/sprites/monsters/monster_075.png",
+    "bytes": 10542
+  },
+  {
+    "path": "assets/sprites/monsters/monster_076.png",
+    "bytes": 12475
+  },
+  {
+    "path": "assets/sprites/monsters/monster_077.png",
+    "bytes": 11087
+  },
+  {
+    "path": "assets/sprites/monsters/monster_078.png",
+    "bytes": 10944
+  },
+  {
+    "path": "assets/sprites/monsters/monster_079.png",
+    "bytes": 11569
+  },
+  {
+    "path": "assets/sprites/monsters/monster_080.png",
+    "bytes": 13704
+  },
+  {
+    "path": "assets/sprites/monsters/monster_081.png",
+    "bytes": 9000
+  },
+  {
+    "path": "assets/sprites/monsters/monster_082.png",
+    "bytes": 13699
+  },
+  {
+    "path": "assets/sprites/monsters/monster_083.png",
+    "bytes": 9163
+  },
+  {
+    "path": "assets/sprites/monsters/monster_084.png",
+    "bytes": 12070
+  },
+  {
+    "path": "assets/sprites/monsters/monster_085.png",
+    "bytes": 11906
+  },
+  {
+    "path": "assets/sprites/monsters/monster_086.png",
+    "bytes": 11255
+  },
+  {
+    "path": "assets/sprites/monsters/monster_087.png",
+    "bytes": 13110
+  },
+  {
+    "path": "assets/sprites/monsters/monster_088.png",
+    "bytes": 15668
+  },
+  {
+    "path": "assets/sprites/monsters/monster_089.png",
+    "bytes": 12725
+  },
+  {
+    "path": "assets/sprites/monsters/monster_090.png",
+    "bytes": 12269
+  }
+]
