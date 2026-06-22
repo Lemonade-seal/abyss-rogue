@@ -3072,7 +3072,9 @@ function sendMapChatMessage(){
   S.chat = S.chat.slice(-50);
   if(input) input.value='';
   renderMapPanel(null, true);
-  if(autoMode==='safe' || autoMode==='full'){ setTimeout(()=>{ const next=$('mapChatInput'); if(next) next.focus(); }, 0); }
+  // 채팅 전송 뒤 입력창 포커스를 유지하면 WASD/방향키가 입력창으로 들어가서 조작이 막힐 수 있다.
+  // 전송 후에는 게임 조작 복귀를 우선한다.
+  setTimeout(()=>{ const next=$('mapChatInput'); if(next) next.blur(); }, 0);
   saveRun();
 }
 
@@ -4914,7 +4916,21 @@ function toggleAuto(){ startSafeAuto(); }
 function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; if(S){ S.autoTargetUid=null; S.autoGoal=null; S.autoPrevX=null; S.autoPrevY=null; S.autoRoamTicks=0; S.autoRoamReason=''; S.autoStuckScore=0; S.autoPathLog=[]; } updateAutoButton(); }
 
 
+function isTextEditingElement(el){
+  return !!(el && ['INPUT','TEXTAREA','SELECT'].includes(el.tagName));
+}
+function gameplayKeyName(key){
+  const k=String(key||'').toLowerCase();
+  return ['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d',' ','spacebar','.','1','2','3','q','f','e'].includes(k);
+}
+function blurGameplayTextFocus(){
+  const el=document.activeElement;
+  if(!isTextEditingElement(el)) return;
+  // 모달 입력창은 건드리지 않고, 맵 채팅 입력창만 게임 조작 시 자동 해제한다.
+  if(el.id==='mapChatInput') el.blur();
+}
 function handleMove(dx,dy){
+  blurGameplayTextFocus();
   if(!S) return;
   if(S.player.awaitAim){ resolveAimedSkill(dx,dy); }
   else playerMove(dx,dy);
@@ -4941,23 +4957,33 @@ function analogStop(){
   if(analogHold){clearInterval(analogHold); analogHold=null;}
   const pad=$('analogPad'); if(pad){pad.classList.remove('active'); pad.style.setProperty('--stick-x','0px'); pad.style.setProperty('--stick-y','0px');}
   analogPointer=null;
+  analogLast={dx:0,dy:0,wait:true,sx:0,sy:0};
 }
 const analogPad=$('analogPad');
 if(analogPad){
   analogPad.addEventListener('pointerdown',e=>{
-    e.preventDefault(); analogPointer=e.pointerId; analogPad.setPointerCapture?.(e.pointerId);
+    blurGameplayTextFocus();
+    e.preventDefault();
+    if(analogHold){ clearInterval(analogHold); analogHold=null; }
+    analogPointer=e.pointerId; analogPad.setPointerCapture?.(e.pointerId);
     analogLast=analogDirectionFromEvent(e); analogSetVisual(analogLast); analogAct();
-    if(analogHold) clearInterval(analogHold); analogHold=setInterval(analogAct, 165);
+    analogHold=setInterval(analogAct, 165);
   });
   analogPad.addEventListener('pointermove',e=>{ if(analogPointer!==e.pointerId) return; e.preventDefault(); analogLast=analogDirectionFromEvent(e); analogSetVisual(analogLast); });
   analogPad.addEventListener('pointerup',e=>{ if(analogPointer===e.pointerId) analogStop(); });
   analogPad.addEventListener('pointercancel',analogStop);
+  analogPad.addEventListener('lostpointercapture',analogStop);
 }
+document.addEventListener('pointerup',e=>{ if(analogPointer===e.pointerId) analogStop(); }, true);
+document.addEventListener('pointercancel',e=>{ if(analogPointer===e.pointerId) analogStop(); }, true);
+window.addEventListener('blur',analogStop);
+document.addEventListener('visibilitychange',()=>{ if(document.hidden) analogStop(); });
 function bindShortLongPress(btn, shortFn, longFn, holdMs=520){
   if(!btn) return;
   let timer=null, longDone=false, pointerId=null;
   const clear=()=>{ if(timer){ clearTimeout(timer); timer=null; } };
   btn.addEventListener('pointerdown', e=>{
+    blurGameplayTextFocus();
     e.preventDefault(); e.stopPropagation();
     pointerId=e.pointerId; longDone=false;
     btn.setPointerCapture?.(e.pointerId);
@@ -4978,29 +5004,83 @@ function bindShortLongPress(btn, shortFn, longFn, holdMs=520){
 function bindSkillWithPreview(id,key,fn){
   const btn=$(id);
   if(!btn) return;
-  btn.addEventListener('pointerdown',()=>setSkillRangePreview(key,900),{passive:true});
-  btn.onclick=(e)=>{
-    if(e){ e.preventDefault(); e.stopPropagation(); }
+  let pointerId=null;
+  btn.addEventListener('pointerdown',e=>{
+    blurGameplayTextFocus();
+    e.preventDefault(); e.stopPropagation();
+    pointerId=e.pointerId;
+    btn.setPointerCapture?.(e.pointerId);
+    setSkillRangePreview(key,900);
+  },{passive:false});
+  btn.addEventListener('pointerup',e=>{
+    if(pointerId!==null && e.pointerId!==pointerId) return;
+    e.preventDefault(); e.stopPropagation();
+    pointerId=null;
     setSkillRangePreview(key,1200);
-    fn();
-  };
+    fn?.();
+  },{passive:false});
+  btn.addEventListener('pointercancel',()=>{ pointerId=null; });
+  btn.addEventListener('lostpointercapture',()=>{ pointerId=null; });
+  btn.onclick=e=>{ e.preventDefault(); e.stopPropagation(); };
 }
 bindSkillWithPreview('skill1','smash',skillSmash);
 bindSkillWithPreview('skill2','dash',skillDash);
 bindSkillWithPreview('skill3','heal',skillHeal);
-$('potionBtn').onclick=usePotion; $('attackBtn').onclick=basicAttackButton; bindShortLongPress($('autoBtn'), startSafeAuto, startFullAuto); $('statMenuBtn').onclick=showStatsMenu; bindShortLongPress($('mapMenuBtn'), toggleMiniMap, showMapMenu); $('codexMenuBtn').onclick=showCodexMenu; $('logChatBtn').onclick=toggleLogChatPanel; $('equipMenuBtn').onclick=showEquipMenu; $('bagMenuBtn').onclick=showBagMenu; $('skillMenuBtn').onclick=showSkillMenu; $('rankingMenuBtn').onclick=showRankingMenu; $('menuMenuBtn').onclick=showSystemMenu;
+function bindInstantButton(btn,fn){
+  if(!btn) return;
+  let pointerId=null;
+  btn.addEventListener('pointerdown',e=>{
+    blurGameplayTextFocus();
+    e.preventDefault(); e.stopPropagation();
+    pointerId=e.pointerId;
+    btn.setPointerCapture?.(e.pointerId);
+  },{passive:false});
+  btn.addEventListener('pointerup',e=>{
+    if(pointerId!==null && e.pointerId!==pointerId) return;
+    e.preventDefault(); e.stopPropagation();
+    pointerId=null;
+    fn?.();
+  },{passive:false});
+  btn.addEventListener('pointercancel',()=>{ pointerId=null; });
+  btn.addEventListener('lostpointercapture',()=>{ pointerId=null; });
+  btn.onclick=e=>{ e.preventDefault(); e.stopPropagation(); };
+}
+bindInstantButton($('potionBtn'),usePotion); bindInstantButton($('attackBtn'),basicAttackButton); bindShortLongPress($('autoBtn'), startSafeAuto, startFullAuto); $('statMenuBtn').onclick=()=>{blurGameplayTextFocus();showStatsMenu();}; bindShortLongPress($('mapMenuBtn'), toggleMiniMap, showMapMenu); $('codexMenuBtn').onclick=()=>{blurGameplayTextFocus();showCodexMenu();}; $('logChatBtn').onclick=()=>{blurGameplayTextFocus();toggleLogChatPanel();}; $('equipMenuBtn').onclick=()=>{blurGameplayTextFocus();showEquipMenu();}; $('bagMenuBtn').onclick=()=>{blurGameplayTextFocus();showBagMenu();}; $('skillMenuBtn').onclick=()=>{blurGameplayTextFocus();showSkillMenu();}; $('rankingMenuBtn').onclick=()=>{blurGameplayTextFocus();showRankingMenu();}; $('menuMenuBtn').onclick=()=>{blurGameplayTextFocus();showSystemMenu();};
+['game','analogPad'].forEach(id=>{ const el=$(id); if(el) el.addEventListener('pointerdown',blurGameplayTextFocus,{capture:true}); });
+const footerEl=document.querySelector('.footer'); if(footerEl) footerEl.addEventListener('pointerdown',e=>{ if(!isTextEditingElement(e.target)) blurGameplayTextFocus(); },{capture:true});
 
 document.addEventListener('keydown',e=>{
-  if(e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
-  if(e.repeat) return;
   const k=e.key.toLowerCase();
+  const movementKeys=new Set(['arrowup','arrowdown','arrowleft','arrowright','w','a','s','d',' ','spacebar','.']);
+  const actionKeys=new Set(['1','2','3','q','f','e']);
+  const gameplayKeys=new Set([...movementKeys,...actionKeys]);
+  if(isTextEditingElement(e.target)){
+    if(k==='escape'){
+      e.target.blur();
+      e.preventDefault();
+      return;
+    }
+    // 채팅창이 비어 있는데 포커스만 남아 있는 상태면 게임 조작키를 다시 게임으로 돌린다.
+    const emptyMapChat = e.target.id==='mapChatInput' && !(e.target.value||'').trim();
+    if(!(emptyMapChat && gameplayKeys.has(k))) return;
+    e.target.blur();
+  }
+  if(modalOpen) return;
+  if(e.repeat && !movementKeys.has(k)) return;
+  let handled=true;
   if(k==='arrowup'||k==='w') handleMove(0,-1);
-  if(k==='arrowdown'||k==='s') handleMove(0,1);
-  if(k==='arrowleft'||k==='a') handleMove(-1,0);
-  if(k==='arrowright'||k==='d') handleMove(1,0);
-  if(k===' '||k==='.') waitTurn();
-  if(k==='1') skillSmash(); if(k==='2') skillDash(); if(k==='3') skillHeal(); if(k==='q') usePotion(); if(k==='f') basicAttackButton();
-  if(k==='e') toggleAuto();
+  else if(k==='arrowdown'||k==='s') handleMove(0,1);
+  else if(k==='arrowleft'||k==='a') handleMove(-1,0);
+  else if(k==='arrowright'||k==='d') handleMove(1,0);
+  else if(k===' '||k==='spacebar'||k==='.') waitTurn();
+  else if(k==='1') skillSmash();
+  else if(k==='2') skillDash();
+  else if(k==='3') skillHeal();
+  else if(k==='q') usePotion();
+  else if(k==='f') basicAttackButton();
+  else if(k==='e') toggleAuto();
+  else handled=false;
+  if(handled) e.preventDefault();
 });
 
 ['gesturestart','gesturechange','gestureend'].forEach(type=>document.addEventListener(type,e=>e.preventDefault(),{passive:false}));
@@ -5008,7 +5088,15 @@ document.addEventListener('dblclick', e=>e.preventDefault(), {passive:false});
 document.addEventListener('selectstart', e=>{ if(e.target && ['INPUT','TEXTAREA'].includes(e.target.tagName)) return; e.preventDefault(); });
 document.addEventListener('contextmenu', e=>e.preventDefault());
 document.addEventListener('dragstart', e=>e.preventDefault());
-let lastTouch=0; document.addEventListener('touchend', e=>{const now=Date.now(); if(now-lastTouch<350) e.preventDefault(); lastTouch=now;}, {passive:false});
+function isPrimaryControlTarget(t){
+  return !!(t && t.closest && t.closest('button,.controls,.skill,.menuBtn,#game,#mapChatInput,#mapChatSend,input,textarea,select'));
+}
+let lastTouch=0; document.addEventListener('touchend', e=>{
+  if(isPrimaryControlTarget(e.target)) return;
+  const now=Date.now();
+  if(now-lastTouch<350) e.preventDefault();
+  lastTouch=now;
+}, {passive:false});
 
 
 /* ===== 요청 반영: 로그인 선택 + 캐릭터 슬롯 시스템 ===== */
