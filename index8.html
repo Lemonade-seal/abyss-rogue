@@ -6988,6 +6988,129 @@ deleteCharacterSlotOnly = function(mode, slotIndex){
   }
 };
 
+
+/* 요청 반영: 영혼 강화 초기화는 사용 영혼의 1/2 환급, 스탯창에 영혼 보정 표시 */
+function soulUpgradeZeroState(){
+  return {hp:0, atk:0, def:0, crit:0, xp:0, gold:0};
+}
+function soulUpgradeSpentFor(id, lv){
+  const d = metaDefs.find(x=>x.id===id);
+  const n = Math.max(0, Number(lv || 0));
+  if(!d) return 0;
+  let total = 0;
+  for(let i=0;i<n;i++) total += Math.floor(d.base * Math.pow(1.55, i));
+  return total;
+}
+function totalSoulSpentForUpgrades(upgrades){
+  const u = upgrades || (meta && meta.upgrades) || {};
+  return metaDefs.reduce((sum,d)=>sum + soulUpgradeSpentFor(d.id, u[d.id] || 0), 0);
+}
+function soulUpgradeRefundAmount(upgrades){
+  return Math.floor(totalSoulSpentForUpgrades(upgrades) / 2);
+}
+function soulUpgradeBonusInfo(upgrades){
+  const u = upgrades || (meta && meta.upgrades) || {};
+  const hp = Number(u.hp || 0) * 5;
+  const atk = Number(u.atk || 0);
+  const def = Number(u.def || 0);
+  const crit = Number(u.crit || 0) * 2;
+  const xp = Number(u.xp || 0) * 4;
+  const gold = Number(u.gold || 0) * 5;
+  return {hp, atk, def, crit, xp, gold};
+}
+function soulUpgradeBonusShortText(){
+  const b = soulUpgradeBonusInfo();
+  return `HP +${b.hp} / 공격 +${b.atk} / 방어 +${b.def} / 치명 +${b.crit}% / 경험치 +${b.xp}% / 골드 +${b.gold}%`;
+}
+function soulUpgradeBonusStatsHtml(){
+  const b = soulUpgradeBonusInfo();
+  return `<h3 style="margin:12px 0 6px">영혼 강화 보정</h3>
+  <div class="stats">
+    <div>최대 HP <b>+${b.hp}</b></div><div>공격 <b>+${b.atk}</b></div>
+    <div>방어 <b>+${b.def}</b></div><div>치명타 <b>+${b.crit}%</b></div>
+    <div>경험치 획득 <b>+${b.xp}%</b></div><div>골드 획득 <b>+${b.gold}%</b></div>
+  </div>
+  <p class="muted" style="margin-top:8px">HP/공격/방어/치명 보정은 새 원정 캐릭터 기본 수치에 반영됩니다. 경험치/골드 보정은 현재 원정에도 적용됩니다.</p>`;
+}
+function resetSoulUpgradesWithHalfRefund(){
+  const spent = totalSoulSpentForUpgrades(meta.upgrades);
+  const refund = Math.floor(spent / 2);
+  if(spent <= 0){
+    toast('초기화할 영혼 강화가 없습니다.');
+    return false;
+  }
+  if(!confirm(`영혼 강화 스탯을 초기화하고 사용한 영혼 ${spent.toLocaleString()}개의 절반인 ${refund.toLocaleString()}개를 돌려받겠습니까?`)) return false;
+  meta.upgrades = soulUpgradeZeroState();
+  meta.souls = Math.max(0, Number(meta.souls || 0)) + refund;
+  saveMeta();
+  toast(`영혼 강화 초기화 완료. 영혼 ${refund.toLocaleString()}개를 돌려받았습니다.`);
+  return true;
+}
+
+showMeta = function(){
+  stopAuto();
+  const soulMode = currentSoulPoolMode(activeLoginMode === 'kakao' ? 'kakao' : (activeLoginMode === 'guest' ? 'guest' : undefined));
+  const spent = totalSoulSpentForUpgrades(meta.upgrades);
+  const refund = soulUpgradeRefundAmount(meta.upgrades);
+  const rows = metaDefs.map(d=>{
+    const lv=meta.upgrades[d.id]||0; const cost=metaCost(d.id); const full=lv>=d.max;
+    const used=soulUpgradeSpentFor(d.id, lv);
+    return `<div class="metaRow"><div><h4>${d.name} <span class="muted">Lv.${lv}/${d.max}</span></h4><p>${d.desc}</p><p class="muted">사용 영혼 ${used.toLocaleString()} · 초기화 환급 예상 ${Math.floor(used/2).toLocaleString()}</p></div><button class="btn smallbtn ${full?'':'good'}" data-up="${d.id}" ${full?'disabled':''}>${full?'완료':cost+' 영혼'}</button></div>`;
+  }).join('');
+  showModal(`<h2>영혼 강화</h2>
+    <p class="muted">슬롯 캐릭터들이 보유한 영혼까지 합산해서 강화합니다. 현재 통합 영혼: <b class="legend">${totalSoulAvailable(soulMode).toLocaleString()}</b></p>
+    <p class="muted">현재 영혼 강화 보정: <b>${soulUpgradeBonusShortText()}</b></p>
+    <p class="muted">누적 사용 영혼: <b>${spent.toLocaleString()}</b> · 초기화 시 환급: <b class="legend">${refund.toLocaleString()}</b></p>
+    ${rows}
+    <div class="grid2" style="margin-top:12px"><button class="btn" id="backStart">캐릭터 슬롯</button><button class="btn bad" id="resetMeta">강화 초기화</button></div>`, true);
+  modalCard.querySelectorAll('[data-up]').forEach(btn=>btn.onclick=()=>{
+    const id=btn.dataset.up; const d=metaDefs.find(x=>x.id===id); const lv=meta.upgrades[id]||0; const cost=metaCost(id);
+    if(lv>=d.max) return;
+    if(totalSoulAvailable(soulMode)<cost){toast('영혼이 부족합니다.'); return;}
+    if(!spendPooledSouls(cost, soulMode)){toast('영혼이 부족합니다.'); return;}
+    meta.upgrades[id]=lv+1;
+    saveMeta();
+    showMeta();
+  });
+  $('backStart').onclick=()=>showCharacterSlots(soulMode === 'kakao' ? 'kakao' : 'guest');
+  $('resetMeta').onclick=()=>{
+    if(resetSoulUpgradesWithHalfRefund()) showMeta();
+  };
+};
+
+showStatsMenu = function(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const p=S.player, st=calcStats();
+  const power=currentCombatPower();
+  const score=currentRankingScore();
+  showModal(`<h2>스탯</h2><div class="stats" style="margin-top:10px">
+    <div>닉네임 <b>${escapeText(playerNickname(p))}</b></div><div>전투력 <b>${power.toLocaleString()}</b></div>
+    <div>점수 <b>${score.toLocaleString()}</b></div><div>직업 <b>${escapeText(p.className)}</b></div>
+    <div>층 / 턴 <b>${p.floor} / ${p.turn}</b></div><div>레벨 <b>${p.level}</b></div>
+    <div>경험치 <b>${p.xp}/${p.nextXp}</b></div><div>HP <b>${p.hp}/${st.maxHp}</b></div>
+    <div>MP <b>${p.mp}/${st.maxMp}</b></div><div>공격 <b>${st.atk}</b></div>
+    <div>방어 <b>${st.def}</b></div><div>치명타 <b>${st.crit}%</b></div>
+    <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>
+    <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
+    <div>영혼 <b>${p.soulsRun}</b></div>
+  </div>
+  ${soulUpgradeBonusStatsHtml()}
+  <p class="muted" style="margin-top:10px">효과: ${p.effects.guard>0?'방어 태세 '+p.effects.guard+'턴 · ':''}${p.effects.fury>0?'전투함성 '+p.effects.fury+'턴 · ':''}${p.effects.smoke>0?'연막 '+p.effects.smoke+'턴 · ':''}${p.effects.shadow>0?'그림자 기습 '+p.effects.shadow+'턴 · ':''}${p.effects.focus>0?'집중 '+p.effects.focus+'턴':''||'없음'}</p>
+  ${makeCloseBar()}`, false);
+  bindCloseOnly();
+};
+
+const previousUpdateUiForSoulBonusStats = updateUi;
+updateUi = function(){
+  previousUpdateUiForSoulBonusStats();
+  if(!S || !S.player) return;
+  const statsBox=$('statsBox');
+  if(statsBox && !statsBox.innerHTML.includes('영혼 보정')){
+    statsBox.innerHTML += `<div>영혼 보정 <b>${soulUpgradeBonusShortText()}</b></div>`;
+  }
+};
+
 initStartPage();
 render();
 
