@@ -7030,7 +7030,7 @@ function soulUpgradeBonusStatsHtml(){
     <div>방어 <b>+${b.def}</b></div><div>치명타 <b>+${b.crit}%</b></div>
     <div>경험치 획득 <b>+${b.xp}%</b></div><div>골드 획득 <b>+${b.gold}%</b></div>
   </div>
-  <p class="muted" style="margin-top:8px">HP/공격/방어/치명 보정은 새 원정 캐릭터 기본 수치에 반영됩니다. 경험치/골드 보정은 현재 원정에도 적용됩니다.</p>`;
+  <p class="muted" style="margin-top:8px">아래 보정값은 게임 내 능력치 패널에도 별도 표시됩니다. HP/공격/방어/치명 보정은 캐릭터 수치에 반영되고, 경험치/골드 보정은 획득량 계산에 반영됩니다.</p>`;
 }
 function resetSoulUpgradesWithHalfRefund(){
   const spent = totalSoulSpentForUpgrades(meta.upgrades);
@@ -7059,7 +7059,6 @@ showMeta = function(){
   }).join('');
   showModal(`<h2>영혼 강화</h2>
     <p class="muted">슬롯 캐릭터들이 보유한 영혼까지 합산해서 강화합니다. 현재 통합 영혼: <b class="legend">${totalSoulAvailable(soulMode).toLocaleString()}</b></p>
-    <p class="muted">현재 영혼 강화 보정: <b>${soulUpgradeBonusShortText()}</b></p>
     <p class="muted">누적 사용 영혼: <b>${spent.toLocaleString()}</b> · 초기화 시 환급: <b class="legend">${refund.toLocaleString()}</b></p>
     ${rows}
     <div class="grid2" style="margin-top:12px"><button class="btn" id="backStart">캐릭터 슬롯</button><button class="btn bad" id="resetMeta">강화 초기화</button></div>`, true);
@@ -7106,8 +7105,15 @@ updateUi = function(){
   previousUpdateUiForSoulBonusStats();
   if(!S || !S.player) return;
   const statsBox=$('statsBox');
-  if(statsBox && !statsBox.innerHTML.includes('영혼 보정')){
-    statsBox.innerHTML += `<div>영혼 보정 <b>${soulUpgradeBonusShortText()}</b></div>`;
+  if(statsBox && !statsBox.innerHTML.includes('영혼 HP')){
+    const b = soulUpgradeBonusInfo();
+    statsBox.innerHTML += `
+      <div>영혼 HP <b>+${b.hp}</b></div>
+      <div>영혼 공격 <b>+${b.atk}</b></div>
+      <div>영혼 방어 <b>+${b.def}</b></div>
+      <div>영혼 치명 <b>+${b.crit}%</b></div>
+      <div>영혼 경험치 <b>+${b.xp}%</b></div>
+      <div>영혼 골드 <b>+${b.gold}%</b></div>`;
   }
 };
 
