@@ -1573,7 +1573,7 @@
   #game{transform:scale(var(--gameZoom,1));transform-origin:center center;transition:transform .08s linear}
   .footer,.rightui,#analogPad,.skillbar,.menubar,.skill,.menuBtn{transition:transform .18s ease, order .18s ease, opacity .18s ease, box-shadow .18s ease}
   .keymapWrap{display:grid;gap:10px;margin-top:10px}
-  .keymapPreview{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:stretch}
+  .keymapPreview{display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:start}
   .keymapPreview.analogRight{grid-template-columns:1fr 120px}
   .keymapPreview.analogRight .keymapAnalogPreview{order:2}
   .keymapPreview.analogRight .keymapActionPreview{order:1}
@@ -1613,6 +1613,420 @@
   .keymapBtnItem.dropTarget{outline:2px solid #38bdf8;transform:none!important}
   @media(max-width:820px){#analogPad{min-width:136px;min-height:136px}#app.layoutAnalogRight .footer{grid-template-columns:minmax(0,1fr) 142px!important}}
   @media(max-height:700px){#analogPad{min-width:116px;min-height:116px}#app.layoutAnalogRight .footer{grid-template-columns:minmax(0,1fr) 122px!important}}
+
+
+
+  /* 키맵핑/실제 조작부 크기 고정 보정 */
+  #analogPad.controls{
+    width:160px!important;
+    height:160px!important;
+    min-width:160px!important;
+    min-height:160px!important;
+    max-width:160px!important;
+    max-height:160px!important;
+    box-sizing:border-box!important;
+    align-self:start!important;
+    justify-self:center!important;
+  }
+  #app.layoutAnalogRight .footer{
+    grid-template-columns:minmax(0,1fr) 170px!important;
+    align-items:start!important;
+  }
+  #app.layoutAnalogRight #analogPad.controls{
+    order:2!important;
+    width:160px!important;
+    height:160px!important;
+    min-width:160px!important;
+    min-height:160px!important;
+    max-width:160px!important;
+    max-height:160px!important;
+    transform:none!important;
+  }
+  #app.layoutAnalogRight .rightui{
+    order:1!important;
+    align-self:start!important;
+    transform:none!important;
+  }
+  .keymapPreview{
+    align-items:start!important;
+  }
+  .keymapPreview .keymapBlock{
+    box-sizing:border-box!important;
+    align-self:start!important;
+  }
+  .keymapAnalogPreview{
+    height:134px!important;
+    min-height:134px!important;
+    max-height:134px!important;
+    justify-content:center!important;
+  }
+  .keymapActionPreview{
+    min-height:0!important;
+    height:auto!important;
+  }
+  .keymapActionList .keymapBtnItem{
+    height:45px!important;
+    min-height:45px!important;
+    max-height:45px!important;
+    box-sizing:border-box!important;
+  }
+  .keymapMenuList .keymapBtnItem{
+    height:35px!important;
+    min-height:35px!important;
+    max-height:35px!important;
+    box-sizing:border-box!important;
+  }
+  @media(max-width:820px){
+    #analogPad.controls,
+    #app.layoutAnalogRight #analogPad.controls{
+      width:136px!important;
+      height:136px!important;
+      min-width:136px!important;
+      min-height:136px!important;
+      max-width:136px!important;
+      max-height:136px!important;
+    }
+  }
+  @media(max-height:700px){
+    #analogPad.controls,
+    #app.layoutAnalogRight #analogPad.controls{
+      width:116px!important;
+      height:116px!important;
+      min-width:116px!important;
+      min-height:116px!important;
+      max-width:116px!important;
+      max-height:116px!important;
+    }
+  }
+
+
+  /* 실제 게임화면 키맵핑 모드 + 확대 최소값 보정 */
+  body.liveKeymapMode{
+    overscroll-behavior:none;
+  }
+  body.liveKeymapMode #app{
+    outline:2px solid rgba(250,204,21,.45);
+    outline-offset:-4px;
+  }
+  body.liveKeymapMode #analogPad,
+  body.liveKeymapMode .skill,
+  body.liveKeymapMode .menuBtn{
+    animation:keymapWiggle .72s ease-in-out infinite;
+    cursor:grab!important;
+    touch-action:none!important;
+    user-select:none!important;
+  }
+  body.liveKeymapMode #analogPad{
+    box-shadow:0 0 0 2px rgba(250,204,21,.45), 0 0 18px rgba(250,204,21,.18)!important;
+  }
+  body.liveKeymapMode .skill,
+  body.liveKeymapMode .menuBtn{
+    outline:1px solid rgba(250,204,21,.34);
+    outline-offset:-2px;
+  }
+  body.liveKeymapMode .skill:active,
+  body.liveKeymapMode .menuBtn:active{
+    transform:none!important;
+  }
+  @keyframes keymapWiggle{
+    0%,100%{translate:0 0; rotate:0deg}
+    25%{translate:0 -1px; rotate:-.45deg}
+    50%{translate:0 1px; rotate:.45deg}
+    75%{translate:0 -1px; rotate:-.25deg}
+  }
+  #keymapLiveBar{
+    position:fixed;
+    left:50%;
+    bottom:clamp(92px,18vh,165px);
+    transform:translateX(-50%);
+    z-index:9998;
+    display:grid;
+    grid-template-columns:repeat(3,auto);
+    gap:8px;
+    padding:7px;
+    border:1px solid rgba(148,163,184,.38);
+    border-radius:999px;
+    background:rgba(2,6,23,.35);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    box-shadow:0 10px 30px rgba(0,0,0,.28);
+    pointer-events:auto;
+  }
+  #keymapLiveBar button{
+    min-width:64px;
+    padding:8px 10px;
+    border-radius:999px;
+    border:1px solid rgba(148,163,184,.52);
+    background:rgba(15,23,42,.52);
+    color:#e5edff;
+    font-size:12px;
+    font-weight:900;
+    touch-action:none;
+  }
+  #keymapLiveBar #keymapLiveDefault{color:#fde68a;border-color:rgba(250,204,21,.65)}
+  #keymapLiveBar #keymapLiveApply{color:#bbf7d0;border-color:rgba(34,197,94,.72)}
+  #keymapLiveBar #keymapLiveCancel{color:#fecaca;border-color:rgba(248,113,113,.72)}
+  .keymapLiveDragging{
+    position:fixed!important;
+    left:0;
+    top:0;
+    z-index:9999!important;
+    width:var(--live-drag-w)!important;
+    height:var(--live-drag-h)!important;
+    min-width:var(--live-drag-w)!important;
+    min-height:var(--live-drag-h)!important;
+    max-width:var(--live-drag-w)!important;
+    max-height:var(--live-drag-h)!important;
+    pointer-events:none!important;
+    opacity:.96!important;
+    animation:none!important;
+    transform:none!important;
+    transition:none!important;
+    margin:0!important;
+    box-sizing:border-box!important;
+  }
+  .keymapLivePlaceholder{
+    box-sizing:border-box!important;
+    border:1px dashed rgba(250,204,21,.82)!important;
+    background:rgba(250,204,21,.08)!important;
+    color:#facc15!important;
+    box-shadow:inset 0 0 0 1px rgba(250,204,21,.16)!important;
+    animation:none!important;
+    opacity:.92!important;
+  }
+  .keymapLiveTarget{
+    outline:2px solid #38bdf8!important;
+    outline-offset:2px!important;
+  }
+  .keymapLiveMoving{
+    transition:transform .18s ease!important;
+  }
+  body.liveKeymapMode .footer,
+  body.liveKeymapMode .rightui,
+  body.liveKeymapMode #analogPad,
+  body.liveKeymapMode .skillbar,
+  body.liveKeymapMode .menubar,
+  body.liveKeymapMode .skill,
+  body.liveKeymapMode .menuBtn{
+    transition:transform .18s ease, order .18s ease, opacity .18s ease, box-shadow .18s ease!important;
+  }
+  /* 키맵핑 중 패드/버튼 크기 고정 */
+  body.liveKeymapMode #analogPad.controls,
+  body.liveKeymapMode #app.layoutAnalogRight #analogPad.controls{
+    width:160px!important;
+    height:160px!important;
+    min-width:160px!important;
+    min-height:160px!important;
+    max-width:160px!important;
+    max-height:160px!important;
+    flex:0 0 160px!important;
+  }
+  body.liveKeymapMode .skill{
+    min-height:64px!important;
+    height:64px!important;
+    box-sizing:border-box!important;
+  }
+  body.liveKeymapMode .menuBtn{
+    min-height:38px!important;
+    height:38px!important;
+    box-sizing:border-box!important;
+  }
+  @media(max-height:700px){
+    body.liveKeymapMode #analogPad.controls,
+    body.liveKeymapMode #app.layoutAnalogRight #analogPad.controls{
+      width:116px!important;
+      height:116px!important;
+      min-width:116px!important;
+      min-height:116px!important;
+      max-width:116px!important;
+      max-height:116px!important;
+      flex:0 0 116px!important;
+    }
+  }
+
+
+/* 최종 보정: 라이브 키맵핑 버튼 위치/크기 고정 */
+#keymapLiveBar{
+  top:calc(env(safe-area-inset-top, 0px) + 82px)!important;
+  bottom:auto!important;
+  left:50%!important;
+  transform:translateX(-50%)!important;
+}
+@media(max-height:700px){
+  #keymapLiveBar{
+    top:calc(env(safe-area-inset-top, 0px) + 58px)!important;
+  }
+}
+body.liveKeymapMode .skillbar{
+  align-items:center!important;
+  grid-auto-rows:64px!important;
+}
+body.liveKeymapMode .menubar{
+  align-items:center!important;
+  grid-auto-rows:38px!important;
+}
+body.liveKeymapMode .skill,
+body.liveKeymapMode .skill.keymapLiveDragging,
+body.liveKeymapMode .skill.keymapLivePlaceholder{
+  height:64px!important;
+  min-height:64px!important;
+  max-height:64px!important;
+  box-sizing:border-box!important;
+  resize:none!important;
+  align-self:center!important;
+  overflow:hidden!important;
+}
+body.liveKeymapMode .menuBtn,
+body.liveKeymapMode .menuBtn.keymapLiveDragging,
+body.liveKeymapMode .menuBtn.keymapLivePlaceholder{
+  height:38px!important;
+  min-height:38px!important;
+  max-height:38px!important;
+  box-sizing:border-box!important;
+  resize:none!important;
+  align-self:center!important;
+  overflow:hidden!important;
+}
+body.liveKeymapMode .skill.keymapLiveDragging{
+  width:var(--live-drag-w)!important;
+  height:64px!important;
+  min-height:64px!important;
+  max-height:64px!important;
+}
+body.liveKeymapMode .menuBtn.keymapLiveDragging{
+  width:var(--live-drag-w)!important;
+  height:38px!important;
+  min-height:38px!important;
+  max-height:38px!important;
+}
+body.liveKeymapMode .keymapAnalogPlaceholder{
+  width:160px!important;
+  height:160px!important;
+  min-width:160px!important;
+  min-height:160px!important;
+  max-width:160px!important;
+  max-height:160px!important;
+  flex:0 0 160px!important;
+}
+body.liveKeymapMode #analogPad.keymapLiveDragging{
+  position:fixed!important;
+  left:0;
+  top:0;
+  z-index:9999!important;
+  width:var(--live-drag-w)!important;
+  height:var(--live-drag-h)!important;
+  min-width:var(--live-drag-w)!important;
+  min-height:var(--live-drag-h)!important;
+  max-width:var(--live-drag-w)!important;
+  max-height:var(--live-drag-h)!important;
+  flex:0 0 var(--live-drag-w)!important;
+  pointer-events:none!important;
+  opacity:.96!important;
+  animation:none!important;
+  transition:none!important;
+  transform:none!important;
+  margin:0!important;
+}
+
+
+/* 최종 보정: 키맵핑 좌우 완전 반전 + 로그창 위치 컨트롤바 + 드래그 크기 고정 */
+body.liveKeymapMode #app:not(.layoutAnalogRight) .footer{
+  grid-template-columns:170px minmax(0,1fr)!important;
+  align-items:start!important;
+}
+body.liveKeymapMode #app:not(.layoutAnalogRight) #analogPad.controls{
+  order:1!important;
+  justify-self:center!important;
+  align-self:start!important;
+}
+body.liveKeymapMode #app:not(.layoutAnalogRight) .rightui{
+  order:2!important;
+  min-width:0!important;
+  align-self:start!important;
+}
+body.liveKeymapMode #app.layoutAnalogRight .footer{
+  grid-template-columns:minmax(0,1fr) 170px!important;
+  align-items:start!important;
+}
+body.liveKeymapMode #app.layoutAnalogRight .rightui{
+  order:1!important;
+  min-width:0!important;
+  align-self:start!important;
+}
+body.liveKeymapMode #app.layoutAnalogRight #analogPad.controls{
+  order:2!important;
+  justify-self:center!important;
+  align-self:start!important;
+}
+#keymapLiveBar.keymapAtLog{
+  position:fixed!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,1fr)!important;
+  gap:6px!important;
+  padding:6px!important;
+  border-radius:14px!important;
+  background:rgba(2,6,23,.30)!important;
+  border:1px solid rgba(148,163,184,.36)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.22)!important;
+  backdrop-filter:blur(7px)!important;
+  -webkit-backdrop-filter:blur(7px)!important;
+  z-index:9998!important;
+}
+#keymapLiveBar.keymapAtLog button{
+  width:auto!important;
+  min-width:0!important;
+  height:32px!important;
+  min-height:32px!important;
+  max-height:32px!important;
+  padding:5px 8px!important;
+  line-height:1!important;
+  box-sizing:border-box!important;
+  white-space:nowrap!important;
+}
+body.liveKeymapMode .skill,
+body.liveKeymapMode .skill.keymapLiveDragging,
+body.liveKeymapMode .skill.keymapLivePlaceholder{
+  width:auto;
+  height:64px!important;
+  min-height:64px!important;
+  max-height:64px!important;
+  flex:0 0 auto!important;
+  box-sizing:border-box!important;
+  align-self:start!important;
+  overflow:hidden!important;
+  line-height:1.05!important;
+}
+body.liveKeymapMode .menuBtn,
+body.liveKeymapMode .menuBtn.keymapLiveDragging,
+body.liveKeymapMode .menuBtn.keymapLivePlaceholder{
+  width:auto;
+  height:38px!important;
+  min-height:38px!important;
+  max-height:38px!important;
+  flex:0 0 auto!important;
+  box-sizing:border-box!important;
+  align-self:start!important;
+  overflow:hidden!important;
+  line-height:1.05!important;
+}
+body.liveKeymapMode .keymapLiveDragging{
+  width:var(--live-drag-w)!important;
+  height:var(--live-drag-h)!important;
+  min-width:var(--live-drag-w)!important;
+  max-width:var(--live-drag-w)!important;
+  min-height:var(--live-drag-h)!important;
+  max-height:var(--live-drag-h)!important;
+  box-sizing:border-box!important;
+  transform:none!important;
+}
+@media(max-width:820px){
+  body.liveKeymapMode #app:not(.layoutAnalogRight) .footer{grid-template-columns:142px minmax(0,1fr)!important}
+  body.liveKeymapMode #app.layoutAnalogRight .footer{grid-template-columns:minmax(0,1fr) 142px!important}
+}
+@media(max-height:700px){
+  body.liveKeymapMode #app:not(.layoutAnalogRight) .footer{grid-template-columns:122px minmax(0,1fr)!important}
+  body.liveKeymapMode #app.layoutAnalogRight .footer{grid-template-columns:minmax(0,1fr) 122px!important}
+}
 
 </style>
 </head>
@@ -7368,7 +7782,7 @@ function renderKeymapPreview(layout){
         <button class="btn warn" id="keymapResetBtn">기본 배치</button>
         <button class="btn good" id="keymapDoneBtn">완료</button>
       </div>
-      <p class="zoomHelpLine">게임 화면은 손가락 두 개로 벌리면 확대, 좁히면 축소됩니다. 확대값은 저장됩니다.</p>
+      <p class="zoomHelpLine">게임 화면은 손가락 두 개로 벌리면 확대, 좁히면 축소됩니다.<br>두 손가락으로 빠르게 두 번 터치하면 기본 배율로 돌아갑니다.</p>
     </div>`;
 }
 function showKeymapMenu(){
@@ -7549,45 +7963,34 @@ function bindKeymapModalHandlers(){
   bindSortableList('keymapMenuList', 'menuOrder');
 }
 
-/* 설정 메뉴 재정의: 메뉴 문구를 설정으로 변경하고 게임계속 자리에는 키맵핑 배치 */
-const previousShowSystemMenuForKeymap = typeof showSystemMenu === 'function' ? showSystemMenu : null;
+/* 설정 메뉴 구성 복구: 기존 메뉴 구성 유지 + 키맵핑 버튼만 추가 */
 showSystemMenu = function(){
   if(!S) return;
   pauseAutoForChoice();
+  const mode = activeLoginMode || S.loginMode || 'guest';
+  const accountDeleteDisabled = mode === 'kakao' ? '' : ' disabled';
   showModal(`<h2>설정</h2>
+    <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
     <div class="grid2" style="margin-top:10px">
       <button class="btn good" id="menuKeymapBtn">키맵핑</button>
-      <button class="btn bad" id="menuResetBtn">초기화</button>
+      <button class="btn" id="menuCharacterBtn">캐릭터 선택</button>
     </div>
     <div class="grid2" style="margin-top:8px">
-      <button class="btn" id="cloudMenuBtn">Supabase</button>
-      <button class="btn good" id="cloudQuickSaveBtn">클라우드 저장</button>
-    </div>
-    <div class="grid2" style="margin-top:8px">
-      <button class="btn" id="menuStartBtn">슬롯/시작 화면</button>
-      <button class="btn" id="menuCloseBtn">닫기</button>
-    </div>
-    <p class="muted" style="margin-top:8px">${cloudEscape(cloudStatusText())}</p>`, false);
+      <button class="btn warn" id="menuWithdrawBtn"${accountDeleteDisabled}>회원탈퇴</button>
+      <button class="btn bad" id="menuDeleteCharBtn">현재 캐릭터 삭제</button>
+    </div>`, false);
+
   $('menuKeymapBtn').onclick = showKeymapMenu;
-  $('menuStartBtn').onclick = ()=>{ startMenuResumeClassId = S?.player?.classId || null; hideModal(); showStart(); };
-  $('menuCloseBtn').onclick = ()=>{ hideModal(); renderAll(); };
-  $('cloudMenuBtn').onclick = showCloudMenu;
-  $('cloudQuickSaveBtn').onclick = async()=>{
-    try{ const ok=await saveCloud(); toast(ok?'클라우드 저장 완료.':'클라우드 저장 실패. Supabase 설정을 확인하세요.'); }
-    catch(e){ toast('클라우드 저장 실패: '+e.message); }
+  $('menuCharacterBtn').onclick = ()=>{
+    saveRun();
+    S = null;
+    showCharacterSlots(mode);
   };
-  $('menuResetBtn').onclick=()=>{
-    if(confirm('저장 원정과 영혼 강화 데이터를 모두 초기화하시겠습니까?')){
-      localStorage.removeItem(SAVE_KEY);
-      localStorage.removeItem(META_KEY);
-      meta=loadMeta();
-      S=null;
-      startMenuResumeClassId=null;
-      stopAuto();
-      showStart();
-    }
-  };
+  const withdrawBtn = $('menuWithdrawBtn');
+  if(withdrawBtn) withdrawBtn.onclick = ()=>showAccountWithdrawalConfirm(mode);
+  $('menuDeleteCharBtn').onclick = ()=>showDeleteCurrentCharacterConfirm(mode);
 };
+
 if($('menuMenuBtn')){
   const b=$('menuMenuBtn').querySelector('b');
   if(b) b.textContent='설정';
@@ -7633,42 +8036,793 @@ function bindGamePinchZoom(){
       else resetStart();
     }, {passive:false});
   });
-
-  // iOS Safari용 터치 핀치 fallback
-  let touchStartDist = 0;
-  let touchStartZoom = gameZoomValue;
-  const touchDist = touches=>{
-    if(!touches || touches.length < 2) return 0;
-    const a = touches[0], b = touches[1];
-    return Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
-  };
-  panel.addEventListener('touchstart', e=>{
-    if(modal && modal.classList.contains('show')) return;
-    if(e.touches && e.touches.length >= 2){
-      touchStartDist = touchDist(e.touches) || 1;
-      touchStartZoom = gameZoomValue;
-      e.preventDefault();
-    }
-  }, {passive:false});
-  panel.addEventListener('touchmove', e=>{
-    if(modal && modal.classList.contains('show')) return;
-    if(e.touches && e.touches.length >= 2){
-      const d = touchDist(e.touches) || touchStartDist || 1;
-      setGameZoom(touchStartZoom * (d / (touchStartDist || d || 1)));
-      e.preventDefault();
-    }
-  }, {passive:false});
-  panel.addEventListener('touchend', e=>{
-    if(!e.touches || e.touches.length < 2){
-      touchStartDist = 0;
-      touchStartZoom = gameZoomValue;
-    }
-  }, {passive:false});
   window.addEventListener('blur', ()=>points.clear());
 }
 applyControlLayout();
 bindGamePinchZoom();
 
+
+
+/* 요청 반영: 확대 축소 최소값 100%, 실제 게임화면 키맵핑 모드 */
+try{
+  clampGameZoom = function(v){
+    return Math.max(1, Math.min(1.85, Number(v)||1));
+  };
+  if(typeof gameZoomValue !== 'undefined'){
+    gameZoomValue = clampGameZoom(gameZoomValue);
+    localStorage.setItem(GAME_ZOOM_KEY, String(gameZoomValue.toFixed(2)));
+    applyGameZoom();
+  }
+}catch(e){}
+
+function cloneControlLayoutForLive(layout){
+  return {
+    analog: layout?.analog === 'right' ? 'right' : 'left',
+    actionOrder: normalizedOrder(layout?.actionOrder, DEFAULT_ACTION_ORDER),
+    menuOrder: normalizedOrder(layout?.menuOrder, DEFAULT_MENU_ORDER)
+  };
+}
+function applyControlLayoutLive(layout){
+  const l = cloneControlLayoutForLive(layout);
+  const app = $('app');
+  if(app) app.classList.toggle('layoutAnalogRight', l.analog === 'right');
+  const skillBar = document.querySelector('.skillbar');
+  if(skillBar){
+    l.actionOrder.forEach(id=>{
+      const el=$(id);
+      if(el) skillBar.appendChild(el);
+    });
+  }
+  const menuBar = document.querySelector('.menubar');
+  if(menuBar){
+    l.menuOrder.forEach(id=>{
+      const el=$(id);
+      if(el) menuBar.appendChild(el);
+    });
+  }
+  const menuBtn = $('menuMenuBtn');
+  if(menuBtn){
+    const b=menuBtn.querySelector('b');
+    if(b) b.textContent='설정';
+  }
+}
+function keymapLiveElements(){
+  return [
+    $('analogPad'),
+    ...DEFAULT_ACTION_ORDER.map(id=>$(id)),
+    ...DEFAULT_MENU_ORDER.map(id=>$(id)),
+    document.querySelector('.rightui'),
+    document.querySelector('.footer')
+  ].filter(Boolean);
+}
+function animateKeymapLiveReflow(mutate){
+  const els = keymapLiveElements().filter(el=>el.isConnected);
+  const first = new Map(els.map(el=>[el, el.getBoundingClientRect()]));
+  mutate();
+  requestAnimationFrame(()=>{
+    els.forEach(el=>{
+      if(!el.isConnected) return;
+      const a=first.get(el);
+      if(!a) return;
+      const b=el.getBoundingClientRect();
+      const dx=a.left-b.left;
+      const dy=a.top-b.top;
+      if(Math.abs(dx)<1 && Math.abs(dy)<1) return;
+      el.classList.add('keymapLiveMoving');
+      const prevTransition=el.style.transition;
+      const prevTransform=el.style.transform;
+      el.style.transition='none';
+      el.style.transform=`translate(${dx}px,${dy}px)`;
+      requestAnimationFrame(()=>{
+        el.style.transition='transform .18s ease';
+        el.style.transform=prevTransform || '';
+        setTimeout(()=>{
+          el.classList.remove('keymapLiveMoving');
+          el.style.transition=prevTransition || '';
+        }, 210);
+      });
+    });
+  });
+}
+function ensureKeymapLiveBar(){
+  let bar=$('keymapLiveBar');
+  if(bar) return bar;
+  bar=document.createElement('div');
+  bar.id='keymapLiveBar';
+  bar.innerHTML=`
+    <button type="button" id="keymapLiveDefault">기본값</button>
+    <button type="button" id="keymapLiveApply">적용</button>
+    <button type="button" id="keymapLiveCancel">취소</button>`;
+  document.body.appendChild(bar);
+  return bar;
+}
+function removeKeymapLiveBar(){
+  const bar=$('keymapLiveBar');
+  if(bar) bar.remove();
+}
+let keymapLiveSession = null;
+
+function endLiveKeymapMode(mode){
+  if(!keymapLiveSession) return;
+  const sess=keymapLiveSession;
+  try{ sess.abort?.abort(); }catch(e){}
+  document.body.classList.remove('liveKeymapMode');
+  removeKeymapLiveBar();
+  document.querySelectorAll('.keymapLiveTarget,.keymapLiveDragging,.keymapLivePlaceholder,.keymapLiveMoving').forEach(el=>{
+    el.classList.remove('keymapLiveTarget','keymapLiveDragging','keymapLivePlaceholder','keymapLiveMoving');
+    el.style.left=''; el.style.top=''; el.style.width=''; el.style.height='';
+    el.style.minWidth=''; el.style.minHeight=''; el.style.maxWidth=''; el.style.maxHeight='';
+    el.style.transform=''; el.style.transition=''; el.style.pointerEvents='';
+    el.style.removeProperty('--live-drag-w');
+    el.style.removeProperty('--live-drag-h');
+  });
+  if(mode === 'apply'){
+    saveControlLayout(sess.working);
+    applyControlLayout();
+    toast('키맵핑 적용 완료.');
+  }else{
+    applyControlLayoutLive(sess.original);
+    toast(mode === 'default' ? '기본 배치로 되돌렸다.' : '키맵핑 취소.');
+  }
+  keymapLiveSession=null;
+  renderAll();
+}
+function updateKeymapLiveWorkingFromDom(){
+  if(!keymapLiveSession) return;
+  const read = (selector, defaults)=>{
+    const list=document.querySelector(selector);
+    const arr=[];
+    if(list){
+      [...list.children].forEach(el=>{
+        const id=el.id || el.dataset?.keymapBtn;
+        if(id && defaults.includes(id) && !arr.includes(id)) arr.push(id);
+      });
+    }
+    defaults.forEach(id=>{ if(!arr.includes(id)) arr.push(id); });
+    return arr;
+  };
+  keymapLiveSession.working.actionOrder = read('.skillbar', DEFAULT_ACTION_ORDER);
+  keymapLiveSession.working.menuOrder = read('.menubar', DEFAULT_MENU_ORDER);
+  keymapLiveSession.working.analog = $('app')?.classList.contains('layoutAnalogRight') ? 'right' : 'left';
+}
+function moveLivePlaceholder(list, placeholder, dragged, clientX, clientY){
+  const target = document.elementFromPoint(clientX, clientY)?.closest?.('.skill,.menuBtn');
+  list.querySelectorAll('.keymapLiveTarget').forEach(el=>el.classList.remove('keymapLiveTarget'));
+  if(!target || target===dragged || target===placeholder || target.parentElement!==list) return;
+  target.classList.add('keymapLiveTarget');
+  const r=target.getBoundingClientRect();
+  const cols = getComputedStyle(list).gridTemplateColumns.split(' ').filter(Boolean).length;
+  const before = cols > 1 ? clientX < r.left + r.width/2 : clientY < r.top + r.height/2;
+  const nextNode = before ? target : target.nextSibling;
+  if(nextNode === placeholder) return;
+  animateKeymapLiveReflow(()=>list.insertBefore(placeholder, nextNode));
+}
+function startLiveButtonDrag(el, e){
+  if(!keymapLiveSession || !el || !(el.classList.contains('skill') || el.classList.contains('menuBtn'))) return;
+  const list = el.parentElement;
+  if(!(list && (list.classList.contains('skillbar') || list.classList.contains('menubar')))) return;
+  const defaults = list.classList.contains('menubar') ? DEFAULT_MENU_ORDER : DEFAULT_ACTION_ORDER;
+  if(!defaults.includes(el.id)) return;
+
+  const rect=el.getBoundingClientRect();
+  const grabX=e.clientX-rect.left;
+  const grabY=e.clientY-rect.top;
+  const placeholder=document.createElement(el.tagName.toLowerCase());
+  placeholder.type='button';
+  placeholder.disabled=true;
+  placeholder.className=el.className + ' keymapLivePlaceholder';
+  placeholder.innerHTML='<b>빈자리</b>';
+  placeholder.style.width=rect.width+'px';
+  placeholder.style.height=rect.height+'px';
+  placeholder.style.minHeight=rect.height+'px';
+
+  const next=el.nextSibling;
+  list.insertBefore(placeholder, next);
+  document.body.appendChild(el);
+
+  el.classList.add('keymapLiveDragging');
+  el.style.setProperty('--live-drag-w', rect.width+'px');
+  el.style.setProperty('--live-drag-h', rect.height+'px');
+  el.style.left=rect.left+'px';
+  el.style.top=rect.top+'px';
+
+  let pid=e.pointerId;
+  try{ el.setPointerCapture?.(pid); }catch(err){}
+  const move=ev=>{
+    if(ev.pointerId!==pid) return;
+    el.style.left=(ev.clientX-grabX)+'px';
+    el.style.top=(ev.clientY-grabY)+'px';
+    moveLivePlaceholder(list, placeholder, el, ev.clientX, ev.clientY);
+    ev.preventDefault();
+  };
+  const finish=ev=>{
+    if(ev.pointerId!==pid) return;
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+    list.insertBefore(el, placeholder);
+    placeholder.remove();
+    el.classList.remove('keymapLiveDragging');
+    el.style.left=''; el.style.top='';
+    el.style.removeProperty('--live-drag-w');
+    el.style.removeProperty('--live-drag-h');
+    list.querySelectorAll('.keymapLiveTarget').forEach(x=>x.classList.remove('keymapLiveTarget'));
+    updateKeymapLiveWorkingFromDom();
+    ev.preventDefault();
+    ev.stopPropagation();
+  };
+  const cancel=ev=>{
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+    list.insertBefore(el, placeholder);
+    placeholder.remove();
+    el.classList.remove('keymapLiveDragging');
+    el.style.left=''; el.style.top='';
+    el.style.removeProperty('--live-drag-w');
+    el.style.removeProperty('--live-drag-h');
+    list.querySelectorAll('.keymapLiveTarget').forEach(x=>x.classList.remove('keymapLiveTarget'));
+  };
+  document.addEventListener('pointermove', move, true);
+  document.addEventListener('pointerup', finish, true);
+  document.addEventListener('pointercancel', cancel, true);
+  e.preventDefault();
+  e.stopPropagation();
+}
+function startLiveAnalogDrag(e){
+  if(!keymapLiveSession) return;
+  const pad=$('analogPad');
+  if(!pad) return;
+  const startX=e.clientX, startY=e.clientY;
+  let pid=e.pointerId;
+  let candidate=keymapLiveSession.working.analog;
+  pad.classList.add('keymapLiveTarget');
+  pad.style.transition='none';
+  try{ pad.setPointerCapture?.(pid); }catch(err){}
+  const move=ev=>{
+    if(ev.pointerId!==pid) return;
+    const dx=ev.clientX-startX;
+    const dy=ev.clientY-startY;
+    pad.style.transform=`translate(${dx}px,${dy}px) scale(1.02)`;
+    candidate = ev.clientX > window.innerWidth/2 ? 'right' : 'left';
+    ev.preventDefault();
+  };
+  const finish=ev=>{
+    if(ev.pointerId!==pid) return;
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+    pad.style.transition='transform .14s ease';
+    pad.style.transform='';
+    pad.classList.remove('keymapLiveTarget');
+    setTimeout(()=>{ pad.style.transition=''; }, 160);
+    if(candidate !== keymapLiveSession.working.analog){
+      keymapLiveSession.working.analog = candidate;
+      animateKeymapLiveReflow(()=>applyControlLayoutLive(keymapLiveSession.working));
+    }
+    ev.preventDefault();
+    ev.stopPropagation();
+  };
+  const cancel=()=>{
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+    pad.style.transition='';
+    pad.style.transform='';
+    pad.classList.remove('keymapLiveTarget');
+  };
+  document.addEventListener('pointermove', move, true);
+  document.addEventListener('pointerup', finish, true);
+  document.addEventListener('pointercancel', cancel, true);
+  e.preventDefault();
+  e.stopPropagation();
+}
+function startLiveKeymapMode(){
+  if(!S) return;
+  hideModal();
+  pauseAutoForChoice();
+  const original=cloneControlLayoutForLive(loadControlLayout());
+  keymapLiveSession = {
+    original,
+    working: cloneControlLayoutForLive(original),
+    abort: new AbortController()
+  };
+  document.body.classList.add('liveKeymapMode');
+  applyControlLayoutLive(keymapLiveSession.working);
+  const bar=ensureKeymapLiveBar();
+  const signal=keymapLiveSession.abort.signal;
+
+  $('keymapLiveDefault').addEventListener('click', e=>{
+    keymapLiveSession.working = {analog:'left', actionOrder:[...DEFAULT_ACTION_ORDER], menuOrder:[...DEFAULT_MENU_ORDER]};
+    animateKeymapLiveReflow(()=>applyControlLayoutLive(keymapLiveSession.working));
+    e.preventDefault(); e.stopPropagation();
+  }, {signal});
+  $('keymapLiveApply').addEventListener('click', e=>{
+    e.preventDefault(); e.stopPropagation();
+    endLiveKeymapMode('apply');
+  }, {signal});
+  $('keymapLiveCancel').addEventListener('click', e=>{
+    e.preventDefault(); e.stopPropagation();
+    endLiveKeymapMode('cancel');
+  }, {signal});
+
+  document.addEventListener('click', e=>{
+    if(!keymapLiveSession) return;
+    if(e.target.closest('#keymapLiveBar')) return;
+    if(e.target.closest('#analogPad,.skill,.menuBtn')){
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, {signal, capture:true});
+  document.addEventListener('pointerdown', e=>{
+    if(!keymapLiveSession) return;
+    if(e.target.closest('#keymapLiveBar')) return;
+    const pad=e.target.closest('#analogPad');
+    if(pad){ startLiveAnalogDrag(e); return; }
+    const btn=e.target.closest('.skill,.menuBtn');
+    if(btn){ startLiveButtonDrag(btn, e); return; }
+  }, {signal, capture:true});
+  toast('키맵핑 모드: 흔들리는 버튼을 드래그하세요.');
+}
+showKeymapMenu = startLiveKeymapMode;
+
+/* 설정 메뉴: 게임 계속/닫기 없음, 키맵핑은 실제 게임화면에서 실행 */
+showSystemMenu = function(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const mode = activeLoginMode || S.loginMode || 'guest';
+  const accountDeleteDisabled = mode === 'kakao' ? '' : ' disabled';
+  showModal(`<h2>설정</h2>
+    <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn good" id="menuKeymapBtn">키맵핑</button>
+      <button class="btn" id="menuCharacterBtn">캐릭터 선택</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn warn" id="menuWithdrawBtn"${accountDeleteDisabled}>회원탈퇴</button>
+      <button class="btn bad" id="menuDeleteCharBtn">현재 캐릭터 삭제</button>
+    </div>`, false);
+  $('menuKeymapBtn').onclick = startLiveKeymapMode;
+  $('menuCharacterBtn').onclick = ()=>{
+    saveRun();
+    S = null;
+    showCharacterSlots(mode);
+  };
+  const withdrawBtn = $('menuWithdrawBtn');
+  if(withdrawBtn) withdrawBtn.onclick = ()=>showAccountWithdrawalConfirm(mode);
+  $('menuDeleteCharBtn').onclick = ()=>showDeleteCurrentCharacterConfirm(mode);
+};
+if($('menuMenuBtn')){
+  const b=$('menuMenuBtn').querySelector('b');
+  if(b) b.textContent='설정';
+  $('menuMenuBtn').onclick = showSystemMenu;
+}
+
+/* 두 손가락 빠른 두 번 터치: 확대 원복 */
+function bindGameZoomResetTouch(){
+  const panel=$('gamePanel');
+  if(!panel || panel.dataset.zoomResetBound==='1') return;
+  panel.dataset.zoomResetBound='1';
+  let started=false, startAt=0, lastResetTap=0, sx=0, sy=0;
+  panel.addEventListener('touchstart', e=>{
+    if(e.touches && e.touches.length===2){
+      started=true;
+      startAt=Date.now();
+      sx=(e.touches[0].clientX+e.touches[1].clientX)/2;
+      sy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    }else{
+      started=false;
+    }
+  }, {passive:true});
+  panel.addEventListener('touchend', e=>{
+    if(!started) return;
+    const dt=Date.now()-startAt;
+    started=false;
+    if(dt>280) return;
+    const now=Date.now();
+    if(now-lastResetTap<520){
+      setGameZoom(1);
+      toast('화면 배율 100%');
+      lastResetTap=0;
+    }else{
+      lastResetTap=now;
+    }
+  }, {passive:true});
+}
+setGameZoom(Math.max(1, gameZoomValue || 1));
+bindGameZoomResetTouch();
+
+
+
+/* 최종 보정: 키맵핑 드래그 크기 고정 + 패드 실제 이동거리 반영 */
+function liveFixedButtonHeight(el){
+  return el && el.classList && el.classList.contains('menuBtn') ? 38 : 64;
+}
+function lockLiveButtonSize(el, w, h){
+  if(!el) return;
+  el.style.width = w + 'px';
+  el.style.height = h + 'px';
+  el.style.minWidth = w + 'px';
+  el.style.maxWidth = w + 'px';
+  el.style.minHeight = h + 'px';
+  el.style.maxHeight = h + 'px';
+  el.style.boxSizing = 'border-box';
+}
+startLiveButtonDrag = function(el, e){
+  if(!keymapLiveSession || !el || !(el.classList.contains('skill') || el.classList.contains('menuBtn'))) return;
+  const list = el.parentElement;
+  if(!(list && (list.classList.contains('skillbar') || list.classList.contains('menubar')))) return;
+  const defaults = list.classList.contains('menubar') ? DEFAULT_MENU_ORDER : DEFAULT_ACTION_ORDER;
+  if(!defaults.includes(el.id)) return;
+
+  const rect = el.getBoundingClientRect();
+  const fixedH = liveFixedButtonHeight(el);
+  const fixedW = rect.width;
+  const grabX = e.clientX - rect.left;
+  const grabY = Math.min(Math.max(e.clientY - rect.top, 0), fixedH);
+
+  const placeholder = document.createElement(el.tagName.toLowerCase());
+  placeholder.type = 'button';
+  placeholder.disabled = true;
+  placeholder.className = el.className + ' keymapLivePlaceholder';
+  placeholder.innerHTML = '<b>빈자리</b>';
+  lockLiveButtonSize(placeholder, fixedW, fixedH);
+
+  const next = el.nextSibling;
+  list.insertBefore(placeholder, next);
+  document.body.appendChild(el);
+
+  el.classList.add('keymapLiveDragging');
+  el.style.setProperty('--live-drag-w', fixedW + 'px');
+  el.style.setProperty('--live-drag-h', fixedH + 'px');
+  lockLiveButtonSize(el, fixedW, fixedH);
+  el.style.left = rect.left + 'px';
+  el.style.top = rect.top + 'px';
+
+  let pid = e.pointerId;
+  try{ el.setPointerCapture?.(pid); }catch(err){}
+
+  const move = ev=>{
+    if(ev.pointerId !== pid) return;
+    el.style.left = (ev.clientX - grabX) + 'px';
+    el.style.top = (ev.clientY - grabY) + 'px';
+    moveLivePlaceholder(list, placeholder, el, ev.clientX, ev.clientY);
+    ev.preventDefault();
+  };
+  const cleanup = ()=>{
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+    list.querySelectorAll('.keymapLiveTarget').forEach(x=>x.classList.remove('keymapLiveTarget'));
+  };
+  const restoreInline = ()=>{
+    el.style.left=''; el.style.top='';
+    el.style.width=''; el.style.height='';
+    el.style.minWidth=''; el.style.maxWidth='';
+    el.style.minHeight=''; el.style.maxHeight='';
+    el.style.boxSizing='';
+    el.style.removeProperty('--live-drag-w');
+    el.style.removeProperty('--live-drag-h');
+  };
+  const finish = ev=>{
+    if(ev.pointerId !== pid) return;
+    cleanup();
+    animateKeymapLiveReflow(()=>{
+      list.insertBefore(el, placeholder);
+      placeholder.remove();
+      el.classList.remove('keymapLiveDragging');
+      restoreInline();
+    });
+    updateKeymapLiveWorkingFromDom();
+    ev.preventDefault();
+    ev.stopPropagation();
+  };
+  const cancel = ev=>{
+    cleanup();
+    list.insertBefore(el, placeholder);
+    placeholder.remove();
+    el.classList.remove('keymapLiveDragging');
+    restoreInline();
+  };
+
+  document.addEventListener('pointermove', move, true);
+  document.addEventListener('pointerup', finish, true);
+  document.addEventListener('pointercancel', cancel, true);
+  e.preventDefault();
+  e.stopPropagation();
+};
+
+startLiveAnalogDrag = function(e){
+  if(!keymapLiveSession) return;
+  const pad = $('analogPad');
+  if(!pad) return;
+  const parent = pad.parentElement;
+  if(!parent) return;
+
+  const rect = pad.getBoundingClientRect();
+  const grabX = e.clientX - rect.left;
+  const grabY = e.clientY - rect.top;
+  let candidate = keymapLiveSession.working.analog;
+
+  const placeholder = document.createElement('div');
+  placeholder.className = 'controls keymapLivePlaceholder keymapAnalogPlaceholder';
+  placeholder.setAttribute('aria-hidden','true');
+  placeholder.style.width = rect.width + 'px';
+  placeholder.style.height = rect.height + 'px';
+  placeholder.style.minWidth = rect.width + 'px';
+  placeholder.style.minHeight = rect.height + 'px';
+  placeholder.style.maxWidth = rect.width + 'px';
+  placeholder.style.maxHeight = rect.height + 'px';
+  placeholder.style.flex = '0 0 ' + rect.width + 'px';
+
+  const next = pad.nextSibling;
+  parent.insertBefore(placeholder, next);
+  document.body.appendChild(pad);
+
+  pad.classList.add('keymapLiveDragging','keymapLiveTarget');
+  pad.style.setProperty('--live-drag-w', rect.width + 'px');
+  pad.style.setProperty('--live-drag-h', rect.height + 'px');
+  pad.style.width = rect.width + 'px';
+  pad.style.height = rect.height + 'px';
+  pad.style.minWidth = rect.width + 'px';
+  pad.style.minHeight = rect.height + 'px';
+  pad.style.maxWidth = rect.width + 'px';
+  pad.style.maxHeight = rect.height + 'px';
+  pad.style.left = rect.left + 'px';
+  pad.style.top = rect.top + 'px';
+
+  let pid = e.pointerId;
+  try{ pad.setPointerCapture?.(pid); }catch(err){}
+
+  const move = ev=>{
+    if(ev.pointerId !== pid) return;
+    const left = ev.clientX - grabX;
+    const top = ev.clientY - grabY;
+    pad.style.left = left + 'px';
+    pad.style.top = top + 'px';
+    candidate = (left + rect.width / 2) > window.innerWidth / 2 ? 'right' : 'left';
+    ev.preventDefault();
+  };
+  const cleanup = ()=>{
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+  };
+  const restorePadInline = ()=>{
+    pad.classList.remove('keymapLiveDragging','keymapLiveTarget');
+    pad.style.left=''; pad.style.top='';
+    pad.style.width=''; pad.style.height='';
+    pad.style.minWidth=''; pad.style.minHeight='';
+    pad.style.maxWidth=''; pad.style.maxHeight='';
+    pad.style.flex='';
+    pad.style.transition='';
+    pad.style.transform='';
+    pad.style.removeProperty('--live-drag-w');
+    pad.style.removeProperty('--live-drag-h');
+  };
+  const finish = ev=>{
+    if(ev.pointerId !== pid) return;
+    cleanup();
+    parent.insertBefore(pad, placeholder);
+    placeholder.remove();
+    restorePadInline();
+    if(candidate !== keymapLiveSession.working.analog){
+      keymapLiveSession.working.analog = candidate;
+      animateKeymapLiveReflow(()=>applyControlLayoutLive(keymapLiveSession.working));
+    }else{
+      animateKeymapLiveReflow(()=>applyControlLayoutLive(keymapLiveSession.working));
+    }
+    updateKeymapLiveWorkingFromDom();
+    ev.preventDefault();
+    ev.stopPropagation();
+  };
+  const cancel = ev=>{
+    cleanup();
+    parent.insertBefore(pad, placeholder);
+    placeholder.remove();
+    restorePadInline();
+    animateKeymapLiveReflow(()=>applyControlLayoutLive(keymapLiveSession.working));
+  };
+
+  document.addEventListener('pointermove', move, true);
+  document.addEventListener('pointerup', finish, true);
+  document.addEventListener('pointercancel', cancel, true);
+  e.preventDefault();
+  e.stopPropagation();
+};
+
+
+/* 최종 보정: 아날로그/버튼 좌우 반전 방식 + 로그창 위치 키맵핑 버튼 */
+function applyMirroredKeymapDom(layout){
+  const l = cloneControlLayoutForLive(layout);
+  const app = $('app');
+  const footer = document.querySelector('.footer');
+  const pad = $('analogPad');
+  const rightui = document.querySelector('.rightui');
+  if(app) app.classList.toggle('layoutAnalogRight', l.analog === 'right');
+  if(footer && pad && rightui){
+    if(l.analog === 'right'){
+      footer.appendChild(rightui);
+      footer.appendChild(pad);
+    }else{
+      footer.appendChild(pad);
+      footer.appendChild(rightui);
+    }
+  }
+  const skillBar = document.querySelector('.skillbar');
+  if(skillBar){
+    l.actionOrder.forEach(id=>{
+      const el=$(id);
+      if(el) skillBar.appendChild(el);
+    });
+  }
+  const menuBar = document.querySelector('.menubar');
+  if(menuBar){
+    l.menuOrder.forEach(id=>{
+      const el=$(id);
+      if(el) menuBar.appendChild(el);
+    });
+  }
+  const menuBtn = $('menuMenuBtn');
+  if(menuBtn){
+    const b=menuBtn.querySelector('b');
+    if(b) b.textContent='설정';
+  }
+}
+applyControlLayoutLive = function(layout){
+  applyMirroredKeymapDom(layout);
+};
+applyControlLayout = function(){
+  applyMirroredKeymapDom(loadControlLayout());
+};
+
+function positionKeymapLiveBarAtLog(){
+  const bar = $('keymapLiveBar');
+  if(!bar) return;
+  const logBoxOuter = document.querySelector('.box.logbox') || $('logBox');
+  let placed = false;
+  if(logBoxOuter){
+    const st = getComputedStyle(logBoxOuter);
+    const r = logBoxOuter.getBoundingClientRect();
+    if(st.display !== 'none' && r.width > 120 && r.height > 40){
+      const w = Math.min(Math.max(218, r.width - 14), 310);
+      bar.classList.add('keymapAtLog');
+      bar.style.width = w + 'px';
+      bar.style.left = Math.round(r.left + (r.width - w) / 2) + 'px';
+      bar.style.top = Math.round(r.top + 8) + 'px';
+      bar.style.bottom = 'auto';
+      bar.style.transform = 'none';
+      placed = true;
+    }
+  }
+  if(!placed){
+    bar.classList.remove('keymapAtLog');
+    bar.style.width = '';
+    bar.style.left = '50%';
+    bar.style.top = 'calc(env(safe-area-inset-top, 0px) + 82px)';
+    bar.style.bottom = 'auto';
+    bar.style.transform = 'translateX(-50%)';
+  }
+}
+
+const previousEnsureKeymapLiveBarForLog = ensureKeymapLiveBar;
+ensureKeymapLiveBar = function(){
+  const bar = previousEnsureKeymapLiveBarForLog();
+  positionKeymapLiveBarAtLog();
+  return bar;
+};
+
+window.addEventListener('resize', ()=>{
+  if(keymapLiveSession) positionKeymapLiveBarAtLog();
+}, {passive:true});
+
+startLiveAnalogDrag = function(e){
+  if(!keymapLiveSession) return;
+  const pad = $('analogPad');
+  if(!pad) return;
+  const parent = pad.parentElement;
+  if(!parent) return;
+
+  const rect = pad.getBoundingClientRect();
+  const grabX = e.clientX - rect.left;
+  const grabY = e.clientY - rect.top;
+  const startX = e.clientX;
+  const startSide = keymapLiveSession.working.analog;
+  let candidate = startSide;
+
+  const placeholder = document.createElement('div');
+  placeholder.className = 'controls keymapLivePlaceholder keymapAnalogPlaceholder';
+  placeholder.setAttribute('aria-hidden','true');
+  placeholder.style.width = rect.width + 'px';
+  placeholder.style.height = rect.height + 'px';
+  placeholder.style.minWidth = rect.width + 'px';
+  placeholder.style.minHeight = rect.height + 'px';
+  placeholder.style.maxWidth = rect.width + 'px';
+  placeholder.style.maxHeight = rect.height + 'px';
+  placeholder.style.flex = '0 0 ' + rect.width + 'px';
+
+  const next = pad.nextSibling;
+  parent.insertBefore(placeholder, next);
+  document.body.appendChild(pad);
+
+  pad.classList.add('keymapLiveDragging','keymapLiveTarget');
+  pad.style.setProperty('--live-drag-w', rect.width + 'px');
+  pad.style.setProperty('--live-drag-h', rect.height + 'px');
+  pad.style.width = rect.width + 'px';
+  pad.style.height = rect.height + 'px';
+  pad.style.minWidth = rect.width + 'px';
+  pad.style.minHeight = rect.height + 'px';
+  pad.style.maxWidth = rect.width + 'px';
+  pad.style.maxHeight = rect.height + 'px';
+  pad.style.left = rect.left + 'px';
+  pad.style.top = rect.top + 'px';
+  pad.style.transform = 'none';
+
+  let pid = e.pointerId;
+  try{ pad.setPointerCapture?.(pid); }catch(err){}
+
+  const decideSide = ev=>{
+    const dx = ev.clientX - startX;
+    if(startSide === 'left'){
+      return (dx > 45 || ev.clientX > window.innerWidth * 0.53) ? 'right' : 'left';
+    }
+    return (dx < -45 || ev.clientX < window.innerWidth * 0.47) ? 'left' : 'right';
+  };
+
+  const move = ev=>{
+    if(ev.pointerId !== pid) return;
+    const left = ev.clientX - grabX;
+    const top = ev.clientY - grabY;
+    pad.style.left = left + 'px';
+    pad.style.top = top + 'px';
+    candidate = decideSide(ev);
+    ev.preventDefault();
+  };
+  const cleanup = ()=>{
+    document.removeEventListener('pointermove', move, true);
+    document.removeEventListener('pointerup', finish, true);
+    document.removeEventListener('pointercancel', cancel, true);
+  };
+  const restorePadInline = ()=>{
+    pad.classList.remove('keymapLiveDragging','keymapLiveTarget');
+    pad.style.left=''; pad.style.top='';
+    pad.style.width=''; pad.style.height='';
+    pad.style.minWidth=''; pad.style.minHeight='';
+    pad.style.maxWidth=''; pad.style.maxHeight='';
+    pad.style.flex='';
+    pad.style.transition='';
+    pad.style.transform='';
+    pad.style.removeProperty('--live-drag-w');
+    pad.style.removeProperty('--live-drag-h');
+  };
+  const finish = ev=>{
+    if(ev.pointerId !== pid) return;
+    cleanup();
+    parent.insertBefore(pad, placeholder);
+    placeholder.remove();
+    restorePadInline();
+    keymapLiveSession.working.analog = candidate;
+    animateKeymapLiveReflow(()=>applyControlLayoutLive(keymapLiveSession.working));
+    updateKeymapLiveWorkingFromDom();
+    positionKeymapLiveBarAtLog();
+    ev.preventDefault();
+    ev.stopPropagation();
+  };
+  const cancel = ev=>{
+    cleanup();
+    parent.insertBefore(pad, placeholder);
+    placeholder.remove();
+    restorePadInline();
+    animateKeymapLiveReflow(()=>applyControlLayoutLive(keymapLiveSession.working));
+    positionKeymapLiveBarAtLog();
+  };
+
+  document.addEventListener('pointermove', move, true);
+  document.addEventListener('pointerup', finish, true);
+  document.addEventListener('pointercancel', cancel, true);
+  e.preventDefault();
+  e.stopPropagation();
+};
 
 initStartPage();
 render();
