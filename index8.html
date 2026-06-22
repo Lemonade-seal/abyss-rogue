@@ -6658,6 +6658,167 @@ showDeleteCurrentCharacterConfirm = function(mode){
   };
 };
 
+
+/* 요청 반영: 사망해도 랭킹 삭제 금지 + 슬롯별 최고기록 랭킹 유지 */
+function rankRecordFromRunSnapshot(run, metaObj, fallbackNick){
+  if(!run || !run.player) return null;
+  const p = run.player;
+  const clsId = p.classId || run.characterClassId || 'warrior';
+  const clsName = p.className || (classes[clsId] || classes.warrior).name;
+  return {
+    nickname: String(fallbackNick || p.name || run.characterNickname || clsName || '이름 없음'),
+    classId: clsId,
+    className: clsName,
+    level: Number(p.level || 1),
+    floor: Number(p.floor || 1),
+    kills: Number(p.kills || 0),
+    combatPower: Number(combatPowerForRun(run, metaObj || meta) || 0),
+    score: Number(rankingScoreForRun(run, metaObj || meta) || 0),
+    updatedAt: new Date().toISOString(),
+    best:true
+  };
+}
+function normalizeRankRecordRecord(r){
+  if(!r || typeof r !== 'object') return null;
+  return {
+    nickname:String(r.nickname || '이름 없음'),
+    classId:String(r.classId || 'warrior'),
+    className:String(r.className || ((classes[r.classId] || classes.warrior).name)),
+    level:Number(r.level || 1),
+    floor:Number(r.floor || 1),
+    kills:Number(r.kills || 0),
+    combatPower:Number(r.combatPower || 0),
+    score:Number(r.score || 0),
+    updatedAt:r.updatedAt || new Date().toISOString(),
+    best:true
+  };
+}
+function betterRankRecord(a,b){
+  const A = normalizeRankRecordRecord(a);
+  const B = normalizeRankRecordRecord(b);
+  if(!A) return B;
+  if(!B) return A;
+  if(B.score !== A.score) return B.score > A.score ? B : A;
+  if(B.combatPower !== A.combatPower) return B.combatPower > A.combatPower ? B : A;
+  if(B.floor !== A.floor) return B.floor > A.floor ? B : A;
+  if(B.level !== A.level) return B.level > A.level ? B : A;
+  return A;
+}
+const normalizeCharacterSlotsBeforeBestRank = normalizeCharacterSlots;
+normalizeCharacterSlots = function(slots, count){
+  const arr = Array.isArray(slots) ? slots.slice(0,count) : [];
+  while(arr.length<count) arr.push(null);
+  return arr.map(ch=>{
+    if(!ch || typeof ch !== 'object') return null;
+    const bestRank = normalizeRankRecordRecord(ch.bestRank || ch.bestRecord || ch.rankBest);
+    if(ch.run && ch.run.player){
+      const p = ch.run.player;
+      const metaForPower = meta || {};
+      return {
+        nickname: ch.nickname || p.name || p.className || '이름 없음',
+        classId: ch.classId || p.classId || 'warrior',
+        className: ch.className || p.className || (classes[ch.classId||p.classId]||classes.warrior).name,
+        level: Number(ch.level || p.level || 1),
+        floor: Number(ch.floor || p.floor || 1),
+        combatPower: Number(ch.combatPower || combatPowerForRun(ch.run, metaForPower)),
+        score: Number(ch.score || rankingScoreForRun(ch.run, metaForPower)),
+        updatedAt: ch.updatedAt || new Date().toISOString(),
+        bestRank: bestRank,
+        run: ch.run
+      };
+    }
+    if(bestRank){
+      return {
+        nickname: ch.nickname || bestRank.nickname || '이름 없음',
+        classId: ch.classId || bestRank.classId || 'warrior',
+        className: ch.className || bestRank.className || (classes[ch.classId||bestRank.classId]||classes.warrior).name,
+        level: Number(ch.level || bestRank.level || 1),
+        floor: Number(ch.floor || bestRank.floor || 1),
+        combatPower: Number(ch.combatPower || bestRank.combatPower || 0),
+        score: Number(ch.score || bestRank.score || 0),
+        updatedAt: ch.updatedAt || bestRank.updatedAt || new Date().toISOString(),
+        bestRank: bestRank,
+        run: ch.run || null
+      };
+    }
+    return null;
+  });
+};
+function updateActiveSlotBestRecordFromRun(runOverride){
+  const run = runOverride || S;
+  if(!run || !run.player || activeCharacterSlot == null) return null;
+  const mode = run.loginMode || activeLoginMode || 'guest';
+  const limit = currentSlotLimit(mode);
+  const idx = Math.max(0, Math.min(limit - 1, Number(activeCharacterSlot) || 0));
+  const slots = normalizeCharacterSlots(getSlotsForMode(mode), limit);
+  const p = run.player;
+  const old = slots[idx] || {};
+  const nick = mode === 'guest' ? '게스트' : (old.nickname || p.name || run.characterNickname || p.className || '이름 없음');
+  const currentRecord = rankRecordFromRunSnapshot(run, meta, nick);
+  const bestRank = betterRankRecord(old.bestRank, currentRecord);
+  slots[idx] = Object.assign({}, old, {
+    nickname:nick,
+    classId:p.classId || run.characterClassId || old.classId || 'warrior',
+    className:p.className || old.className || (classes[p.classId]||classes.warrior).name,
+    level:Number(p.level || old.level || 1),
+    floor:Number(p.floor || old.floor || 1),
+    combatPower:Number(combatPowerForRun(run, meta) || old.combatPower || 0),
+    score:Number(rankingScoreForRun(run, meta) || old.score || 0),
+    updatedAt:new Date().toISOString(),
+    bestRank:bestRank,
+    run:deepClone(run)
+  });
+  setSlotsForMode(mode, slots);
+  if(mode === 'kakao') queueCharacterCloudSave();
+  return bestRank;
+}
+syncActiveCharacterFromRun = function(){
+  if(!S || !S.player || activeCharacterSlot == null) return;
+  updateActiveSlotBestRecordFromRun(S);
+};
+buildRankRecordFromCharacter = function(ch, metaObj, fallbackNick){
+  if(!ch || typeof ch !== 'object') return null;
+  const best = normalizeRankRecordRecord(ch.bestRank || ch.bestRecord || ch.rankBest);
+  let current = null;
+  if(ch.run && ch.run.player){
+    current = rankRecordFromRunSnapshot(ch.run, metaObj || meta, ch.nickname || fallbackNick || ch.run.player.name);
+  }
+  const picked = betterRankRecord(best, current);
+  if(!picked) return null;
+  return {
+    nickname: ch.nickname || fallbackNick || picked.nickname || '이름 없음',
+    className: ch.className || picked.className || '-',
+    level: Number(picked.level || 1),
+    floor: Number(picked.floor || 1),
+    combatPower: Number(picked.combatPower || 0),
+    score: Number(picked.score || 0),
+    updatedAt: picked.updatedAt || ch.updatedAt || new Date().toISOString(),
+    best:true
+  };
+};
+const originalGameOverForBestRanking = gameOver;
+gameOver = function(retire){
+  if(S && !S.dead && S.player){
+    updateActiveSlotBestRecordFromRun(S);
+  }
+  return originalGameOverForBestRanking(retire);
+};
+const originalResetCharacterSlotForNewExpeditionBestRanking = resetCharacterSlotForNewExpedition;
+resetCharacterSlotForNewExpedition = function(mode, slotIndex){
+  const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
+  const limit = currentSlotLimit(safeMode);
+  const idx = Math.max(0, Math.min(limit - 1, Number(slotIndex) || 0));
+  const before = normalizeCharacterSlots(getSlotsForMode(safeMode), limit);
+  const oldBest = before[idx] ? normalizeRankRecordRecord(before[idx].bestRank) : null;
+  originalResetCharacterSlotForNewExpeditionBestRanking(safeMode, idx);
+  const after = normalizeCharacterSlots(getSlotsForMode(safeMode), limit);
+  if(after[idx] && oldBest){
+    after[idx].bestRank = betterRankRecord(oldBest, after[idx].bestRank);
+    setSlotsForMode(safeMode, after);
+    if(safeMode === 'kakao') queueCharacterCloudSave();
+  }
+};
+
 initStartPage();
 render();
 
