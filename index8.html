@@ -6546,6 +6546,191 @@ showDeleteCurrentCharacterConfirm = function(mode){
   };
 };
 
+
+/* 요청 반영: 랭킹은 온라인 상태가 아니라 슬롯별 최고기록 기준으로 고정 */
+function normalizeStoredRankRecord(rec, fallbackNick){
+  if(!rec || typeof rec !== 'object') return null;
+  const nick = rec.nickname || fallbackNick || '이름 없음';
+  const cls = rec.className || '-';
+  const level = Number(rec.level || 1);
+  const floor = Number(rec.floor || 1);
+  const combatPower = Number(rec.combatPower || 0);
+  const score = Number(rec.score || 0);
+  if(!score && !combatPower && floor <= 1 && level <= 1) return null;
+  return {
+    nickname:String(nick),
+    className:String(cls),
+    level:Math.max(1, level),
+    floor:Math.max(1, floor),
+    combatPower:Math.max(0, combatPower),
+    score:Math.max(0, score),
+    updatedAt:rec.updatedAt || new Date().toISOString()
+  };
+}
+function compareRankRecords(a,b){
+  const ar = normalizeStoredRankRecord(a) || {score:0,combatPower:0,floor:0,level:0};
+  const br = normalizeStoredRankRecord(b) || {score:0,combatPower:0,floor:0,level:0};
+  return (ar.score-br.score) || (ar.combatPower-br.combatPower) || (ar.floor-br.floor) || (ar.level-br.level);
+}
+function rankRecordFromRun(run, metaObj, fallbackNick){
+  const p = run && run.player ? run.player : null;
+  if(!p) return null;
+  return {
+    nickname:String(fallbackNick || p.name || p.className || '이름 없음'),
+    className:String(p.className || (classes[p.classId]||classes.warrior).name),
+    level:Number(p.level || 1),
+    floor:Number(p.floor || 1),
+    combatPower:Number(combatPowerForRun(run, metaObj || meta || {})),
+    score:Number(rankingScoreForRun(run, metaObj || meta || {})),
+    updatedAt:new Date().toISOString()
+  };
+}
+function chooseBestRankRecord(prev, current){
+  const p = normalizeStoredRankRecord(prev);
+  const c = normalizeStoredRankRecord(current);
+  if(!p) return c;
+  if(!c) return p;
+  return compareRankRecords(c,p) > 0 ? c : p;
+}
+buildRankRecordFromCharacter = function(ch, metaObj, fallbackNick){
+  if(!ch || typeof ch !== 'object') return null;
+  const savedBest = normalizeStoredRankRecord(ch.bestRank || ch.rankRecord, ch.nickname || fallbackNick);
+  const current = ch.run && ch.run.player ? rankRecordFromRun(ch.run, metaObj, ch.nickname || fallbackNick) : null;
+  return chooseBestRankRecord(savedBest, current);
+};
+normalizeCharacterSlots = function(slots, count){
+  const arr = Array.isArray(slots) ? slots.slice(0,count) : [];
+  while(arr.length < count) arr.push(null);
+  return arr.map(ch=>{
+    if(!ch || typeof ch !== 'object') return null;
+    const run = ch.run || null;
+    const p = run && run.player ? run.player : null;
+    if(!p && !(ch.bestRank || ch.rankRecord)) return null;
+    const clsId = ch.classId || (p && p.classId) || 'warrior';
+    const cls = classes[clsId] || classes.warrior;
+    const nickname = ch.nickname || (p && p.name) || (ch.bestRank && ch.bestRank.nickname) || cls.name || '이름 없음';
+    const current = p ? rankRecordFromRun(run, meta || {}, nickname) : null;
+    const bestRank = chooseBestRankRecord(ch.bestRank || ch.rankRecord, current);
+    return {
+      nickname,
+      classId:clsId,
+      className:ch.className || (p && p.className) || cls.name,
+      level:Number((p && p.level) || ch.level || 1),
+      floor:Number((p && p.floor) || ch.floor || 1),
+      combatPower:Number((current && current.combatPower) || ch.combatPower || 0),
+      score:Number((current && current.score) || ch.score || 0),
+      updatedAt:ch.updatedAt || (bestRank && bestRank.updatedAt) || new Date().toISOString(),
+      bestRank,
+      run
+    };
+  });
+};
+syncActiveCharacterFromRun = function(){
+  if(!S || !S.player || activeCharacterSlot == null) return;
+  const mode = S.loginMode || activeLoginMode || 'guest';
+  const limit = currentSlotLimit(mode);
+  const slots = normalizeCharacterSlots(getSlotsForMode(mode), limit);
+  const prev = slots[activeCharacterSlot] || null;
+  const p = S.player;
+  const currentRank = rankRecordFromRun(S, meta || {}, mode === 'guest' ? '게스트' : (p.name || S.characterNickname || p.className || '이름 없음'));
+  const bestRank = chooseBestRankRecord(prev && prev.bestRank, currentRank);
+  slots[activeCharacterSlot] = {
+    nickname: mode === 'guest' ? '게스트' : (p.name || S.characterNickname || p.className || '이름 없음'),
+    classId: p.classId || S.characterClassId || 'warrior',
+    className: p.className || (classes[p.classId]||classes.warrior).name,
+    level:Number(p.level || 1),
+    floor:Number(p.floor || 1),
+    combatPower:Number(currentRank ? currentRank.combatPower : 0),
+    score:Number(currentRank ? currentRank.score : 0),
+    updatedAt:new Date().toISOString(),
+    bestRank,
+    run:deepClone(S)
+  };
+  setSlotsForMode(mode, slots);
+};
+saveCloudCharacterProfile = async function(){
+  if(activeLoginMode !== 'kakao') return false;
+  const client = getCloudClient();
+  if(!client) return false;
+  const user = await currentCloudUser();
+  if(!user) return false;
+
+  const slots = normalizeCharacterSlots(cloudCharacterSlots, 3);
+  const rankings = slots.map(ch=>buildRankRecordFromCharacter(ch, meta)).filter(Boolean);
+  const active = activeCharacterSlot != null ? slots[activeCharacterSlot] : slots.find(Boolean);
+  const {error} = await client.from('game_saves').upsert({
+    user_id:user.id,
+    nickname:active ? active.nickname : null,
+    save_data:{version:5, characters:slots, rankings},
+    meta_data:meta || {},
+    updated_at:new Date().toISOString()
+  }, {onConflict:'user_id'});
+  if(error) throw error;
+  return true;
+};
+collectRankingRecords = async function(){
+  const records = [];
+  if(activeLoginMode === 'kakao'){
+    const client = getCloudClient();
+    const user = await currentCloudUser();
+    if(client && user){
+      const {data,error} = await client.from('game_saves').select('nickname, save_data, meta_data, updated_at').limit(1000);
+      if(!error && Array.isArray(data)){
+        data.forEach(row=>{
+          const metaRow = normalizeMeta(row.meta_data || {});
+          const save = row.save_data || {};
+          if(Array.isArray(save.characters)){
+            save.characters.forEach(ch=>{
+              const rec = buildRankRecordFromCharacter(ch, metaRow, row.nickname);
+              if(rec) records.push(rec);
+            });
+          }else if(Array.isArray(save.rankings)){
+            save.rankings.forEach(r=>{
+              const rec = normalizeStoredRankRecord(r, row.nickname);
+              if(rec) records.push(rec);
+            });
+          }else if(save.player){
+            const rec = rankRecordFromRun(save, metaRow, row.nickname || save.player.name || save.player.className);
+            if(rec) records.push(rec);
+          }
+        });
+      }
+    }
+    normalizeCharacterSlots(cloudCharacterSlots,3).forEach(ch=>{
+      const rec = buildRankRecordFromCharacter(ch, meta);
+      if(rec) records.push(rec);
+    });
+  }
+  const dedup = new Map();
+  records.forEach(r=>{
+    const key = `${r.nickname}|${r.className}`;
+    const prev = dedup.get(key);
+    if(!prev || compareRankRecords(r, prev) > 0) dedup.set(key, r);
+  });
+  return Array.from(dedup.values())
+    .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+    .slice(0,50);
+};
+const originalGameOverForBestRankPersist = gameOver;
+gameOver = function(retire){
+  if(S && S.player && !S.dead){
+    try{
+      syncActiveCharacterFromRun();
+      if(activeLoginMode === 'kakao') queueCharacterCloudSave();
+    }catch(e){ console.warn('best rank sync before gameOver failed:', e.message); }
+  }
+  return originalGameOverForBestRankPersist(retire);
+};
+const originalDeleteSupabaseAccountPermanentlyForRanking = deleteSupabaseAccountPermanently;
+deleteSupabaseAccountPermanently = async function(){
+  const client = getCloudClient();
+  const user = await currentCloudUser();
+  if(client && user){
+    try{ await client.from('game_saves').delete().eq('user_id', user.id); }catch(e){ console.warn('ranking row delete before withdrawal failed:', e.message); }
+  }
+  return originalDeleteSupabaseAccountPermanentlyForRanking();
+};
+
 initStartPage();
 render();
 
