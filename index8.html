@@ -15238,6 +15238,53 @@ showQuickSlotSelect = function(skillKey){
   }
 })();
 
+
+/* FIX: 문열기 퀵슬롯 사거리 표시를 실제 판정과 동일하게 1칸으로 고정 */
+(function(){
+  function openDoorPreviewCellsFixed(){
+    if(!S || !S.player) return [];
+    const p = S.player;
+    const dirs = Array.isArray(DIRS) ? DIRS : [[1,0],[-1,0],[0,1],[0,-1]];
+    const cells = [];
+    dirs.forEach(([dx,dy])=>{
+      const x = p.x + dx, y = p.y + dy;
+      if(!inMap(x,y)) return;
+      // 문열기 실제 판정은 상하좌우 인접 1칸만 허용한다.
+      cells.push({x,y,kind:'dash'});
+    });
+    return cells;
+  }
+
+  const skillPreviewCellsBeforeOpenDoorRangeFix = skillPreviewCells;
+  skillPreviewCells = function(key){
+    if(key === 'openDoor') return openDoorPreviewCellsFixed();
+    return skillPreviewCellsBeforeOpenDoorRangeFix(key);
+  };
+
+  useQuickSlotSkill = function(slotIndex){
+    if(!S || !S.player) return;
+    const key = quickSlotSkillKey(slotIndex);
+    setSkillRangePreview(key, 1200);
+    const fn = skillFunctionByKey(key);
+    fn();
+  };
+
+  // 기존 기본 스킬 pointerdown 리스너가 먼저 붙어 있어도, 문열기 슬롯에서는 캡처 단계에서 1칸 미리보기를 우선 적용한다.
+  ['skill1','skill2','skill3'].forEach((id,idx)=>{
+    const btn = $(id);
+    if(!btn || btn.dataset.openDoorRangeFixBound === '1') return;
+    btn.dataset.openDoorRangeFixBound = '1';
+    btn.addEventListener('pointerdown', e=>{
+      if(!S || !S.player) return;
+      const key = quickSlotSkillKey(idx);
+      if(key !== 'openDoor') return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      setSkillRangePreview('openDoor', 900);
+    }, {capture:true, passive:false});
+  });
+})();
+
 initStartPage();
 render();
 
