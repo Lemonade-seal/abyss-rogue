@@ -2281,6 +2281,283 @@ body.liveKeymapMode .keymapLiveDragging{
     width:0!important;
   }
 
+
+
+/* Login start buttons - clean three-button layout */
+#modal.startPage .loginStartPanel{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  gap:0!important;
+}
+#modal.startPage .loginChoiceGrid{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:12px!important;
+  margin:0!important;
+  width:100%!important;
+}
+#modal.startPage #modalCard.card .loginChoiceBtn,
+#modal.startPage .loginChoiceBtn{
+  width:100%!important;
+  min-height:64px!important;
+  height:64px!important;
+  padding:0 18px!important;
+  border-radius:15px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  background:rgba(10,15,25,.18)!important;
+  border:1px solid rgba(226,232,240,.30)!important;
+  box-shadow:0 8px 18px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.06)!important;
+  backdrop-filter:blur(3px)!important;
+  -webkit-backdrop-filter:blur(3px)!important;
+  cursor:pointer!important;
+}
+#modal.startPage .loginChoiceBtn:hover{
+  background:rgba(20,30,48,.26)!important;
+  border-color:rgba(226,232,240,.55)!important;
+  filter:none!important;
+}
+#modal.startPage .loginChoiceBtn:active{
+  transform:translateY(1px) scale(.995)!important;
+  background:rgba(15,23,42,.32)!important;
+}
+#modal.startPage .loginChoiceBtn span{
+  display:block!important;
+  width:100%!important;
+  margin:0!important;
+  padding:0!important;
+  font-size:22px!important;
+  line-height:1!important;
+  font-weight:500!important;
+  letter-spacing:.04em!important;
+  color:rgba(248,250,252,.94)!important;
+  text-align:center!important;
+  white-space:nowrap!important;
+  text-shadow:0 1px 3px rgba(0,0,0,.42)!important;
+}
+#modal.startPage .loginChoiceBtn h4,
+#modal.startPage .loginChoiceBtn p{
+  display:none!important;
+}
+@media (max-width:380px){
+  #modal.startPage .loginChoiceBtn{height:58px!important;min-height:58px!important;border-radius:14px!important}
+  #modal.startPage .loginChoiceBtn span{font-size:20px!important}
+}
+
+
+/* Final login button style: compact pill buttons - brand color corrected */
+#modal.startPage #modalCard.card{
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+  background:transparent!important;
+  background-image:none!important;
+}
+#modal.startPage .loginStartPanel{
+  width:100%!important;
+  max-width:100%!important;
+  margin:0 auto!important;
+  padding:0!important;
+  border:0!important;
+  outline:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+#modal.startPage .loginChoiceGrid{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:12px!important;
+  width:100%!important;
+  margin:0 auto!important;
+  padding:0!important;
+  border:0!important;
+  outline:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+#modal.startPage #modalCard.card .loginChoiceBtn,
+#modal.startPage .loginChoiceBtn{
+  width:auto!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:44px!important;
+  min-height:44px!important;
+  padding:0 28px!important;
+  border-radius:999px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  text-align:center!important;
+  border:0!important;
+  outline:0!important;
+  overflow:visible!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  cursor:pointer!important;
+}
+#modal.startPage .loginChoiceBtn span{
+  display:inline-block!important;
+  width:auto!important;
+  margin:0!important;
+  padding:0!important;
+  font-size:19px!important;
+  line-height:1!important;
+  font-weight:350!important;
+  letter-spacing:.01em!important;
+  text-align:center!important;
+  white-space:nowrap!important;
+}
+#modal.startPage #kakaoLoginBtn{
+  color:#000000!important;
+  background:#FEE500!important;
+  background-image:none!important;
+  box-shadow:0 0 10px rgba(254,229,0,.42),0 0 22px rgba(254,229,0,.20)!important;
+}
+#modal.startPage #kakaoLoginBtn span{
+  color:#000000!important;
+  text-shadow:none!important;
+}
+#modal.startPage #naverLoginBtn{
+  color:#ffffff!important;
+  background:#03C75A!important;
+  background-image:none!important;
+  box-shadow:0 0 10px rgba(3,199,90,.45),0 0 22px rgba(3,199,90,.22)!important;
+}
+#modal.startPage #naverLoginBtn span{
+  color:#ffffff!important;
+  text-shadow:none!important;
+}
+#modal.startPage #guestLoginBtn{
+  color:rgba(248,250,252,.92)!important;
+  background:rgba(10,15,25,.16)!important;
+  background-image:none!important;
+  border:1px solid rgba(226,232,240,.28)!important;
+  box-shadow:0 0 10px rgba(148,163,184,.18),0 7px 16px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;
+}
+#modal.startPage #guestLoginBtn span{
+  color:rgba(248,250,252,.92)!important;
+  text-shadow:0 1px 3px rgba(0,0,0,.42)!important;
+}
+#modal.startPage .loginChoiceBtn:hover{
+  filter:brightness(1.02)!important;
+}
+#modal.startPage .loginChoiceBtn:active{
+  transform:translateY(1px) scale(.985)!important;
+}
+@media (max-width:380px){
+  #modal.startPage #modalCard.card .loginChoiceBtn,
+  #modal.startPage .loginChoiceBtn{
+    height:42px!important;
+    min-height:42px!important;
+    padding:0 24px!important;
+  }
+  #modal.startPage .loginChoiceBtn span{font-size:18px!important}
+}
+
+
+/* FINAL OVERRIDE: visible brand login pills */
+#modal.startPage[data-start-mode="menu"],
+#modal.startPage[data-start-mode="menu"] #modalCard,
+#modal.startPage[data-start-mode="menu"] #modalCard.card,
+#modal.startPage[data-start-mode="menu"] .loginStartPanel,
+#modal.startPage[data-start-mode="menu"] .loginChoiceGrid{
+  background:transparent!important;
+  background-image:none!important;
+  border:0!important;
+  outline:0!important;
+  box-shadow:none!important;
+}
+#modal.startPage[data-start-mode="menu"] .loginChoiceGrid{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:14px!important;
+  width:100%!important;
+  padding:0!important;
+  margin:0!important;
+}
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button.loginChoiceBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button.loginChoiceBtn,
+html body #modal.startPage[data-start-mode="menu"] button.choice.loginChoiceBtn{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:max-content!important;
+  height:38px!important;
+  min-height:38px!important;
+  padding:0 30px!important;
+  border-radius:9999px!important;
+  border:0!important;
+  outline:0!important;
+  opacity:1!important;
+  filter:none!important;
+  transform:none!important;
+  mix-blend-mode:normal!important;
+  background-clip:padding-box!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button.loginChoiceBtn > span{
+  display:inline-block!important;
+  width:auto!important;
+  margin:0!important;
+  padding:0!important;
+  font-size:18px!important;
+  line-height:1!important;
+  font-weight:350!important;
+  letter-spacing:.01em!important;
+  text-align:center!important;
+  white-space:nowrap!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.loginChoiceBtn{
+  background:#FEE500!important;
+  background-image:none!important;
+  color:#000!important;
+  box-shadow:0 0 12px rgba(254,229,0,.78),0 0 28px rgba(254,229,0,.34)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.loginChoiceBtn > span{
+  color:#000!important;
+  text-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.loginChoiceBtn{
+  background:#03C75A!important;
+  background-image:none!important;
+  color:#fff!important;
+  box-shadow:0 0 12px rgba(3,199,90,.76),0 0 28px rgba(3,199,90,.34)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.loginChoiceBtn > span{
+  color:#fff!important;
+  text-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.loginChoiceBtn{
+  background:rgba(10,15,25,.18)!important;
+  background-image:none!important;
+  color:rgba(248,250,252,.94)!important;
+  border:1px solid rgba(226,232,240,.30)!important;
+  box-shadow:0 0 10px rgba(148,163,184,.16),0 7px 16px rgba(0,0,0,.20)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.loginChoiceBtn > span{
+  color:rgba(248,250,252,.94)!important;
+  text-shadow:0 1px 3px rgba(0,0,0,.42)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button.loginChoiceBtn:active{
+  transform:translateY(1px) scale(.985)!important;
+}
+
 </style>
 </head>
 <body>
@@ -5921,6 +6198,10 @@ let cloudCharacterSlots = [null,null,null];
 let guestCharacterSlots = [null];
 let guestMetaState = normalizeMeta({souls:0,bestFloor:1,bestLevel:1,totalKills:0,runs:0,upgrades:{hp:0,atk:0,def:0,crit:0,xp:0,gold:0}});
 let cloudCharacterSaveTimer = null;
+const OAUTH_PENDING_MODE_KEY = 'abyss_rogue_oauth_provider_v1';
+function isCloudLoginMode(mode){ return mode === 'kakao' || mode === 'naver'; }
+function loginModeLabel(mode){ return mode === 'naver' ? '네이버' : (mode === 'kakao' ? '카카오' : '게스트'); }
+function loginSaveLabel(mode){ return isCloudLoginMode(mode) ? `${loginModeLabel(mode)}/Supabase` : '게스트'; }
 
 function normalizeCharacterSlots(slots, count){
   const arr = Array.isArray(slots) ? slots.slice(0,count) : [];
@@ -5943,13 +6224,13 @@ function normalizeCharacterSlots(slots, count){
   });
 }
 function currentSlotLimit(mode){
-  return mode === 'kakao' ? 3 : 1;
+  return isCloudLoginMode(mode) ? 3 : 1;
 }
 function getSlotsForMode(mode){
-  return mode === 'kakao' ? cloudCharacterSlots : guestCharacterSlots;
+  return isCloudLoginMode(mode) ? cloudCharacterSlots : guestCharacterSlots;
 }
 function setSlotsForMode(mode, slots){
-  if(mode === 'kakao') cloudCharacterSlots = normalizeCharacterSlots(slots, 3);
+  if(isCloudLoginMode(mode)) cloudCharacterSlots = normalizeCharacterSlots(slots, 3);
   else guestCharacterSlots = normalizeCharacterSlots(slots, 1);
 }
 function escapeText(v){
@@ -6017,7 +6298,7 @@ async function loadCloudCharacterProfile(){
   return true;
 }
 async function saveCloudCharacterProfile(){
-  if(activeLoginMode !== 'kakao') return false;
+  if(!isCloudLoginMode(activeLoginMode)) return false;
   const client = getCloudClient();
   if(!client) return false;
   const user = await currentCloudUser();
@@ -6036,7 +6317,7 @@ async function saveCloudCharacterProfile(){
   return true;
 }
 function queueCharacterCloudSave(){
-  if(activeLoginMode !== 'kakao') return;
+  if(!isCloudLoginMode(activeLoginMode)) return;
   clearTimeout(cloudCharacterSaveTimer);
   cloudCharacterSaveTimer = setTimeout(()=>{
     saveCloudCharacterProfile().catch(e=>console.warn('character cloud save error:', e.message));
@@ -6047,7 +6328,7 @@ saveMeta = function(){
     guestMetaState = normalizeMeta(meta || {});
     return;
   }
-  if(activeLoginMode === 'kakao'){
+  if(isCloudLoginMode(activeLoginMode)){
     queueCharacterCloudSave();
     return;
   }
@@ -6055,7 +6336,7 @@ saveMeta = function(){
 saveRun = function(){
   if(!S || S.dead) return;
   syncActiveCharacterFromRun();
-  if(activeLoginMode === 'kakao') queueCharacterCloudSave();
+  if(isCloudLoginMode(activeLoginMode)) queueCharacterCloudSave();
 };
 clearRun = function(){
   const mode = activeLoginMode || (S && S.loginMode) || 'guest';
@@ -6063,7 +6344,7 @@ clearRun = function(){
     const slots = normalizeCharacterSlots(getSlotsForMode(mode), currentSlotLimit(mode));
     slots[activeCharacterSlot] = null;
     setSlotsForMode(mode, slots);
-    if(mode === 'kakao') queueCharacterCloudSave();
+    if(isCloudLoginMode(mode)) queueCharacterCloudSave();
   }
   localStorage.removeItem(SAVE_KEY);
 };
@@ -6071,18 +6352,18 @@ clearRun = function(){
 function showLoginChoice(){
   stopAuto();
   showModal(`<h1 class="srOnly">로그인 선택</h1>
-    <div class="startMenuPanel">
-      <div class="grid2" style="margin-top:4px">
-        <button class="choice" id="kakaoLoginBtn">
-          <h4>카카오 로그인</h4>
-          <p>Supabase 계정에 캐릭터 3개까지 저장/로드됩니다.</p>
+    <div class="startMenuPanel loginStartPanel">
+      <div class="loginChoiceGrid">
+        <button class="choice loginChoiceBtn kakaoLoginPill" id="kakaoLoginBtn" type="button" style="background:#FEE500!important;background-image:none!important;color:#000!important;border:0!important;border-radius:9999px!important;box-shadow:0 0 12px rgba(254,229,0,.78),0 0 28px rgba(254,229,0,.34)!important;opacity:1!important;filter:none!important;">
+          <span style="color:#000!important;text-shadow:none!important;">카카오 로그인</span>
         </button>
-        <button class="choice" id="guestLoginBtn">
-          <h4>게스트 로그인</h4>
-          <p>캐릭터 슬롯 1개만 사용됩니다. 게임 종료/새로고침 후 저장되지 않습니다.</p>
+        <button class="choice loginChoiceBtn naverLoginPill" id="naverLoginBtn" type="button" style="background:#03C75A!important;background-image:none!important;color:#fff!important;border:0!important;border-radius:9999px!important;box-shadow:0 0 12px rgba(3,199,90,.76),0 0 28px rgba(3,199,90,.34)!important;opacity:1!important;filter:none!important;">
+          <span style="color:#fff!important;text-shadow:none!important;">네이버 로그인</span>
+        </button>
+        <button class="choice loginChoiceBtn guestLoginPill" id="guestLoginBtn" type="button">
+          <span>게스트 로그인</span>
         </button>
       </div>
-      <p class="muted startMetaLine">로그인 방식을 선택하세요.</p>
     </div>`, true);
   modal.classList.add('startPage');
   modal.setAttribute('data-start-mode','menu');
@@ -6093,10 +6374,12 @@ function showLoginChoice(){
     showCharacterSlots('guest');
   };
   $('kakaoLoginBtn').onclick=beginKakaoLogin;
+  $('naverLoginBtn').onclick=beginNaverLogin;
 }
 async function beginKakaoLogin(){
   try{
     activeLoginMode = 'kakao';
+    localStorage.setItem(OAUTH_PENDING_MODE_KEY, 'kakao');
     const client = getCloudClient();
     if(!client){
       toast('Supabase 연결 정보가 없어 카카오 로그인을 사용할 수 없습니다.');
@@ -6118,6 +6401,31 @@ async function beginKakaoLogin(){
     toast('카카오 로그인 실패: ' + e.message);
   }
 }
+
+async function beginNaverLogin(){
+  try{
+    activeLoginMode = 'naver';
+    localStorage.setItem(OAUTH_PENDING_MODE_KEY, 'naver');
+    const client = getCloudClient();
+    if(!client){
+      toast('Supabase 연결 정보가 없어 네이버 로그인을 사용할 수 없습니다.');
+      return;
+    }
+    const user = await currentCloudUser();
+    if(user){
+      await loadCloudCharacterProfile();
+      showCharacterSlots('naver');
+      return;
+    }
+    const {error} = await client.auth.signInWithOAuth({
+      provider:'naver',
+      options:{redirectTo:getOAuthRedirectUrl()}
+    });
+    if(error) throw error;
+  }catch(e){
+    toast('네이버 로그인 실패: ' + e.message);
+  }
+}
 function showStart(){
   stopAuto();
   showModal(`<div class="startSplashShell"><button class="startActionBtn" id="openStartMenuBtn" aria-label="시작하기"><span data-text="- 시작하기 -">- 시작하기 -</span></button></div>`, true);
@@ -6135,8 +6443,8 @@ function showCharacterSlots(mode){
   const limit = currentSlotLimit(mode);
   const slots = normalizeCharacterSlots(getSlotsForMode(mode), limit);
   setSlotsForMode(mode, slots);
-  const title = mode === 'kakao' ? '카카오 캐릭터' : '게스트 캐릭터';
-  const saveNote = mode === 'kakao' ? 'Supabase에 저장된다.' : '게임 종료/새로고침 후 저장되지 않는다.';
+  const title = isCloudLoginMode(mode) ? `${loginModeLabel(mode)} 캐릭터` : '게스트 캐릭터';
+  const saveNote = isCloudLoginMode(mode) ? 'Supabase에 저장된다.' : '게임 종료/새로고침 후 저장되지 않는다.';
   const slotHtml = slots.map((ch,i)=>{
     if(ch){
       return `<div class="choice">
@@ -6208,7 +6516,7 @@ function showDeleteCharacterConfirm(mode, slotIndex){
       activeCharacterSlot = null;
       S = null;
     }
-    if(mode === 'kakao'){
+    if(isCloudLoginMode(mode)){
       saveCloudCharacterProfile()
         .catch(e=>toast('삭제 저장 실패: ' + e.message))
         .finally(()=>showCharacterSlots(mode));
@@ -6355,7 +6663,7 @@ function writeBackSoulSlots(mode, slots){
       syncActiveCharacterFromRun();
     }
   }
-  if(safeMode === 'kakao') queueCharacterCloudSave();
+  if(isCloudLoginMode(safeMode)) queueCharacterCloudSave();
 }
 function spendPooledSouls(cost, mode){
   const safeMode = currentSoulPoolMode(mode);
@@ -6402,13 +6710,13 @@ function markActiveSlotSoulsCollected(){
     ch.run.player.soulsRun = 0;
     ch.updatedAt = new Date().toISOString();
     setSlotsForMode(safeMode, slots);
-    if(safeMode === 'kakao') queueCharacterCloudSave();
+    if(isCloudLoginMode(safeMode)) queueCharacterCloudSave();
   }
 }
 
 showMeta = function(){
   stopAuto();
-  const soulMode = currentSoulPoolMode(activeLoginMode === 'kakao' ? 'kakao' : (activeLoginMode === 'guest' ? 'guest' : undefined));
+  const soulMode = currentSoulPoolMode(isCloudLoginMode(activeLoginMode) ? activeLoginMode : (activeLoginMode === 'guest' ? 'guest' : undefined));
   const rows = metaDefs.map(d=>{
     const lv=meta.upgrades[d.id]||0; const cost=metaCost(d.id); const full=lv>=d.max;
     return `<div class="metaRow"><div><h4>${d.name} <span class="muted">Lv.${lv}/${d.max}</span></h4><p>${d.desc}</p></div><button class="btn smallbtn ${full?'':'good'}" data-up="${d.id}" ${full?'disabled':''}>${full?'완료':cost+' 영혼'}</button></div>`;
@@ -6423,7 +6731,7 @@ showMeta = function(){
     saveMeta();
     showMeta();
   });
-  $('backStart').onclick=()=>showCharacterSlots(soulMode === 'kakao' ? 'kakao' : 'guest');
+  $('backStart').onclick=()=>showCharacterSlots(isCloudLoginMode(soulMode) ? soulMode : 'guest');
   $('resetMeta').onclick=()=>{
     if(confirm('영혼과 영혼 강화 수치를 모두 0으로 초기화하시겠습니까?')){
       meta.souls=0;
@@ -6482,7 +6790,7 @@ function finishLocalAccountWithdrawal(){
   meta = normalizeMeta({souls:0,bestFloor:1,bestLevel:1,totalKills:0,runs:0,upgrades:{hp:0,atk:0,def:0,crit:0,xp:0,gold:0}});
 }
 function showAccountWithdrawalConfirm(mode){
-  if(mode !== 'kakao'){
+  if(!isCloudLoginMode(mode)){
     showModal(`<h2>회원탈퇴</h2>
       <p class="muted">게스트 모드는 Supabase 회원 계정이 없습니다.</p>
       <div class="grid2" style="margin-top:12px">
@@ -6533,9 +6841,9 @@ showSystemMenu = function(){
   if(!S) return;
   pauseAutoForChoice();
   const mode = activeLoginMode || S.loginMode || 'guest';
-  const accountDeleteDisabled = mode === 'kakao' ? '' : ' disabled';
+  const accountDeleteDisabled = isCloudLoginMode(mode) ? '' : ' disabled';
   showModal(`<h2>메뉴</h2>
-    <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
+    <p class="muted">캐릭터 저장 방식: <b>${loginSaveLabel(mode)}</b></p>
     <div class="grid2" style="margin-top:10px">
       <button class="btn good" id="menuResumeBtn">게임 계속</button>
       <button class="btn" id="menuCharacterBtn">캐릭터 선택</button>
@@ -6712,7 +7020,7 @@ normalizeCharacterSlots = function(slots, count){
   });
 };
 saveCloudCharacterProfile = async function(){
-  if(activeLoginMode !== 'kakao') return false;
+  if(!isCloudLoginMode(activeLoginMode)) return false;
   const client = getCloudClient();
   if(!client) return false;
   const user = await currentCloudUser();
@@ -6775,7 +7083,7 @@ async function isNicknameAlreadyUsed(nickname, mode, slotIndex){
     if(ch && nicknameMatchesForCheck(ch.nickname, key)) return true;
   }
 
-  if(mode !== 'kakao') return false;
+  if(!isCloudLoginMode(mode)) return false;
   const client = getCloudClient();
   if(!client) throw new Error('Supabase 연결 정보가 필요합니다.');
 
@@ -6865,7 +7173,7 @@ showCharacterCreate = function(mode, slotIndex){
         return;
       }
     }
-    if(mode === 'kakao'){
+    if(isCloudLoginMode(mode)){
       createBtn.disabled = true;
       createBtn.textContent = '캐릭생성 중...';
       startNewCharacter(mode, slotIndex, pickedClass, nick);
@@ -6882,13 +7190,13 @@ showCharacterSlots = function(mode){
   originalShowCharacterSlotsForText(mode);
   const p = modalCard.querySelector('.startMenuPanel > p.muted');
   if(p){
-    p.textContent = mode === 'kakao' ? 'Supabase에 저장됩니다.' : '게임 종료/새로고침 후 저장되지 않습니다.';
+    p.textContent = isCloudLoginMode(mode) ? 'Supabase에 저장됩니다.' : '게임 종료/새로고침 후 저장되지 않습니다.';
   }
 };
 
 async function collectRankingRecords(){
   const records = [];
-  if(activeLoginMode === 'kakao'){
+  if(isCloudLoginMode(activeLoginMode)){
     const client = getCloudClient();
     const user = await currentCloudUser();
     if(client && user){
@@ -6919,7 +7227,7 @@ async function collectRankingRecords(){
       }
     }
   }
-  if(activeLoginMode === 'kakao'){
+  if(isCloudLoginMode(activeLoginMode)){
     normalizeCharacterSlots(cloudCharacterSlots,3).forEach(ch=>{
       const rec = buildRankRecordFromCharacter(ch, meta);
       if(rec) records.push(rec);
@@ -6935,7 +7243,7 @@ async function collectRankingRecords(){
 }
 async function showRankingMenu(){
   pauseAutoForChoice();
-  if(activeLoginMode !== 'kakao'){
+  if(!isCloudLoginMode(activeLoginMode)){
     showModal(`<h2>랭킹</h2>
       <p class="muted">게스트 로그인은 닉네임을 설정하지 않으며 랭킹에도 등록되지 않습니다.</p>
       ${makeCloseBar()}`, false);
@@ -6956,7 +7264,7 @@ async function showRankingMenu(){
       <td>${r.score.toLocaleString()}</td>
     </tr>`).join('');
     showModal(`<h2>랭킹</h2>
-      <p class="muted">카카오 로그인 캐릭터만 등록됩니다.</p>
+      <p class="muted">카카오/네이버 로그인 캐릭터만 등록됩니다.</p>
       <table class="rankingTable">
         <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
         <tbody>${rows || '<tr><td colspan="7" style="text-align:center" class="muted">등록된 랭킹이 없습니다.</td></tr>'}</tbody>
@@ -7068,10 +7376,12 @@ async function handleKakaoOAuthReturn(){
     location.hash.includes('error');
   if(!isAuthReturn) return false;
 
-  activeLoginMode = 'kakao';
-  showModal(`<h1 class="srOnly">카카오 로그인 처리</h1>
+  const pendingMode = localStorage.getItem(OAUTH_PENDING_MODE_KEY) || 'kakao';
+  activeLoginMode = isCloudLoginMode(pendingMode) ? pendingMode : 'kakao';
+  const oauthLabel = loginModeLabel(activeLoginMode);
+  showModal(`<h1 class="srOnly">${oauthLabel} 로그인 처리</h1>
     <div class="startMenuPanel">
-      <h2 style="margin:0 0 8px">카카오 로그인</h2>
+      <h2 style="margin:0 0 8px">${oauthLabel} 로그인</h2>
       <p class="muted">로그인 정보를 확인하는 중입니다.</p>
     </div>`, true);
   modal.classList.add('startPage');
@@ -7082,7 +7392,7 @@ async function handleKakaoOAuthReturn(){
     if(!client) throw new Error('Supabase 연결 정보가 없습니다.');
     await client.auth.getSession();
     const user = await currentCloudUser();
-    if(!user) throw new Error('카카오 로그인 세션을 확인하지 못했습니다.');
+    if(!user) throw new Error(`${oauthLabel} 로그인 세션을 확인하지 못했습니다.`);
     await loadCloudCharacterProfile();
 
     const clean = new URL(location.href);
@@ -7090,12 +7400,13 @@ async function handleKakaoOAuthReturn(){
     ['code','state','error','error_code','error_description'].forEach(k=>clean.searchParams.delete(k));
     history.replaceState(null, document.title, clean.pathname + clean.search);
 
-    showCharacterSlots('kakao');
+    localStorage.removeItem(OAUTH_PENDING_MODE_KEY);
+    showCharacterSlots(activeLoginMode);
     return true;
   }catch(e){
-    showModal(`<h1 class="srOnly">카카오 로그인 실패</h1>
+    showModal(`<h1 class="srOnly">${oauthLabel} 로그인 실패</h1>
       <div class="startMenuPanel">
-        <h2 style="margin:0 0 8px">카카오 로그인 실패</h2>
+        <h2 style="margin:0 0 8px">${oauthLabel} 로그인 실패</h2>
         <p class="muted">${escapeText(e.message)}</p>
         <button class="btn" id="oauthBackBtn" style="width:100%;margin-top:10px">로그인 선택으로 돌아가기</button>
       </div>`, true);
@@ -7352,7 +7663,7 @@ function deleteCharacterSlotOnly(mode, slotIndex){
     S = null;
   }
   localStorage.removeItem(SAVE_KEY);
-  if(safeMode === 'kakao') queueCharacterCloudSave();
+  if(isCloudLoginMode(safeMode)) queueCharacterCloudSave();
 }
 
 clearRun = function(){
@@ -7399,7 +7710,7 @@ function resetCharacterSlotForNewExpedition(mode, slotIndex){
   addLog(`${nickname} · ${p.className} 새 원정 시작 준비. 난이도: 심연. 기술: ${cls.skill}`);
   syncActiveCharacterFromRun();
   setSlotsForMode(safeMode, normalizeCharacterSlots(getSlotsForMode(safeMode), limit));
-  if(safeMode === 'kakao') queueCharacterCloudSave();
+  if(isCloudLoginMode(safeMode)) queueCharacterCloudSave();
   localStorage.removeItem(SAVE_KEY);
   S = null;
 }
@@ -7548,7 +7859,7 @@ syncActiveCharacterFromRun = function(){
   setSlotsForMode(mode, slots);
 };
 saveCloudCharacterProfile = async function(){
-  if(activeLoginMode !== 'kakao') return false;
+  if(!isCloudLoginMode(activeLoginMode)) return false;
   const client = getCloudClient();
   if(!client) return false;
   const user = await currentCloudUser();
@@ -7569,7 +7880,7 @@ saveCloudCharacterProfile = async function(){
 };
 collectRankingRecords = async function(){
   const records = [];
-  if(activeLoginMode === 'kakao'){
+  if(isCloudLoginMode(activeLoginMode)){
     const client = getCloudClient();
     const user = await currentCloudUser();
     if(client && user){
@@ -7615,7 +7926,7 @@ gameOver = function(retire){
   if(S && S.player && !S.dead){
     try{
       syncActiveCharacterFromRun();
-      if(activeLoginMode === 'kakao') queueCharacterCloudSave();
+      if(isCloudLoginMode(activeLoginMode)) queueCharacterCloudSave();
     }catch(e){ console.warn('best rank sync before gameOver failed:', e.message); }
   }
   return originalGameOverForBestRankPersist(retire);
@@ -7694,7 +8005,7 @@ function buildFreshRunForSlot(mode, slotIndex, reason){
     run:freshRun
   };
   setSlotsForMode(safeMode, slots);
-  if(safeMode === 'kakao') queueCharacterCloudSave();
+  if(isCloudLoginMode(safeMode)) queueCharacterCloudSave();
   return slots[idx];
 }
 
@@ -7745,7 +8056,7 @@ function rankRecordFromPublicRow(row){
   }, row.nickname || '이름 없음');
 }
 async function syncPublicRankingRowsForCurrentUser(){
-  if(activeLoginMode !== 'kakao') return false;
+  if(!isCloudLoginMode(activeLoginMode)) return false;
   const client = getCloudClient();
   const user = await currentCloudUser();
   if(!client || !user) return false;
@@ -7793,7 +8104,7 @@ const previousCollectRankingRecordsForPublicRank = collectRankingRecords;
 collectRankingRecords = async function(){
   const records = [];
   let usedPublicTable = false;
-  if(activeLoginMode === 'kakao'){
+  if(isCloudLoginMode(activeLoginMode)){
     const client = getCloudClient();
     const user = await currentCloudUser();
     if(client && user){
@@ -7835,7 +8146,7 @@ collectRankingRecords = async function(){
 const previousShowRankingMenuForPublicRank = showRankingMenu;
 showRankingMenu = async function(){
   pauseAutoForChoice();
-  if(activeLoginMode !== 'kakao'){
+  if(!isCloudLoginMode(activeLoginMode)){
     showModal(`<h2>랭킹</h2>
       <p class="muted">게스트 로그인은 닉네임을 설정하지 않으며 랭킹에도 등록되지 않습니다.</p>
       ${makeCloseBar()}`, false);
@@ -7877,7 +8188,7 @@ deleteCharacterSlotOnly = function(mode, slotIndex){
   const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
   const idx = Number(slotIndex);
   previousDeleteCharacterSlotOnlyForPublicRank(safeMode, idx);
-  if(safeMode === 'kakao'){
+  if(isCloudLoginMode(safeMode)){
     const client = getCloudClient();
     currentCloudUser().then(user=>{
       if(client && user && Number.isFinite(idx)){
@@ -7948,7 +8259,7 @@ function resetSoulUpgradesWithHalfRefund(){
 
 showMeta = function(){
   stopAuto();
-  const soulMode = currentSoulPoolMode(activeLoginMode === 'kakao' ? 'kakao' : (activeLoginMode === 'guest' ? 'guest' : undefined));
+  const soulMode = currentSoulPoolMode(isCloudLoginMode(activeLoginMode) ? activeLoginMode : (activeLoginMode === 'guest' ? 'guest' : undefined));
   const spent = totalSoulSpentForUpgrades(meta.upgrades);
   const refund = soulUpgradeRefundAmount(meta.upgrades);
   const rows = metaDefs.map(d=>{
@@ -7970,7 +8281,7 @@ showMeta = function(){
     saveMeta();
     showMeta();
   });
-  $('backStart').onclick=()=>showCharacterSlots(soulMode === 'kakao' ? 'kakao' : 'guest');
+  $('backStart').onclick=()=>showCharacterSlots(isCloudLoginMode(soulMode) ? soulMode : 'guest');
   $('resetMeta').onclick=()=>{
     if(resetSoulUpgradesWithHalfRefund()) showMeta();
   };
@@ -8348,9 +8659,9 @@ showSystemMenu = function(){
   if(!S) return;
   pauseAutoForChoice();
   const mode = activeLoginMode || S.loginMode || 'guest';
-  const accountDeleteDisabled = mode === 'kakao' ? '' : ' disabled';
+  const accountDeleteDisabled = isCloudLoginMode(mode) ? '' : ' disabled';
   showModal(`<h2>설정</h2>
-    <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
+    <p class="muted">캐릭터 저장 방식: <b>${loginSaveLabel(mode)}</b></p>
     <div class="grid2" style="margin-top:10px">
       <button class="btn good" id="menuKeymapBtn">키맵핑</button>
       <button class="btn" id="menuCharacterBtn">캐릭터 선택</button>
@@ -8751,9 +9062,9 @@ showSystemMenu = function(){
   if(!S) return;
   pauseAutoForChoice();
   const mode = activeLoginMode || S.loginMode || 'guest';
-  const accountDeleteDisabled = mode === 'kakao' ? '' : ' disabled';
+  const accountDeleteDisabled = isCloudLoginMode(mode) ? '' : ' disabled';
   showModal(`<h2>설정</h2>
-    <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
+    <p class="muted">캐릭터 저장 방식: <b>${loginSaveLabel(mode)}</b></p>
     <div class="grid2" style="margin-top:10px">
       <button class="btn good" id="menuKeymapBtn">키맵핑</button>
       <button class="btn" id="menuCharacterBtn">캐릭터 선택</button>
@@ -9703,9 +10014,9 @@ showSystemMenu = function(){
   if(!S) return;
   pauseAutoForChoice();
   const mode = activeLoginMode || S.loginMode || 'guest';
-  const accountDeleteDisabled = mode === 'kakao' ? '' : ' disabled';
+  const accountDeleteDisabled = isCloudLoginMode(mode) ? '' : ' disabled';
   showModal(`<h2>설정</h2>
-    <p class="muted">캐릭터 저장 방식: <b>${mode==='kakao'?'카카오/Supabase':'게스트'}</b></p>
+    <p class="muted">캐릭터 저장 방식: <b>${loginSaveLabel(mode)}</b></p>
     <div class="grid2" style="margin-top:10px">
       <button class="btn good" id="menuKeymapBtn">키맵핑</button>
       <button class="btn" id="menuHelpBtn">도움말</button>
@@ -9874,7 +10185,7 @@ function showHelpMenu(){
       ['랭킹 기준', '랭킹은 접속 상태가 아니라 저장된 최고기록 기준으로 표시됩니다.'],
       ['게스트', '게스트 로그인은 닉네임을 설정하지 않으며 랭킹에도 등록되지 않습니다.'],
       ['목록 스크롤', '등록 유저가 많아지면 랭킹 목록 영역 안에서 스크롤해서 확인할 수 있습니다.'],
-      ['저장', '카카오/Supabase 저장 모드에서는 캐릭터와 최고기록을 저장해 랭킹에 반영합니다.']
+      ['저장', '카카오/네이버/Supabase 저장 모드에서는 캐릭터와 최고기록을 저장해 랭킹에 반영합니다.']
     ], false)}
     <div class="grid2" style="margin-top:14px"><button class="btn" id="helpBackBtn">설정으로</button><button class="btn good" id="helpCloseBtn">닫기</button></div>`, false);
   const back=$('helpBackBtn'); if(back) back.onclick=showSystemMenu;
