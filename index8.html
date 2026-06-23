@@ -2942,6 +2942,901 @@ html body #modal.startPage[data-start-mode="menu"] .loginButtonImg{
   }
 }
 
+
+
+/* FINAL: code-only login buttons, no image assets */
+html body #modal.startPage[data-start-mode="menu"] .loginStartPanel{
+  width:min(330px,92vw)!important;
+  margin:0 auto!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:5px!important;
+  width:100%!important;
+  margin:0 auto!important;
+  padding:0!important;
+  grid-template-columns:none!important;
+  background:transparent!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] button.loginChoiceBtn.codeLoginBtn{
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  position:relative!important;
+  isolation:isolate!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:10px!important;
+  width:min(245px,62vw)!important;
+  max-width:245px!important;
+  height:34px!important;
+  min-height:34px!important;
+  max-height:34px!important;
+  margin:0 auto!important;
+  padding:0 16px!important;
+  border-radius:999px!important;
+  overflow:hidden!important;
+  cursor:pointer!important;
+  touch-action:none!important;
+  user-select:none!important;
+  -webkit-user-select:none!important;
+  transform:none!important;
+  opacity:1!important;
+  filter:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;
+  font-size:15px!important;
+  font-weight:900!important;
+  line-height:1!important;
+  letter-spacing:-.35px!important;
+  text-align:center!important;
+  text-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn:before{
+  content:""!important;
+  position:absolute!important;
+  inset:2px!important;
+  z-index:-1!important;
+  border-radius:999px!important;
+  background:linear-gradient(135deg,rgba(255,255,255,.36),rgba(255,255,255,0) 46%)!important;
+  pointer-events:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn:after{
+  content:""!important;
+  position:absolute!important;
+  left:12px!important;
+  right:12px!important;
+  bottom:3px!important;
+  height:2px!important;
+  z-index:1!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.55)!important;
+  opacity:.58!important;
+  pointer-events:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn:active{
+  transform:translateY(1px) scale(.985)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .codeLoginIcon{
+  position:relative!important;
+  z-index:2!important;
+  flex:0 0 22px!important;
+  width:22px!important;
+  height:22px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  margin:0!important;
+  padding:0!important;
+  font-size:14px!important;
+  font-weight:1000!important;
+  line-height:1!important;
+  border-radius:6px!important;
+  box-sizing:border-box!important;
+  white-space:nowrap!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .codeLoginText{
+  display:inline-block!important;
+  position:relative!important;
+  z-index:2!important;
+  width:auto!important;
+  margin:0!important;
+  padding:0!important;
+  font:inherit!important;
+  color:inherit!important;
+  line-height:1!important;
+  letter-spacing:inherit!important;
+  text-shadow:inherit!important;
+  white-space:nowrap!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button.kakaoLoginPill.codeLoginBtn{
+  color:#111!important;
+  background:linear-gradient(180deg,#fff45a 0%,#ffd326 44%,#eba60d 100%)!important;
+  border:1px solid #7c5608!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78),inset 0 -3px 0 rgba(100,61,0,.32),0 3px 0 rgba(80,48,0,.56),0 7px 14px rgba(0,0,0,.32)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .kakaoIcon{
+  background:#17110a!important;
+  border-radius:50%!important;
+  color:transparent!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .kakaoIcon:after{
+  content:""!important;
+  position:absolute!important;
+  left:3px!important;
+  bottom:-3px!important;
+  width:8px!important;
+  height:8px!important;
+  background:#17110a!important;
+  clip-path:polygon(0 0,100% 0,0 100%)!important;
+  transform:rotate(-8deg)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button.naverLoginPill.codeLoginBtn{
+  color:#fff!important;
+  background:linear-gradient(180deg,#20ef58 0%,#03c75a 48%,#02963d 100%)!important;
+  border:1px solid #057934!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.68),inset 0 -3px 0 rgba(0,80,30,.34),0 3px 0 rgba(0,72,28,.55),0 7px 14px rgba(0,0,0,.32)!important;
+  text-shadow:0 1px 2px rgba(0,0,0,.25)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .naverIcon{
+  background:#fff!important;
+  color:#03c75a!important;
+  text-shadow:none!important;
+  font-family:Arial,Helvetica,sans-serif!important;
+  font-size:15px!important;
+  font-weight:1000!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button.guestLoginPill.codeLoginBtn{
+  color:#fff!important;
+  background:linear-gradient(180deg,#526d83 0%,#334b5e 48%,#172838 100%)!important;
+  border:1px solid rgba(218,232,245,.86)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.48),inset 0 -3px 0 rgba(0,0,0,.30),0 3px 0 rgba(0,0,0,.48),0 7px 14px rgba(0,0,0,.32)!important;
+  text-shadow:0 1px 2px rgba(0,0,0,.32)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .guestIcon{
+  background:#fff!important;
+  color:#223646!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .guestIcon:before{
+  content:""!important;
+  position:absolute!important;
+  top:4px!important;
+  left:50%!important;
+  width:7px!important;
+  height:7px!important;
+  transform:translateX(-50%)!important;
+  border-radius:50%!important;
+  background:#223646!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .guestIcon:after{
+  content:""!important;
+  position:absolute!important;
+  left:50%!important;
+  bottom:4px!important;
+  width:14px!important;
+  height:7px!important;
+  transform:translateX(-50%)!important;
+  border-radius:8px 8px 3px 3px!important;
+  background:#223646!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .loginButtonImg,
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn img,
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn b,
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn small,
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn .cd,
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn h4,
+html body #modal.startPage[data-start-mode="menu"] button.codeLoginBtn p{
+  display:none!important;
+}
+@media(max-width:420px){
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{gap:4px!important}
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] button.loginChoiceBtn.codeLoginBtn{
+    width:min(225px,68vw)!important;
+    max-width:225px!important;
+    height:32px!important;
+    min-height:32px!important;
+    max-height:32px!important;
+    font-size:14px!important;
+    gap:9px!important;
+    padding:0 14px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginIcon{width:20px!important;height:20px!important;flex-basis:20px!important}
+}
+@media(max-height:700px){
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{gap:3px!important}
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] button.loginChoiceBtn.codeLoginBtn{
+    width:min(218px,64vw)!important;
+    max-width:218px!important;
+    height:30px!important;
+    min-height:30px!important;
+    max-height:30px!important;
+    font-size:13px!important;
+    gap:8px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginIcon{width:19px!important;height:19px!important;flex-basis:19px!important;font-size:13px!important}
+}
+
+
+
+/* SUPER FINAL: image-like login buttons drawn with CSS only */
+html body #modal.startPage[data-start-mode="menu"] .loginStartPanel{
+  width:min(320px,92vw)!important;
+  margin:0 auto!important;
+  padding:0!important;
+  background:transparent!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:6px!important;
+  width:100%!important;
+  margin:0 auto!important;
+  padding:0!important;
+  background:transparent!important;
+  background-image:none!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+  --login-w:286px;
+  --login-h:42px;
+  --login-icon:31px;
+  --login-icon-left:48px;
+  --login-text-left:96px;
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  position:relative!important;
+  isolation:isolate!important;
+  display:block!important;
+  width:min(var(--login-w),74vw)!important;
+  max-width:var(--login-w)!important;
+  height:var(--login-h)!important;
+  min-height:var(--login-h)!important;
+  max-height:var(--login-h)!important;
+  margin:0 auto!important;
+  padding:0!important;
+  border:0!important;
+  outline:0!important;
+  border-radius:999px!important;
+  overflow:visible!important;
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+  cursor:pointer!important;
+  touch-action:none!important;
+  user-select:none!important;
+  -webkit-user-select:none!important;
+  font-family:"Apple SD Gothic Neo",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif!important;
+  font-size:18px!important;
+  font-weight:950!important;
+  line-height:1!important;
+  letter-spacing:-.55px!important;
+  text-align:left!important;
+  transform:translateZ(0)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn:before,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn:before,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn:before{
+  content:""!important;
+  position:absolute!important;
+  inset:0!important;
+  z-index:0!important;
+  display:block!important;
+  border-radius:999px!important;
+  pointer-events:none!important;
+  box-sizing:border-box!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn:after,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn:after,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn:after{
+  content:""!important;
+  position:absolute!important;
+  inset:4px 10px 8px 10px!important;
+  z-index:1!important;
+  display:block!important;
+  border-radius:999px!important;
+  background:
+    linear-gradient(115deg,transparent 0 55%,rgba(255,255,255,.18) 55.3% 64%,transparent 64.3% 100%),
+    linear-gradient(180deg,rgba(255,255,255,.40),rgba(255,255,255,0) 58%)!important;
+  opacity:.86!important;
+  pointer-events:none!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn{
+  color:#0d0b07!important;
+  text-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn:before{
+  background:
+    linear-gradient(180deg,#fff666 0%,#ffe33a 36%,#ffc41d 70%,#e69a10 100%)!important;
+  border:2px solid #fff67a!important;
+  box-shadow:
+    inset 0 0 0 2px rgba(101,62,0,.70),
+    inset 0 0 0 5px rgba(255,244,83,.36),
+    inset 0 2px 0 rgba(255,255,255,.76),
+    inset 0 -5px 0 rgba(105,63,0,.28),
+    0 2px 0 rgba(82,51,0,.90),
+    0 5px 10px rgba(0,0,0,.42),
+    0 0 10px rgba(255,205,30,.16)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn{
+  color:#fff!important;
+  text-shadow:0 1px 2px rgba(0,0,0,.28)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn:before{
+  background:
+    linear-gradient(180deg,#25f15f 0%,#06d54f 42%,#03b446 72%,#008a31 100%)!important;
+  border:2px solid rgba(220,255,230,.95)!important;
+  box-shadow:
+    inset 0 0 0 2px rgba(0,102,35,.72),
+    inset 0 0 0 5px rgba(28,255,95,.22),
+    inset 0 2px 0 rgba(255,255,255,.54),
+    inset 0 -5px 0 rgba(0,83,30,.34),
+    0 2px 0 rgba(0,72,25,.90),
+    0 5px 10px rgba(0,0,0,.42),
+    0 0 10px rgba(3,199,90,.25)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn{
+  color:#fff!important;
+  text-shadow:0 1px 2px rgba(0,0,0,.34)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn:before{
+  background:
+    linear-gradient(180deg,#617e94 0%,#425c70 43%,#263c4e 73%,#142433 100%)!important;
+  border:2px solid rgba(235,246,255,.96)!important;
+  box-shadow:
+    inset 0 0 0 2px rgba(9,25,38,.78),
+    inset 0 0 0 5px rgba(217,235,247,.12),
+    inset 0 2px 0 rgba(255,255,255,.36),
+    inset 0 -5px 0 rgba(0,0,0,.30),
+    0 2px 0 rgba(5,12,20,.92),
+    0 5px 10px rgba(0,0,0,.42),
+    0 0 10px rgba(180,215,238,.16)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginIcon,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginIcon,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginIcon{
+  position:absolute!important;
+  left:var(--login-icon-left)!important;
+  top:50%!important;
+  z-index:3!important;
+  display:block!important;
+  width:var(--login-icon)!important;
+  height:var(--login-icon)!important;
+  min-width:var(--login-icon)!important;
+  min-height:var(--login-icon)!important;
+  max-width:var(--login-icon)!important;
+  max-height:var(--login-icon)!important;
+  margin:0!important;
+  padding:0!important;
+  transform:translate(-50%,-50%)!important;
+  box-sizing:border-box!important;
+  flex:none!important;
+  font-family:Arial,Helvetica,sans-serif!important;
+  font-size:21px!important;
+  font-weight:1000!important;
+  line-height:var(--login-icon)!important;
+  text-align:center!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon{
+  width:32px!important;
+  height:25px!important;
+  min-width:32px!important;
+  min-height:25px!important;
+  max-width:32px!important;
+  max-height:25px!important;
+  border-radius:50%!important;
+  background:radial-gradient(ellipse at 47% 43%,#211509 0 67%,#161008 69% 100%)!important;
+  color:transparent!important;
+  box-shadow:0 1px 1px rgba(255,255,255,.12), inset 0 1px 0 rgba(255,255,255,.06)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon:before{
+  content:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon:after{
+  content:""!important;
+  position:absolute!important;
+  left:6px!important;
+  bottom:-5px!important;
+  width:11px!important;
+  height:11px!important;
+  background:#171008!important;
+  clip-path:polygon(0 0,100% 12%,0 100%)!important;
+  transform:rotate(-8deg)!important;
+  box-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .naverIcon{
+  border-radius:7px!important;
+  background:linear-gradient(180deg,#ffffff,#eef5ef)!important;
+  color:#03c75a!important;
+  text-shadow:none!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 1px 2px rgba(0,0,0,.15)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .naverIcon:before,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .naverIcon:after{
+  content:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .guestIcon{
+  border-radius:7px!important;
+  background:linear-gradient(180deg,#ffffff,#edf3f8)!important;
+  color:transparent!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.85),0 1px 2px rgba(0,0,0,.18)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .guestIcon:before{
+  content:""!important;
+  position:absolute!important;
+  top:6px!important;
+  left:50%!important;
+  width:8px!important;
+  height:8px!important;
+  transform:translateX(-50%)!important;
+  border-radius:50%!important;
+  background:#203444!important;
+  box-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .guestIcon:after{
+  content:""!important;
+  position:absolute!important;
+  left:50%!important;
+  bottom:6px!important;
+  width:17px!important;
+  height:8px!important;
+  transform:translateX(-50%)!important;
+  border-radius:10px 10px 3px 3px!important;
+  background:#203444!important;
+  box-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+  position:absolute!important;
+  left:var(--login-text-left)!important;
+  right:22px!important;
+  top:50%!important;
+  z-index:3!important;
+  display:block!important;
+  width:auto!important;
+  margin:0!important;
+  padding:0!important;
+  transform:translateY(-52%)!important;
+  color:inherit!important;
+  font:inherit!important;
+  font-size:18px!important;
+  font-weight:950!important;
+  line-height:1!important;
+  letter-spacing:-.55px!important;
+  text-align:left!important;
+  white-space:nowrap!important;
+  text-shadow:inherit!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText{
+  font-size:17px!important;
+  font-weight:1000!important;
+  letter-spacing:-.75px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+  font-size:18px!important;
+  font-weight:950!important;
+  letter-spacing:-.65px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn:active,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn:active,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn:active{
+  transform:translateY(1px) scale(.985)!important;
+}
+@media(max-width:420px){
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{gap:5px!important}
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+    --login-w:268px;
+    --login-h:39px;
+    --login-icon:29px;
+    --login-icon-left:45px;
+    --login-text-left:89px;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText{font-size:16px!important}
+  html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{font-size:17px!important}
+}
+@media(max-height:700px){
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{gap:4px!important}
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+    --login-w:255px;
+    --login-h:37px;
+    --login-icon:27px;
+    --login-icon-left:43px;
+    --login-text-left:85px;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText{font-size:15.5px!important}
+  html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{font-size:16.2px!important}
+}
+
+
+
+/* login code buttons: taller + safer text padding + wider spacing */
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{
+  gap:12px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+  --login-w:300px!important;
+  --login-h:50px!important;
+  --login-icon:35px!important;
+  --login-icon-left:52px!important;
+  --login-text-left:103px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn:after,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn:after,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn:after{
+  inset:5px 12px 9px 12px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+  right:30px!important;
+  transform:translateY(-50%)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText{
+  font-size:18px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+  font-size:18.5px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon{
+  width:36px!important;
+  height:28px!important;
+  min-width:36px!important;
+  min-height:28px!important;
+  max-width:36px!important;
+  max-height:28px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon:after{
+  left:7px!important;
+  bottom:-6px!important;
+  width:12px!important;
+  height:12px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .guestIcon:before{
+  top:7px!important;
+  width:9px!important;
+  height:9px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .guestIcon:after{
+  bottom:7px!important;
+  width:19px!important;
+  height:9px!important;
+}
+@media(max-width:420px){
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{
+    gap:10px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+    --login-w:286px!important;
+    --login-h:48px!important;
+    --login-icon:34px!important;
+    --login-icon-left:50px!important;
+    --login-text-left:99px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText{font-size:17.2px!important}
+  html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{font-size:18px!important}
+}
+@media(max-height:700px){
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{
+    gap:9px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+    --login-w:276px!important;
+    --login-h:45px!important;
+    --login-icon:32px!important;
+    --login-icon-left:48px!important;
+    --login-text-left:94px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText{font-size:16.6px!important}
+  html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{font-size:17.3px!important}
+}
+
+
+
+/* kakao login final fix: smaller speech bubble + text matches bubble color */
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn{
+  color:#171008!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText{
+  color:#171008!important;
+  text-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon{
+  width:31px!important;
+  height:24px!important;
+  min-width:31px!important;
+  min-height:24px!important;
+  max-width:31px!important;
+  max-height:24px!important;
+  background:radial-gradient(ellipse at 47% 43%,#211509 0 67%,#171008 69% 100%)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon:after{
+  left:6px!important;
+  bottom:-4px!important;
+  width:10px!important;
+  height:10px!important;
+  background:#171008!important;
+}
+@media(max-width:420px){
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon{
+    width:30px!important;
+    height:23px!important;
+    min-width:30px!important;
+    min-height:23px!important;
+    max-width:30px!important;
+    max-height:23px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon:after{
+    bottom:-4px!important;
+    width:9px!important;
+    height:9px!important;
+  }
+}
+@media(max-height:700px){
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon{
+    width:29px!important;
+    height:22px!important;
+    min-width:29px!important;
+    min-height:22px!important;
+    max-width:29px!important;
+    max-height:22px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon:after{
+    bottom:-3px!important;
+    width:9px!important;
+    height:9px!important;
+  }
+}
+
+
+
+/* final login button layout: auto width, centered, equal left/right visual padding */
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:12px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+  --login-h:50px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:17px!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:calc(100vw - 52px)!important;
+  height:var(--login-h)!important;
+  min-height:var(--login-h)!important;
+  max-height:var(--login-h)!important;
+  margin-left:auto!important;
+  margin-right:auto!important;
+  padding:0 25px!important;
+  box-sizing:border-box!important;
+  text-align:center!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginIcon,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginIcon,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginIcon{
+  position:relative!important;
+  left:auto!important;
+  top:auto!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:none!important;
+  flex:0 0 auto!important;
+  margin:0!important;
+  z-index:3!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+  position:relative!important;
+  left:auto!important;
+  top:auto!important;
+  right:auto!important;
+  bottom:auto!important;
+  transform:none!important;
+  display:block!important;
+  flex:0 0 auto!important;
+  z-index:3!important;
+  width:auto!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:0!important;
+  font-size:18.5px!important;
+  line-height:1!important;
+  font-weight:950!important;
+  letter-spacing:-.55px!important;
+  white-space:nowrap!important;
+  text-align:left!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText{
+  color:#171008!important;
+  text-shadow:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon{
+  width:30px!important;
+  height:23px!important;
+  min-width:30px!important;
+  min-height:23px!important;
+  max-width:30px!important;
+  max-height:23px!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon:after{
+  left:6px!important;
+  bottom:-4px!important;
+  width:9px!important;
+  height:9px!important;
+}
+@media(max-width:420px){
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{
+    gap:10px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+    --login-h:48px!important;
+    gap:15px!important;
+    padding-left:23px!important;
+    padding-right:23px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+    font-size:18px!important;
+  }
+}
+@media(max-height:700px){
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid,
+  html body #modal.startPage[data-start-mode="menu"] .codeLoginChoiceGrid{
+    gap:9px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] #modalCard.card .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#kakaoLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#naverLoginBtn.codeLoginBtn,
+  html body #modal.startPage[data-start-mode="menu"] .loginChoiceGrid > button#guestLoginBtn.codeLoginBtn{
+    --login-h:45px!important;
+    gap:14px!important;
+    padding-left:22px!important;
+    padding-right:22px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+    font-size:17.3px!important;
+  }
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .kakaoIcon{
+    width:29px!important;
+    height:22px!important;
+    min-width:29px!important;
+    min-height:22px!important;
+    max-width:29px!important;
+    max-height:22px!important;
+  }
+}
+
+
+/* final polish: remove faint top highlight line on login buttons */
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn:after,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn:after,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn:after{
+  background:linear-gradient(115deg,transparent 0 57%,rgba(255,255,255,.13) 57.5% 64%,transparent 64.5% 100%)!important;
+  box-shadow:none!important;
+  opacity:.48!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn:before{
+  box-shadow:
+    inset 0 0 0 2px rgba(101,62,0,.70),
+    inset 0 0 0 5px rgba(255,244,83,.30),
+    inset 0 -5px 0 rgba(105,63,0,.28),
+    0 2px 0 rgba(82,51,0,.90),
+    0 5px 10px rgba(0,0,0,.42),
+    0 0 10px rgba(255,205,30,.16)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn:before{
+  box-shadow:
+    inset 0 0 0 2px rgba(0,102,35,.72),
+    inset 0 0 0 5px rgba(28,255,95,.18),
+    inset 0 -5px 0 rgba(0,83,30,.34),
+    0 2px 0 rgba(0,72,25,.90),
+    0 5px 10px rgba(0,0,0,.42),
+    0 0 10px rgba(3,199,90,.25)!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn:before{
+  box-shadow:
+    inset 0 0 0 2px rgba(9,25,38,.78),
+    inset 0 0 0 5px rgba(217,235,247,.10),
+    inset 0 -5px 0 rgba(0,0,0,.30),
+    0 2px 0 rgba(5,12,20,.92),
+    0 5px 10px rgba(0,0,0,.42),
+    0 0 10px rgba(180,215,238,.16)!important;
+}
+
 </style>
 </head>
 <body>
@@ -6734,28 +7629,22 @@ clearRun = function(){
 };
 
 
-const LOGIN_BUTTON_IMAGES = Object.freeze({
-  kakao: './assets/icons/buttons/kakao_bttn.PNG',
-  naver: './assets/icons/buttons/naver_bttn.PNG',
-  guest: './assets/icons/buttons/guest_bttn.PNG'
-});
-
 function showLoginChoice(){
   stopAuto();
   showModal(`<h1 class="srOnly">로그인 선택</h1>
     <div class="startMenuPanel loginStartPanel">
-      <div class="loginChoiceGrid">
-        <button class="skill loginChoiceBtn kakaoLoginPill" id="kakaoLoginBtn" type="button" aria-label="카카오 로그인">
-          <img class="loginButtonImg" src="${LOGIN_BUTTON_IMAGES.kakao}" alt="카카오 로그인" />
-          <span class="srOnly">카카오 로그인</span>
+      <div class="loginChoiceGrid codeLoginChoiceGrid">
+        <button class="loginChoiceBtn codeLoginBtn kakaoLoginPill" id="kakaoLoginBtn" type="button" aria-label="카카오 로그인">
+          <span class="codeLoginIcon kakaoIcon" aria-hidden="true"></span>
+          <span class="codeLoginText">카카오 로그인</span>
         </button>
-        <button class="skill loginChoiceBtn naverLoginPill" id="naverLoginBtn" type="button" aria-label="네이버 로그인">
-          <img class="loginButtonImg" src="${LOGIN_BUTTON_IMAGES.naver}" alt="네이버 로그인" />
-          <span class="srOnly">네이버 로그인</span>
+        <button class="loginChoiceBtn codeLoginBtn naverLoginPill" id="naverLoginBtn" type="button" aria-label="네이버 로그인">
+          <span class="codeLoginIcon naverIcon" aria-hidden="true">N</span>
+          <span class="codeLoginText">네이버 로그인</span>
         </button>
-        <button class="skill loginChoiceBtn guestLoginPill" id="guestLoginBtn" type="button" aria-label="게스트 로그인">
-          <img class="loginButtonImg" src="${LOGIN_BUTTON_IMAGES.guest}" alt="게스트 로그인" />
-          <span class="srOnly">게스트 로그인</span>
+        <button class="loginChoiceBtn codeLoginBtn guestLoginPill" id="guestLoginBtn" type="button" aria-label="게스트 로그인">
+          <span class="codeLoginIcon guestIcon" aria-hidden="true"></span>
+          <span class="codeLoginText">게스트 로그인</span>
         </button>
       </div>
     </div>`, true);
