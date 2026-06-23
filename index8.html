@@ -14040,9 +14040,28 @@ function ensureAlertBannerStyle(){
       text-shadow:0 0 8px rgba(250,204,21,.42);
     }
     .gameAlertBanner.chat{
-      border-color:rgba(96,165,250,.72);
-      background:linear-gradient(180deg,rgba(30,64,175,.84),rgba(15,23,42,.74));
+      position:absolute;
+      left:10px;
+      right:10px;
+      top:8px;
+      width:auto;
+      min-width:0;
+      max-width:none;
+      padding:7px 10px;
+      border-radius:10px;
+      border-color:rgba(82,100,130,.56);
+      background:rgba(8,13,22,.46);
       color:#eff6ff;
+      font-size:12px;
+      line-height:1.35;
+      box-shadow:0 6px 18px rgba(0,0,0,.24);
+      backdrop-filter:blur(5px);
+      -webkit-backdrop-filter:blur(5px);
+      transform:translateY(-6px);
+    }
+    .gameAlertBanner.chat.show{
+      opacity:.96;
+      transform:translateY(0);
     }
     .settingsBlue{background:linear-gradient(180deg,#1d4ed8,#0f172a)!important;border-color:#60a5fa!important;color:#eff6ff!important}
     .settingsRed{background:linear-gradient(180deg,#991b1b,#24100f)!important;border-color:#f87171!important;color:#fef2f2!important}
@@ -14054,11 +14073,14 @@ function ensureAlertBannerStyle(){
 function showAlertBanner(message, type='normal'){
   if(!alertEnabled(type)) return;
   ensureAlertBannerStyle();
+  const host = type === 'chat' ? ($('gamePanel') || document.body) : document.body;
   let el=document.getElementById('gameAlertBanner');
   if(!el){
     el=document.createElement('div');
     el.id='gameAlertBanner';
-    document.body.appendChild(el);
+  }
+  if(el.parentNode !== host){
+    host.appendChild(el);
   }
   el.className='gameAlertBanner ' + (type || 'normal');
   el.textContent=String(message || '');
