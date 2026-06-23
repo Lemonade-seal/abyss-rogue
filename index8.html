@@ -5918,6 +5918,35 @@ html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLogi
   }
 }
 
+
+
+/* REQUEST ONLY: shrink login text font to prevent overlap */
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+  font-size:14px!important;
+  letter-spacing:-.45px!important;
+  white-space:nowrap!important;
+}
+
+@media(max-width:420px){
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+    font-size:13px!important;
+    letter-spacing:-.55px!important;
+  }
+}
+
+@media(max-height:700px){
+  html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.codeLoginBtn > .codeLoginText,
+  html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLoginBtn > .codeLoginText{
+    font-size:13px!important;
+    letter-spacing:-.55px!important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -9717,7 +9746,7 @@ function showLoginChoice(){
       <div class="loginChoiceGrid codeLoginChoiceGrid">
         <button class="loginChoiceBtn codeLoginBtn kakaoLoginPill" id="kakaoLoginBtn" type="button" aria-label="카카오 로그인">
           <span class="codeLoginIcon kakaoIcon" aria-hidden="true"></span>
-          <span class="codeLoginText" data-text="카카오">카카오</span>
+          <span class="codeLoginText" data-text="카카오 로그인">카카오 로그인</span>
         </button>
         <button class="loginChoiceBtn codeLoginBtn naverLoginPill" id="naverLoginBtn" type="button" aria-label="네이버 로그인">
           <span class="codeLoginIcon naverIcon" aria-hidden="true">
@@ -9726,11 +9755,11 @@ function showLoginChoice(){
               <path d="M8 7 H14 L18 17 V7 H23 V24 H17 L13 14 V24 H8 Z" fill="#19ce60"></path>
             </svg>
           </span>
-          <span class="codeLoginText" data-text="네이버">네이버</span>
+          <span class="codeLoginText" data-text="네이버 로그인">네이버 로그인</span>
         </button>
         <button class="loginChoiceBtn codeLoginBtn guestLoginPill" id="guestLoginBtn" type="button" aria-label="게스트 로그인">
           <span class="codeLoginIcon guestIcon" aria-hidden="true"></span>
-          <span class="codeLoginText" data-text="게스트">게스트</span>
+          <span class="codeLoginText" data-text="게스트 로그인">게스트 로그인</span>
         </button>
       </div>
     </div>`, true);
