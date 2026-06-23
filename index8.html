@@ -13977,6 +13977,1281 @@ showOnlineListModal = function(){
   showModal(`<h2>온라인 접속 인원</h2><p class="muted">현재 온라인 ${list.length}명</p><div class="onlineListBox">${rows}</div>${makeCloseBar()}`, false);
 };
 
+
+
+/* REQUEST ONLY: alert banner, alert settings, account submenu, system menu layout */
+const ALERT_SETTINGS_KEY = 'abyss_rogue_alert_settings_v1';
+function defaultAlertSettings(){
+  return {all:true, legendary:true, chat:true};
+}
+function loadAlertSettings(){
+  try{
+    return Object.assign(defaultAlertSettings(), JSON.parse(localStorage.getItem(ALERT_SETTINGS_KEY) || '{}') || {});
+  }catch(e){
+    return defaultAlertSettings();
+  }
+}
+let alertSettings = loadAlertSettings();
+function saveAlertSettings(){
+  localStorage.setItem(ALERT_SETTINGS_KEY, JSON.stringify(alertSettings));
+}
+function alertEnabled(type){
+  if(!alertSettings || alertSettings.all === false) return false;
+  if(type && alertSettings[type] === false) return false;
+  return true;
+}
+function ensureAlertBannerStyle(){
+  if(document.getElementById('alertBannerStyle')) return;
+  const style=document.createElement('style');
+  style.id='alertBannerStyle';
+  style.textContent=`
+    .gameAlertBanner{
+      position:fixed;
+      left:50%;
+      top:calc(12px + env(safe-area-inset-top));
+      transform:translate(-50%,-18px);
+      z-index:1000;
+      min-width:min(340px,92vw);
+      max-width:min(420px,94vw);
+      padding:10px 14px;
+      border-radius:14px;
+      border:1px solid rgba(203,213,225,.42);
+      background:linear-gradient(180deg,rgba(15,23,42,.88),rgba(15,23,42,.72));
+      color:#eef3ff;
+      font-size:13px;
+      font-weight:900;
+      line-height:1.35;
+      text-align:center;
+      box-shadow:0 10px 32px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.10);
+      opacity:0;
+      pointer-events:none;
+      backdrop-filter:blur(8px);
+      -webkit-backdrop-filter:blur(8px);
+      transition:opacity .18s ease, transform .18s ease;
+    }
+    .gameAlertBanner.show{
+      opacity:1;
+      transform:translate(-50%,0);
+    }
+    .gameAlertBanner.legendary{
+      border-color:rgba(250,204,21,.82);
+      background:linear-gradient(180deg,rgba(113,63,18,.92),rgba(15,23,42,.78));
+      color:#fff7ed;
+      text-shadow:0 0 8px rgba(250,204,21,.42);
+    }
+    .gameAlertBanner.chat{
+      border-color:rgba(96,165,250,.72);
+      background:linear-gradient(180deg,rgba(30,64,175,.84),rgba(15,23,42,.74));
+      color:#eff6ff;
+    }
+    .settingsBlue{background:linear-gradient(180deg,#1d4ed8,#0f172a)!important;border-color:#60a5fa!important;color:#eff6ff!important}
+    .settingsRed{background:linear-gradient(180deg,#991b1b,#24100f)!important;border-color:#f87171!important;color:#fef2f2!important}
+    .settingsGreen{background:linear-gradient(180deg,#166534,#0b1f18)!important;border-color:#4ade80!important;color:#ecfdf5!important}
+    .settingsYellow{background:linear-gradient(180deg,#a16207,#342812)!important;border-color:#facc15!important;color:#fff7ed!important}
+  `;
+  document.head.appendChild(style);
+}
+function showAlertBanner(message, type='normal'){
+  if(!alertEnabled(type)) return;
+  ensureAlertBannerStyle();
+  let el=document.getElementById('gameAlertBanner');
+  if(!el){
+    el=document.createElement('div');
+    el.id='gameAlertBanner';
+    document.body.appendChild(el);
+  }
+  el.className='gameAlertBanner ' + (type || 'normal');
+  el.textContent=String(message || '');
+  clearTimeout(el._hideTimer);
+  requestAnimationFrame(()=>el.classList.add('show'));
+  el._hideTimer=setTimeout(()=>el.classList.remove('show'), 2600);
+}
+function showLegendaryEquipBanner(it){
+  if(!it || Number(it.rarity || 0) < 4) return;
+  const owner = S && S.player ? playerNickname(S.player) : '유저';
+  showAlertBanner(`${owner} 전설 장비 획득: ${it.name}`, 'legendary');
+}
+const equipItemBeforeAlertBanner = equipItem;
+equipItem = function(it){
+  equipItemBeforeAlertBanner(it);
+  showLegendaryEquipBanner(it);
+};
+const sendMapChatMessageBeforeAlertBanner = sendMapChatMessage;
+sendMapChatMessage = function(){
+  const input=$('mapChatInput');
+  const text=(input?.value||'').trim();
+  if(!text) return sendMapChatMessageBeforeAlertBanner();
+  sendMapChatMessageBeforeAlertBanner();
+  showAlertBanner('누군가 말을 하고 있습니다.', 'chat');
+};
+function showAccountMenuFromSettings(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const mode = activeLoginMode || S.loginMode || 'guest';
+  const accountDeleteDisabled = isCloudLoginMode(mode) ? '' : ' disabled';
+  showModal(`<h2>계정</h2>
+    <p class="muted">캐릭터 저장 방식: <b>${loginSaveLabel(mode)}</b></p>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn" id="accountCharacterBtn">캐릭터 선택</button>
+      <button class="btn bad" id="accountDeleteCharBtn">현재 캐릭터 삭제</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn warn" id="accountWithdrawBtn"${accountDeleteDisabled}>회원탈퇴</button>
+    </div>`, false);
+  const charBtn=$('accountCharacterBtn');
+  if(charBtn) charBtn.onclick=()=>{ saveRun(); S = null; showCharacterSlots(mode); };
+  const delBtn=$('accountDeleteCharBtn');
+  if(delBtn) delBtn.onclick=()=>showDeleteCurrentCharacterConfirm(mode);
+  const withdrawBtn=$('accountWithdrawBtn');
+  if(withdrawBtn) withdrawBtn.onclick=()=>showAccountWithdrawalConfirm(mode);
+}
+function alertToggleButton(id, label, key){
+  const on = alertSettings[key] !== false;
+  return `<button class="btn ${on ? 'good' : 'bad'}" id="${id}">${label}: ${on ? '켜짐' : '꺼짐'}</button>`;
+}
+function showAlertSettingsMenu(){
+  alertSettings = loadAlertSettings();
+  showModal(`<h2>알림</h2>
+    <p class="muted">알림 배너 표시 여부를 설정합니다.</p>
+    <div class="grid2" style="margin-top:10px">
+      ${alertToggleButton('alertAllBtn','전체 알림','all')}
+      ${alertToggleButton('alertLegendaryBtn','전설 장비','legendary')}
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      ${alertToggleButton('alertChatBtn','채팅 알림','chat')}
+    </div>`, false);
+  const bind=(id,key)=>{
+    const btn=$(id);
+    if(!btn) return;
+    btn.onclick=()=>{
+      alertSettings[key] = alertSettings[key] === false;
+      saveAlertSettings();
+      showAlertSettingsMenu();
+    };
+  };
+  bind('alertAllBtn','all');
+  bind('alertLegendaryBtn','legendary');
+  bind('alertChatBtn','chat');
+}
+showSystemMenu = function(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const mode = activeLoginMode || S.loginMode || 'guest';
+  showModal(`<h2>설정</h2>
+    <p class="muted">캐릭터 저장 방식: <b>${loginSaveLabel(mode)}</b></p>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn settingsBlue" id="menuHelpBtn">도움말</button>
+      <button class="btn settingsRed" id="menuAccountBtn">계정</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn settingsGreen" id="menuKeymapBtn">키맵핑</button>
+      <button class="btn settingsYellow" id="menuAlertBtn">알림</button>
+    </div>`, false);
+  const helpBtn=$('menuHelpBtn'); if(helpBtn) helpBtn.onclick = showHelpMenu;
+  const accountBtn=$('menuAccountBtn'); if(accountBtn) accountBtn.onclick = showAccountMenuFromSettings;
+  const keymapBtn=$('menuKeymapBtn'); if(keymapBtn) keymapBtn.onclick = startLiveKeymapMode;
+  const alertBtn=$('menuAlertBtn'); if(alertBtn) alertBtn.onclick = showAlertSettingsMenu;
+};
+if($('menuMenuBtn')){
+  const b=$('menuMenuBtn').querySelector('b');
+  if(b) b.textContent='설정';
+  $('menuMenuBtn').onclick = showSystemMenu;
+}
+
+
+
+/* REQUEST ONLY: deleting a character removes that character's soul contribution from soul upgrades */
+function soulTrackingModeKey(mode){
+  return isCloudLoginMode(mode) ? mode : 'guest';
+}
+function soulTrackingSlotKey(slotIndex){
+  return String(Math.max(0, Number(slotIndex || 0)));
+}
+function ensureSoulContributionTracking(){
+  if(!meta) meta = normalizeMeta({});
+  if(!meta.soulSourceBySlot || typeof meta.soulSourceBySlot !== 'object') meta.soulSourceBySlot = {};
+  if(!meta.soulSpentBySlot || typeof meta.soulSpentBySlot !== 'object') meta.soulSpentBySlot = {};
+  ['guest','kakao','naver'].forEach(mode=>{
+    if(!meta.soulSourceBySlot[mode] || typeof meta.soulSourceBySlot[mode] !== 'object') meta.soulSourceBySlot[mode] = {};
+    if(!meta.soulSpentBySlot[mode] || typeof meta.soulSpentBySlot[mode] !== 'object') meta.soulSpentBySlot[mode] = {};
+  });
+}
+function addSoulSourceForSlot(mode, slotIndex, amount){
+  ensureSoulContributionTracking();
+  const m = soulTrackingModeKey(mode);
+  const k = soulTrackingSlotKey(slotIndex);
+  const v = Math.max(0, Number(amount || 0));
+  if(v <= 0) return;
+  meta.soulSourceBySlot[m][k] = Math.max(0, Number(meta.soulSourceBySlot[m][k] || 0)) + v;
+}
+function addSoulSpentForSlot(mode, slotIndex, amount){
+  ensureSoulContributionTracking();
+  const m = soulTrackingModeKey(mode);
+  const k = soulTrackingSlotKey(slotIndex);
+  const v = Math.max(0, Number(amount || 0));
+  if(v <= 0) return;
+  meta.soulSpentBySlot[m][k] = Math.max(0, Number(meta.soulSpentBySlot[m][k] || 0)) + v;
+}
+function consumeTrackedMetaSouls(mode, amount){
+  ensureSoulContributionTracking();
+  const m = soulTrackingModeKey(mode);
+  let remain = Math.max(0, Number(amount || 0));
+  const source = meta.soulSourceBySlot[m] || {};
+  Object.keys(source).sort((a,b)=>Number(a)-Number(b)).forEach(k=>{
+    if(remain <= 0) return;
+    const have = Math.max(0, Number(source[k] || 0));
+    if(have <= 0) return;
+    const use = Math.min(have, remain);
+    source[k] = have - use;
+    addSoulSpentForSlot(m, k, use);
+    remain -= use;
+  });
+}
+function lastSoulUpgradeCost(id, lv){
+  const d = metaDefs.find(x=>x.id===id);
+  if(!d || lv <= 0) return 0;
+  return Math.floor(d.base * Math.pow(1.55, lv - 1));
+}
+function removeSoulUpgradesBySpentSoul(amount){
+  let remain = Math.max(0, Number(amount || 0));
+  let removed = 0;
+  if(remain <= 0) return 0;
+  meta.upgrades = Object.assign({hp:0, atk:0, def:0, crit:0, xp:0, gold:0}, meta.upgrades || {});
+  while(remain > 0){
+    let picked = null;
+    let pickedCost = 0;
+    metaDefs.forEach(d=>{
+      const lv = Math.max(0, Number(meta.upgrades[d.id] || 0));
+      const c = lastSoulUpgradeCost(d.id, lv);
+      if(lv > 0 && c >= pickedCost){
+        picked = d.id;
+        pickedCost = c;
+      }
+    });
+    if(!picked || pickedCost <= 0) break;
+    meta.upgrades[picked] = Math.max(0, Number(meta.upgrades[picked] || 0) - 1);
+    removed += pickedCost;
+    remain -= pickedCost;
+  }
+  return removed;
+}
+function removeDeletedCharacterSoulImpact(mode, slotIndex){
+  ensureSoulContributionTracking();
+  const m = soulTrackingModeKey(mode);
+  const k = soulTrackingSlotKey(slotIndex);
+  const slots = normalizeCharacterSlots(getSlotsForMode(m), currentSlotLimit(m));
+  const ch = slots[Number(k)] || null;
+  const p = ch && ch.run && ch.run.player ? ch.run.player : null;
+  const currentSlotSoul = p ? Math.max(0, Number(p.soulsRun || 0)) : 0;
+  const unspentTracked = Math.max(0, Number((meta.soulSourceBySlot[m] || {})[k] || 0));
+  const spentTracked = Math.max(0, Number((meta.soulSpentBySlot[m] || {})[k] || 0));
+
+  if(unspentTracked > 0){
+    meta.souls = Math.max(0, Number(meta.souls || 0) - unspentTracked);
+    meta.soulSourceBySlot[m][k] = 0;
+  }
+
+  const removedUpgradeSoul = removeSoulUpgradesBySpentSoul(spentTracked);
+  if(meta.soulSpentBySlot[m]) meta.soulSpentBySlot[m][k] = 0;
+  if(meta.soulSourceBySlot[m]) meta.soulSourceBySlot[m][k] = 0;
+
+  saveMeta();
+  return {currentSlotSoul, unspentTracked, spentTracked, removedUpgradeSoul};
+}
+const previousSpendPooledSoulsForDeleteSoulTracking = spendPooledSouls;
+spendPooledSouls = function(cost, mode){
+  const safeMode = currentSoulPoolMode(mode);
+  cost = Math.max(0, Number(cost || 0));
+  if(totalSoulAvailable(safeMode) < cost) return false;
+  let remain = cost;
+  const metaUse = Math.min(Math.max(0, Number(meta.souls || 0)), remain);
+  meta.souls = Math.max(0, Number(meta.souls || 0) - metaUse);
+  consumeTrackedMetaSouls(safeMode, metaUse);
+  remain -= metaUse;
+  if(remain > 0){
+    const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
+    for(let i=0;i<slots.length;i++){
+      if(remain <= 0) break;
+      const ch = slots[i];
+      const p = ch && ch.run && ch.run.player ? ch.run.player : null;
+      if(!p || ch.run.dead) continue;
+      const have = Math.max(0, Number(p.soulsRun || 0));
+      if(have <= 0) continue;
+      const use = Math.min(have, remain);
+      p.soulsRun = have - use;
+      ch.run.player.soulsRun = p.soulsRun;
+      ch.updatedAt = new Date().toISOString();
+      addSoulSpentForSlot(safeMode, i, use);
+      remain -= use;
+    }
+    writeBackSoulSlots(safeMode, slots);
+  }
+  saveMeta();
+  return true;
+};
+const previousGameOverForSoulSourceTracking = gameOver;
+gameOver = function(retire){
+  const mode = activeLoginMode || (S && S.loginMode) || 'guest';
+  const slot = activeCharacterSlot != null ? activeCharacterSlot : ((S && S.characterSlotIndex != null) ? S.characterSlotIndex : null);
+  const beforeSoul = Math.max(0, Number(meta && meta.souls || 0));
+  const result = previousGameOverForSoulSourceTracking(retire);
+  const afterSoul = Math.max(0, Number(meta && meta.souls || 0));
+  const gained = Math.max(0, afterSoul - beforeSoul);
+  if(slot != null && gained > 0){
+    addSoulSourceForSlot(mode, slot, gained);
+    saveMeta();
+    if(isCloudLoginMode(mode)) queueCharacterCloudSave();
+  }
+  return result;
+};
+const previousDeleteCharacterSlotOnlyForSoulTracking = deleteCharacterSlotOnly;
+deleteCharacterSlotOnly = function(mode, slotIndex){
+  const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
+  const impact = removeDeletedCharacterSoulImpact(safeMode, slotIndex);
+  previousDeleteCharacterSlotOnlyForSoulTracking(safeMode, slotIndex);
+  if(impact.spentTracked > 0 || impact.unspentTracked > 0 || impact.currentSlotSoul > 0){
+    console.log('deleted character soul impact', impact);
+  }
+};
+showDeleteCharacterConfirm = function(mode, slotIndex){
+  stopAuto();
+  const safeMode = mode || activeLoginMode || 'guest';
+  const slots = normalizeCharacterSlots(getSlotsForMode(safeMode), currentSlotLimit(safeMode));
+  const ch = slots[slotIndex];
+  const name = ch ? ch.nickname : `슬롯 ${slotIndex+1}`;
+  showModal(`<h1 class="srOnly">캐릭터 삭제 확인</h1>
+    <div class="startMenuPanel">
+      <h2 style="margin:0 0 8px">캐릭터 삭제</h2>
+      <p class="muted"><b class="badtxt">${escapeText(name)}</b> 캐릭터를 삭제하시겠습니까?</p>
+      <p class="muted">삭제하면 해당 캐릭터가 보유하거나 영혼 강화에 사용한 영혼도 함께 삭제됩니다.</p>
+      <div class="grid2" style="margin-top:12px">
+        <button class="btn bad" id="deleteCharacterConfirmBtn">삭제하기</button>
+        <button class="btn" id="deleteCharacterCancelBtn">취소</button>
+      </div>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+  $('deleteCharacterCancelBtn').onclick=()=>showCharacterSlots(safeMode);
+  $('deleteCharacterConfirmBtn').onclick=()=>{
+    deleteCharacterSlotOnly(safeMode, slotIndex);
+    if(isCloudLoginMode(safeMode)){
+      saveCloudCharacterProfile()
+        .catch(e=>toast('삭제 저장 실패: ' + e.message))
+        .finally(()=>showCharacterSlots(safeMode));
+    }else{
+      toast('캐릭터를 삭제했습니다.');
+      showCharacterSlots(safeMode);
+    }
+  };
+};
+
+
+
+/* REQUEST ONLY: skill tabs, common Open Door skill, locked dark rooms */
+let activeSkillPageTab = 'job';
+
+function ensureCommonSkillFields(){
+  if(!S || !S.player) return;
+  ensureRunFields();
+  S.player.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0}, S.player.skillEnhance || {});
+  S.lockedRooms = Array.isArray(S.lockedRooms) ? S.lockedRooms : [];
+}
+const ensureRunFieldsBeforeCommonSkill = ensureRunFields;
+ensureRunFields = function(){
+  ensureRunFieldsBeforeCommonSkill();
+  if(S && S.player){
+    S.player.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0}, S.player.skillEnhance || {});
+  }
+  if(S) S.lockedRooms = Array.isArray(S.lockedRooms) ? S.lockedRooms : [];
+};
+
+const skillNameByKeyBeforeCommonSkill = skillNameByKey;
+skillNameByKey = function(k){
+  if(k === 'openDoor') return '문열기';
+  return skillNameByKeyBeforeCommonSkill(k);
+};
+
+function openDoorChance(){
+  const lv = skillLv('openDoor');
+  return clamp(25 + lv * 3, 25, 85);
+}
+const skillEnhanceDescBeforeCommonSkill = skillEnhanceDesc;
+skillEnhanceDesc = function(k){
+  if(k === 'openDoor'){
+    const lv = skillLv('openDoor');
+    const info = skillCostInfo(lv);
+    if(lv >= 20) return `MAX 강화 완료 · 잠긴 문 열기 확률 ${openDoorChance()}%`;
+    return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · 현재 문 열기 확률 ${openDoorChance()}%`;
+  }
+  return skillEnhanceDescBeforeCommonSkill(k);
+};
+
+function skillTabButtons(tab){
+  return `<div class="grid2" style="margin-top:8px">
+    <button class="btn ${tab==='job'?'good':''}" id="skillJobTabBtn">직업</button>
+    <button class="btn ${tab==='common'?'good':''}" id="skillCommonTabBtn">공통</button>
+  </div>`;
+}
+function bindSkillTabs(){
+  const job=$('skillJobTabBtn'), common=$('skillCommonTabBtn');
+  if(job) job.onclick=()=>showSkillMenu('job');
+  if(common) common.onclick=()=>showSkillMenu('common');
+}
+function jobSkillCards(){
+  const p=S.player; const map={
+    warrior:[['강타','인접 적에게 큰 피해를 준다.'],['방패돌진','방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],['전투함성','HP를 회복하고 잠시 공격력이 증가한다.']],
+    rogue:[['급소찌르기','근접 단일 대상 치명 강화 공격.'],['그림자도약','방향을 정해 이동하고 다음 공격이 강화된다.'],['연막','연막을 펼쳐 회피율이 크게 오른다.']],
+    mage:[['마력탄','사거리 5칸 원거리 마법탄.'],['화염폭발','주변 2칸 적들을 불태우는 광역 기술.'],['재생술','HP를 많이 회복한다.']],
+    hunter:[['정밀사격','직선상의 적에게 강한 사격.'],['구르기','방향 지정 이동'],['다발 사격','여러 적에게 동시에 사격한다.']]
+  };
+  const skillKeys=['smash','dash','heal'];
+  const skills=map[p.classId]||[];
+  return skills.map((s,i)=>{
+    const k=skillKeys[i]; const lv=skillLv(k);
+    return `<div class="choice skillChoice"><h4>${i+1}. ${s[0]} <span class="legend">+${lv}</span></h4><p>${s[1]}</p><p class="muted">${skillEnhanceDesc(k)}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>강화</button></div>`;
+  }).join('');
+}
+function commonSkillCards(){
+  const lv=skillLv('openDoor');
+  return `<div class="choice skillChoice">
+    <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
+    <p>인접한 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
+    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn warn smallbtn" id="useOpenDoorSkillBtn">사용</button>
+      <button class="btn good smallbtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>
+    </div>
+  </div>`;
+}
+showSkillMenu = function(tab='job'){
+  if(!S) return;
+  pauseAutoForChoice();
+  ensureCommonSkillFields();
+  activeSkillPageTab = tab === 'common' ? 'common' : 'job';
+  const cards = activeSkillPageTab === 'common' ? commonSkillCards() : jobSkillCards();
+  showModal(`<h2>스킬</h2>${skillTabButtons(activeSkillPageTab)}<div class="grid3" style="grid-template-columns:1fr; margin-top:10px">${cards}</div>`, false);
+  bindSkillTabs();
+  modalCard.querySelectorAll('[data-skill-enhance]').forEach(btn=>btn.onclick=()=>enhanceSkill(btn.dataset.skillEnhance));
+  const openBtn=$('useOpenDoorSkillBtn');
+  if(openBtn) openBtn.onclick=()=>useOpenDoorSkill();
+};
+
+const enhanceSkillBeforeCommonDoor = enhanceSkill;
+enhanceSkill = function(k){
+  ensureCommonSkillFields();
+  const p=S.player; const lv=skillLv(k);
+  if(lv>=20){ toast('이미 최대 강화다.'); return; }
+  const info=skillCostInfo(lv);
+  if(p.gold<info.cost){ toast('골드가 부족하다.'); return; }
+  p.gold-=info.cost;
+  const roll=rand(100)+1;
+  let result='유지';
+  if(roll<=info.s){ p.skillEnhance[k]=lv+1; result='성공'; }
+  else if(roll>info.s+info.k){ p.skillEnhance[k]=Math.max(0,lv-1); result='하락'; }
+  addLog(`${skillNameByKey(k)} 강화 ${result}. 현재 +${p.skillEnhance[k]}.`);
+  renderAll(); saveRun(); showSkillMenu(k === 'openDoor' ? 'common' : activeSkillPageTab);
+};
+
+function lockedRoomOpenState(room){
+  return !!(room && room.opened);
+}
+function lockedDoorAt(x,y, includeOpened=false){
+  if(!S || !Array.isArray(S.lockedRooms)) return null;
+  return S.lockedRooms.find(r=>r && r.door && r.door.x===x && r.door.y===y && (includeOpened || !r.opened)) || null;
+}
+function lockedRoomCellAt(x,y){
+  if(!S || !Array.isArray(S.lockedRooms)) return null;
+  return S.lockedRooms.find(r=>!r.opened && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y)) || null;
+}
+function hideLockedRoomSeenCells(){
+  if(!S || !S.seen || !Array.isArray(S.lockedRooms)) return;
+  S.lockedRooms.forEach(r=>{
+    if(!r || r.opened || !Array.isArray(r.cells)) return;
+    r.cells.forEach(c=>{ if(inMap(c.x,c.y)) S.seen[c.y][c.x]=false; });
+  });
+}
+function revealLockedRoom(room){
+  if(!S || !room) return;
+  room.opened = true;
+  if(room.door && inMap(room.door.x, room.door.y)) S.map[room.door.y][room.door.x]='.';
+  (room.cells||[]).forEach(c=>{ if(inMap(c.x,c.y)) S.seen[c.y][c.x]=true; });
+  if(room.door && inMap(room.door.x, room.door.y)) S.seen[room.door.y][room.door.x]=true;
+}
+function adjacentLockedDoor(){
+  if(!S || !S.player) return null;
+  const p=S.player;
+  for(const [dx,dy] of DIRS){
+    const r=lockedDoorAt(p.x+dx,p.y+dy,false);
+    if(r) return r;
+  }
+  return null;
+}
+function useOpenDoorSkill(){
+  if(!S || !S.player) return;
+  const room = adjacentLockedDoor();
+  if(!room){
+    toast('인접한 잠긴 문이 없습니다.');
+    return;
+  }
+  hideModal();
+  const pct=openDoorChance();
+  const ok = rand(100) < pct;
+  const p=S.player;
+  if(ok){
+    revealLockedRoom(room);
+    addFx({kind:'ring', x:room.door.x, y:room.door.y, color:'#facc15', dur:380});
+    addLog(`<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. (${pct}%)`);
+  }else{
+    addFx({kind:'hit', x:room.door.x, y:room.door.y, color:'#64748b', spark:'#cbd5e1', dur:220});
+    addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
+  }
+  afterPlayerAction();
+};
+
+const passableBeforeLockedDoor = passable;
+passable = function(x,y){
+  if(lockedDoorAt(x,y,false)) return false;
+  return passableBeforeLockedDoor(x,y);
+};
+const blockedBeforeLockedDoor = blocked;
+blocked = function(x,y){
+  if(lockedDoorAt(x,y,false) || lockedRoomCellAt(x,y)) return true;
+  return blockedBeforeLockedDoor(x,y);
+};
+const clearLineBeforeLockedDoor = clearLine;
+clearLine = function(x1,y1,x2,y2){
+  if(x1!==x2 && y1!==y2) return false;
+  const dx=Math.sign(x2-x1), dy=Math.sign(y2-y1); let x=x1+dx,y=y1+dy;
+  while(x!==x2 || y!==y2){
+    if(S.map[y][x]==='#' || lockedDoorAt(x,y,false) || lockedRoomCellAt(x,y)) return false;
+    x+=dx; y+=dy;
+  }
+  return true;
+};
+const revealBeforeLockedRooms = reveal;
+reveal = function(){
+  revealBeforeLockedRooms();
+  hideLockedRoomSeenCells();
+};
+
+function canPlaceLockedRoomRect(rx,ry,w,h){
+  if(rx<2 || ry<2 || rx+w>=MAPW-2 || ry+h>=MAPH-2) return false;
+  for(let y=ry;y<ry+h;y++) for(let x=rx;x<rx+w;x++){
+    if(!inMap(x,y) || S.map[y][x] !== '#') return false;
+  }
+  return true;
+}
+function lockedRoomRectForDoor(door, dir){
+  const w=4+rand(3), h=4+rand(3);
+  let rx=0, ry=0;
+  if(dir.dx===1){ rx=door.x+1; ry=door.y-rand(h); }
+  else if(dir.dx===-1){ rx=door.x-w; ry=door.y-rand(h); }
+  else if(dir.dy===1){ rx=door.x-rand(w); ry=door.y+1; }
+  else { rx=door.x-rand(w); ry=door.y-h; }
+  return {rx,ry,w,h};
+}
+function findLockedRoomCandidate(){
+  const dirs=[{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+  const candidates=[];
+  for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){
+    if(S.map[y][x] !== '.') continue;
+    if(S.exit && S.exit.x===x && S.exit.y===y) continue;
+    dirs.forEach(d=>{
+      const door={x:x+d.dx,y:y+d.dy};
+      if(!inMap(door.x,door.y) || S.map[door.y][door.x] !== '#') return;
+      for(let tries=0;tries<3;tries++){
+        const rect=lockedRoomRectForDoor(door,d);
+        if(canPlaceLockedRoomRect(rect.rx,rect.ry,rect.w,rect.h)) candidates.push({door,dir:d,rect});
+      }
+    });
+  }
+  return candidates.length ? one(candidates) : null;
+}
+function placeLockedRoomItem(room, type, data={}){
+  const cells=(room.cells||[]).slice();
+  for(let tries=0;tries<80 && cells.length;tries++){
+    const c=one(cells);
+    if(S.items.some(i=>i.x===c.x&&i.y===c.y) || S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) continue;
+    S.items.push(Object.assign({x:c.x,y:c.y,type}, data));
+    return true;
+  }
+  return false;
+}
+function populateLockedRoom(room, floor){
+  const typeRoll=rand(100);
+  room.rewardType = typeRoll<42 ? 'monster' : (typeRoll<78 ? 'treasure' : 'event');
+  if(room.rewardType==='monster'){
+    const n=5+rand(6)+Math.floor(floor/4);
+    for(let i=0;i<n;i++){
+      const c=one(room.cells);
+      if(S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) continue;
+      S.enemies.push(makeEnemy(c.x,c.y,floor,false));
+    }
+    if(chance(.45)) placeLockedRoomItem(room,'chest',{source:'elite'});
+  }else if(room.rewardType==='treasure'){
+    for(let i=0;i<5+rand(5);i++) placeLockedRoomItem(room,'gold',{amount:Math.floor((20+rand(40)+floor*5)*goldRate())});
+    for(let i=0;i<2+rand(3);i++) placeLockedRoomItem(room,'chest',{source:chance(.35)?'elite':'normal'});
+    if(chance(.35)) placeLockedRoomItem(room,'skillgem',{});
+    if(chance(.22)) placeLockedRoomItem(room,'relic',{});
+    if(chance(.28)) placeLockedRoomItem(room,'soul',{amount:1+Math.floor(floor/8)});
+  }else{
+    ['vault','oracle','camp','shrine','skillgem','chest'].forEach(t=>{
+      if(chance(.72)) placeLockedRoomItem(room,t,t==='chest'?{source:'elite'}:{});
+    });
+    for(let i=0;i<2+rand(4);i++){
+      const c=one(room.cells);
+      if(!S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) S.enemies.push(makeEnemy(c.x,c.y,floor,false));
+    }
+  }
+}
+function installLockedRoomsForFloor(floor){
+  if(!S || !Array.isArray(S.map)) return;
+  S.lockedRooms = [];
+  const count = chance(.72) ? (floor>=8 && chance(.45) ? 2 : 1) : 0;
+  for(let i=0;i<count;i++){
+    const cand=findLockedRoomCandidate();
+    if(!cand) break;
+    const {door,rect}=cand;
+    const cells=[];
+    for(let y=rect.ry;y<rect.ry+rect.h;y++) for(let x=rect.rx;x<rect.rx+rect.w;x++){
+      S.map[y][x]='.';
+      S.seen[y][x]=false;
+      cells.push({x,y});
+    }
+    S.map[door.y][door.x]='D';
+    S.seen[door.y][door.x]=false;
+    const room={id:'locked_'+floor+'_'+i+'_'+Date.now().toString(36), door, cells, opened:false};
+    populateLockedRoom(room, floor);
+    S.lockedRooms.push(room);
+  }
+  reveal();
+}
+const generateFloorBeforeLockedRooms = generateFloor;
+generateFloor = function(floor, first=false){
+  generateFloorBeforeLockedRooms(floor, first);
+  installLockedRoomsForFloor(floor);
+};
+
+function drawLockedDoorAndShroudOverlay(){
+  if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+  const p=S.player;
+  const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
+  for(const room of S.lockedRooms){
+    if(!room || room.opened) continue;
+    (room.cells||[]).forEach(c=>{
+      if(!inView(c.x,c.y,ox,oy)) return;
+      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+      ctx.save();
+      ctx.fillStyle='rgba(0,0,0,.86)';
+      ctx.fillRect(px,py,TILE,TILE);
+      ctx.fillStyle='rgba(30,41,59,.54)';
+      ctx.fillRect(px+3,py+3,TILE-6,TILE-6);
+      ctx.restore();
+    });
+    const d=room.door;
+    if(d && inView(d.x,d.y,ox,oy) && S.seen[d.y] && S.seen[d.y][d.x]){
+      const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+      ctx.save();
+      ctx.fillStyle='#3b2413';
+      ctx.fillRect(px+5,py+4,TILE-10,TILE-7);
+      ctx.strokeStyle='#facc15';
+      ctx.lineWidth=2;
+      ctx.strokeRect(px+7,py+6,TILE-14,TILE-11);
+      ctx.fillStyle='#facc15';
+      ctx.font='bold 14px system-ui';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText('🔒',px+TILE/2,py+TILE/2+1);
+      ctx.restore();
+    }
+  }
+}
+const renderBeforeLockedRooms = render;
+render = function(){
+  renderBeforeLockedRooms();
+  drawLockedDoorAndShroudOverlay();
+};
+const mapCellClassBeforeLockedRooms = mapCellClass;
+mapCellClass = function(x,y){
+  if(lockedRoomCellAt(x,y)) return '';
+  if(lockedDoorAt(x,y,false)) return 'wall';
+  return mapCellClassBeforeLockedRooms(x,y);
+};
+
+
+
+/* REQUEST ONLY: connect bottom skill button to tabbed skill menu */
+if($('skillMenuBtn')){
+  $('skillMenuBtn').onclick = ()=>showSkillMenu('job');
+}
+
+
+
+/* REQUEST ONLY: equal common skill panel size and quickslot assignment for all skills */
+function ensureSkillQuickSlots(){
+  if(!S || !S.player) return;
+  ensureCommonSkillFields();
+  const q = Array.isArray(S.player.skillQuickSlots) ? S.player.skillQuickSlots.slice(0,3) : ['smash','dash','heal'];
+  while(q.length < 3) q.push(['smash','dash','heal'][q.length] || 'smash');
+  S.player.skillQuickSlots = q.map(k=>['smash','dash','heal','openDoor'].includes(k) ? k : 'smash');
+}
+function skillSmallTextByKey(k){
+  if(k === 'openDoor') return '공통 기술';
+  const map = {smash:'직업 기술 1', dash:'직업 기술 2', heal:'직업 기술 3'};
+  return map[k] || '스킬';
+}
+function skillFunctionByKey(k){
+  if(k === 'openDoor') return useOpenDoorSkill;
+  if(k === 'smash') return skillSmash;
+  if(k === 'dash') return skillDash;
+  if(k === 'heal') return skillHeal;
+  return skillSmash;
+}
+function skillCooldownByKey(k){
+  if(!S || !S.player) return 0;
+  if(k === 'openDoor') return 0;
+  return Math.max(0, Number(S.player.cd && S.player.cd[k] || 0));
+}
+function quickSlotSkillKey(slotIndex){
+  ensureSkillQuickSlots();
+  return S.player.skillQuickSlots[slotIndex] || ['smash','dash','heal'][slotIndex] || 'smash';
+}
+function useQuickSlotSkill(slotIndex){
+  if(!S || !S.player) return;
+  const key = quickSlotSkillKey(slotIndex);
+  setSkillRangePreview(key === 'openDoor' ? 'dash' : key, 1200);
+  const fn = skillFunctionByKey(key);
+  fn();
+}
+function updateSkillButtonsFromQuickSlots(){
+  if(!S || !S.player) return;
+  ensureSkillQuickSlots();
+  ['skill1','skill2','skill3'].forEach((id,idx)=>{
+    const el=$(id);
+    if(!el) return;
+    const key=quickSlotSkillKey(idx);
+    const b=el.querySelector('b');
+    const small=el.querySelector('small');
+    if(b) b.textContent=skillNameByKey(key);
+    if(small) small.textContent=skillSmallTextByKey(key);
+    updateCooldown(id, skillCooldownByKey(key));
+  });
+}
+const updateSkillButtonsBeforeQuickSlots = updateSkillButtons;
+updateSkillButtons = function(){
+  updateSkillButtonsFromQuickSlots();
+};
+const updateUiBeforeQuickSlots = updateUi;
+updateUi = function(){
+  updateUiBeforeQuickSlots();
+  updateSkillButtonsFromQuickSlots();
+};
+function bindQuickSlotButtons(){
+  ['skill1','skill2','skill3'].forEach((id,idx)=>{
+    const btn=$(id);
+    if(!btn) return;
+    btn.onclick=(e)=>{
+      if(e){ e.preventDefault(); e.stopPropagation(); }
+      useQuickSlotSkill(idx);
+    };
+  });
+}
+function bindQuickSlotPointerPreview(){
+  ['skill1','skill2','skill3'].forEach((id,idx)=>{
+    const btn=$(id);
+    if(!btn || btn.dataset.quickSlotPreviewBound === '1') return;
+    btn.dataset.quickSlotPreviewBound = '1';
+    btn.addEventListener('pointerdown', ()=>{
+      const key=quickSlotSkillKey(idx);
+      setSkillRangePreview(key === 'openDoor' ? 'dash' : key, 900);
+    }, {passive:true});
+  });
+}
+function quickSlotAssignButton(k){
+  return `<button class="btn warn smallbtn skillQuickslotBtn" data-skill-quick="${k}">퀵슬롯</button>`;
+}
+function bindSkillQuickButtons(){
+  modalCard.querySelectorAll('[data-skill-quick]').forEach(btn=>{
+    btn.onclick=()=>showQuickSlotSelect(btn.dataset.skillQuick);
+  });
+}
+function showQuickSlotSelect(skillKey){
+  ensureSkillQuickSlots();
+  const name = skillNameByKey(skillKey);
+  showModal(`<h2>퀵슬롯 지정</h2>
+    <p class="muted"><b class="legend">${escapeText(name)}</b>을 넣을 스킬 버튼을 선택하세요.</p>
+    <div class="grid3" style="grid-template-columns:1fr; margin-top:10px">
+      <button class="btn good" data-assign-quick="0">스킬 버튼 1</button>
+      <button class="btn good" data-assign-quick="1">스킬 버튼 2</button>
+      <button class="btn good" data-assign-quick="2">스킬 버튼 3</button>
+    </div>`, false);
+  modalCard.querySelectorAll('[data-assign-quick]').forEach(btn=>{
+    btn.onclick=()=>{
+      const idx=Number(btn.dataset.assignQuick);
+      S.player.skillQuickSlots[idx] = skillKey;
+      addLog(`${skillNameByKey(skillKey)}을 스킬 버튼 ${idx+1}에 지정.`);
+      toast(`스킬 버튼 ${idx+1}: ${skillNameByKey(skillKey)}`);
+      saveRun();
+      updateSkillButtonsFromQuickSlots();
+      showSkillMenu(activeSkillPageTab);
+    };
+  });
+}
+function jobSkillCardsQuickslot(){
+  const p=S.player; const map={
+    warrior:[['강타','인접 적에게 큰 피해를 준다.'],['방패돌진','방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],['전투함성','HP를 회복하고 잠시 공격력이 증가한다.']],
+    rogue:[['급소찌르기','근접 단일 대상 치명 강화 공격.'],['그림자도약','방향을 정해 이동하고 다음 공격이 강화된다.'],['연막','연막을 펼쳐 회피율이 크게 오른다.']],
+    mage:[['마력탄','사거리 5칸 원거리 마법탄.'],['화염폭발','주변 2칸 적들을 불태우는 광역 기술.'],['재생술','HP를 많이 회복한다.']],
+    hunter:[['정밀사격','직선상의 적에게 강한 사격.'],['구르기','방향 지정 이동'],['다발 사격','여러 적에게 동시에 사격한다.']]
+  };
+  const skillKeys=['smash','dash','heal'];
+  const skills=map[p.classId]||[];
+  return skills.map((s,i)=>{
+    const k=skillKeys[i]; const lv=skillLv(k);
+    return `<div class="choice skillChoice"><h4>${i+1}. ${s[0]} <span class="legend">+${lv}</span></h4><p>${s[1]}</p><p class="muted">${skillEnhanceDesc(k)}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton(k)}</div>`;
+  }).join('');
+}
+function commonSkillCardsQuickslot(){
+  const lv=skillLv('openDoor');
+  return `<div class="choice skillChoice">
+    <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
+    <p>인접한 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
+    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
+  </div>
+  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
+  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
+}
+showSkillMenu = function(tab='job'){
+  if(!S) return;
+  pauseAutoForChoice();
+  ensureSkillQuickSlots();
+  activeSkillPageTab = tab === 'common' ? 'common' : 'job';
+  const cards = activeSkillPageTab === 'common' ? commonSkillCardsQuickslot() : jobSkillCardsQuickslot();
+  showModal(`<h2>스킬</h2>${skillTabButtons(activeSkillPageTab)}<div class="grid3 skillTabCardGrid" style="grid-template-columns:1fr; margin-top:10px">${cards}</div>`, false);
+  bindSkillTabs();
+  modalCard.querySelectorAll('[data-skill-enhance]').forEach(btn=>btn.onclick=()=>enhanceSkill(btn.dataset.skillEnhance));
+  bindSkillQuickButtons();
+};
+const enhanceSkillBeforeQuickSlotReturn = enhanceSkill;
+enhanceSkill = function(k){
+  ensureSkillQuickSlots();
+  const p=S.player; const lv=skillLv(k);
+  if(lv>=20){ toast('이미 최대 강화다.'); return; }
+  const info=skillCostInfo(lv);
+  if(p.gold<info.cost){ toast('골드가 부족하다.'); return; }
+  p.gold-=info.cost;
+  const roll=rand(100)+1;
+  let result='유지';
+  if(roll<=info.s){ p.skillEnhance[k]=lv+1; result='성공'; }
+  else if(roll>info.s+info.k){ p.skillEnhance[k]=Math.max(0,lv-1); result='하락'; }
+  addLog(`${skillNameByKey(k)} 강화 ${result}. 현재 +${p.skillEnhance[k]}.`);
+  renderAll(); saveRun(); showSkillMenu(k === 'openDoor' ? 'common' : activeSkillPageTab);
+};
+(function installQuickSlotStyle(){
+  if(document.getElementById('quickSlotSkillStyle')) return;
+  const style=document.createElement('style');
+  style.id='quickSlotSkillStyle';
+  style.textContent=`
+    .skillChoice{min-height:112px}
+    .skillQuickslotBtn{position:absolute;left:88px;bottom:10px;min-width:74px;padding:6px 9px;font-size:12px;border-radius:9px}
+    .commonSkillFiller{visibility:hidden;pointer-events:none}
+    .skillTabCardGrid{min-height:374px}
+  `;
+  document.head.appendChild(style);
+})();
+bindQuickSlotButtons();
+bindQuickSlotPointerPreview();
+if($('skillMenuBtn')) $('skillMenuBtn').onclick = ()=>showSkillMenu('job');
+document.addEventListener('keydown', e=>{
+  if(e.target && ['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) return;
+  if(e.repeat || !S || modalOpen) return;
+  const k=e.key.toLowerCase();
+  if(k==='1' || k==='2' || k==='3'){
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    useQuickSlotSkill(Number(k)-1);
+  }
+}, true);
+
+
+
+/* REQUEST ONLY: quickslot select window button labels */
+showQuickSlotSelect = function(skillKey){
+  ensureSkillQuickSlots();
+  const name = skillNameByKey(skillKey);
+  showModal(`<h2>스킬슬롯</h2>
+    <p class="muted"><b class="legend">${escapeText(name)}</b>을 넣을 스킬 버튼을 선택하세요.</p>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn good" data-assign-quick="0">스킬1</button>
+      <button class="btn good" data-assign-quick="1">스킬2</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn good" data-assign-quick="2">스킬3</button>
+      <button class="btn" id="quickSlotCloseBtn">닫기</button>
+    </div>`, false);
+
+  modalCard.querySelectorAll('[data-assign-quick]').forEach(btn=>{
+    btn.onclick=()=>{
+      const idx=Number(btn.dataset.assignQuick);
+      S.player.skillQuickSlots[idx] = skillKey;
+      addLog(`${skillNameByKey(skillKey)}을 스킬${idx+1}에 지정.`);
+      toast(`스킬${idx+1}: ${skillNameByKey(skillKey)}`);
+      saveRun();
+      updateSkillButtonsFromQuickSlots();
+      showSkillMenu(activeSkillPageTab);
+    };
+  });
+
+  const closeBtn=$('quickSlotCloseBtn');
+  if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
+};
+
+
+
+/* REQUEST ONLY: prevent duplicate skill quickslot assignment */
+showQuickSlotSelect = function(skillKey){
+  ensureSkillQuickSlots();
+  const name = skillNameByKey(skillKey);
+  showModal(`<h2>스킬슬롯</h2>
+    <p class="muted"><b class="legend">${escapeText(name)}</b>을 넣을 스킬 버튼을 선택하세요.</p>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn good" data-assign-quick="0">스킬1</button>
+      <button class="btn good" data-assign-quick="1">스킬2</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn good" data-assign-quick="2">스킬3</button>
+      <button class="btn" id="quickSlotCloseBtn">닫기</button>
+    </div>`, false);
+
+  modalCard.querySelectorAll('[data-assign-quick]').forEach(btn=>{
+    btn.onclick=()=>{
+      const idx=Number(btn.dataset.assignQuick);
+
+      // 같은 스킬이 다른 슬롯에 이미 있으면 먼저 비워서 중복 방지
+      S.player.skillQuickSlots = S.player.skillQuickSlots.map((k,i)=>{
+        if(i !== idx && k === skillKey) return null;
+        return k;
+      });
+
+      S.player.skillQuickSlots[idx] = skillKey;
+
+      addLog(`${skillNameByKey(skillKey)}을 스킬${idx+1}에 지정.`);
+      toast(`스킬${idx+1}: ${skillNameByKey(skillKey)}`);
+      saveRun();
+      updateSkillButtonsFromQuickSlots();
+      showSkillMenu(activeSkillPageTab);
+    };
+  });
+
+  const closeBtn=$('quickSlotCloseBtn');
+  if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
+};
+
+
+
+/* REQUEST ONLY: lower Open Door chance and fix range to 1 tile */
+openDoorChance = function(){
+  const lv = skillLv('openDoor');
+  return clamp(8 + lv * 2, 8, 48);
+};
+
+skillEnhanceDesc = function(k){
+  if(k === 'openDoor'){
+    const lv = skillLv('openDoor');
+    const info = skillCostInfo(lv);
+    if(lv >= 20) return `MAX 강화 완료 · 문 열기 확률 ${openDoorChance()}% · 사거리 1칸`;
+    return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · 현재 문 열기 확률 ${openDoorChance()}% · 사거리 1칸`;
+  }
+  return skillEnhanceDescBeforeCommonSkill(k);
+};
+
+commonSkillCardsQuickslot = function(){
+  const lv=skillLv('openDoor');
+  return `<div class="choice skillChoice">
+    <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
+    <p>인접 1칸 안의 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
+    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
+  </div>
+  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
+  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
+};
+
+useOpenDoorSkill = function(){
+  if(!S || !S.player) return;
+  const room = adjacentLockedDoor(); // 사거리 1칸: 상하좌우 인접한 문만 대상
+  if(!room){
+    toast('사거리 1칸 안에 잠긴 문이 없습니다.');
+    return;
+  }
+  const doorDistance = Math.abs(S.player.x - room.door.x) + Math.abs(S.player.y - room.door.y);
+  if(doorDistance !== 1){
+    toast('문열기 사거리는 1칸입니다.');
+    return;
+  }
+  hideModal();
+  const pct=openDoorChance();
+  const ok = rand(100) < pct;
+  if(ok){
+    revealLockedRoom(room);
+    addFx({kind:'ring', x:room.door.x, y:room.door.y, color:'#facc15', dur:380});
+    addLog(`<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. (${pct}%)`);
+  }else{
+    addFx({kind:'hit', x:room.door.x, y:room.door.y, color:'#64748b', spark:'#cbd5e1', dur:220});
+    addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
+  }
+  afterPlayerAction();
+};
+
+
+
+
+/* REQUEST ONLY: rogue bonus, boss can open locked door, fog display, quickslot swap rules */
+openDoorChance = function(){
+  const lv = skillLv('openDoor');
+  const rogueBonus = S && S.player && S.player.classId === 'rogue' ? 12 + Math.floor(lv / 4) : 0;
+  return clamp(8 + lv * 2 + rogueBonus, 8, S && S.player && S.player.classId === 'rogue' ? 65 : 48);
+};
+
+skillEnhanceDesc = function(k){
+  if(k === 'openDoor'){
+    const lv = skillLv('openDoor');
+    const info = skillCostInfo(lv);
+    const rogueText = S && S.player && S.player.classId === 'rogue' ? ' · 도적 보너스 적용' : '';
+    if(lv >= 20) return `MAX 강화 완료 · 문 열기 확률 ${openDoorChance()}% · 사거리 1칸${rogueText}`;
+    return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · 현재 문 열기 확률 ${openDoorChance()}% · 사거리 1칸${rogueText}`;
+  }
+  return skillEnhanceDescBeforeCommonSkill(k);
+};
+
+commonSkillCardsQuickslot = function(){
+  const lv=skillLv('openDoor');
+  const rogueText = S && S.player && S.player.classId === 'rogue' ? '<p class="goodtxt">도적 보너스: 문열기 확률 추가 보정</p>' : '';
+  return `<div class="choice skillChoice">
+    <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
+    <p>인접 1칸 안의 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
+    ${rogueText}
+    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
+  </div>
+  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
+  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
+};
+
+function bossInsideLockedRoom(room){
+  if(!S || !room || room.opened || !Array.isArray(room.cells)) return null;
+  return (S.enemies || []).find(e=>{
+    if(!e || e.hp <= 0 || !e.boss) return false;
+    return room.cells.some(c=>c.x===e.x && c.y===e.y);
+  }) || null;
+}
+function bossOpenLockedRooms(){
+  if(!S || !Array.isArray(S.lockedRooms)) return false;
+  let opened = false;
+  S.lockedRooms.forEach(room=>{
+    const boss = bossInsideLockedRoom(room);
+    if(!boss) return;
+    revealLockedRoom(room);
+    if(room.door) addFx({kind:'ring', x:room.door.x, y:room.door.y, color:'#ef4444', dur:420});
+    addLog(`<span class="badtxt">${boss.name}</span>이 잠긴 문을 열었다.`);
+    opened = true;
+  });
+  return opened;
+}
+const afterPlayerActionBeforeBossOpenDoor = afterPlayerAction;
+afterPlayerAction = function(wait=false){
+  const result = afterPlayerActionBeforeBossOpenDoor(wait);
+  if(bossOpenLockedRooms()){
+    renderAll();
+    saveRun();
+  }
+  return result;
+};
+const generateFloorBeforeBossOpenDoor = generateFloor;
+generateFloor = function(floor, first=false){
+  generateFloorBeforeBossOpenDoor(floor, first);
+  bossOpenLockedRooms();
+};
+
+/* locked room must look like unexplored black fog, not darkened floor tiles */
+drawLockedDoorAndShroudOverlay = function(){
+  if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+  const p=S.player;
+  const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
+  for(const room of S.lockedRooms){
+    if(!room || room.opened) continue;
+    const d=room.door;
+    if(d && inView(d.x,d.y,ox,oy) && S.seen[d.y] && S.seen[d.y][d.x]){
+      const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+      ctx.save();
+      ctx.fillStyle='#3b2413';
+      ctx.fillRect(px+5,py+4,TILE-10,TILE-7);
+      ctx.strokeStyle='#facc15';
+      ctx.lineWidth=2;
+      ctx.strokeRect(px+7,py+6,TILE-14,TILE-11);
+      ctx.fillStyle='#facc15';
+      ctx.font='bold 14px system-ui';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText('🔒',px+TILE/2,py+TILE/2+1);
+      ctx.restore();
+    }
+  }
+};
+
+showQuickSlotSelect = function(skillKey){
+  ensureSkillQuickSlots();
+  const name = skillNameByKey(skillKey);
+  showModal(`<h2>스킬슬롯</h2>
+    <p class="muted"><b class="legend">${escapeText(name)}</b>을 넣을 스킬 버튼을 선택하세요.</p>
+    <div class="grid2" style="margin-top:10px">
+      <button class="btn good" data-assign-quick="0">스킬1</button>
+      <button class="btn good" data-assign-quick="1">스킬2</button>
+    </div>
+    <div class="grid2" style="margin-top:8px">
+      <button class="btn good" data-assign-quick="2">스킬3</button>
+      <button class="btn" id="quickSlotCloseBtn">닫기</button>
+    </div>`, false);
+
+  modalCard.querySelectorAll('[data-assign-quick]').forEach(btn=>{
+    btn.onclick=()=>{
+      const idx=Number(btn.dataset.assignQuick);
+      const q = S.player.skillQuickSlots.slice(0,3);
+      while(q.length < 3) q.push(null);
+
+      const previousIndex = q.findIndex(k=>k === skillKey);
+      const displaced = q[idx] || null;
+
+      if(previousIndex >= 0 && previousIndex !== idx){
+        q[idx] = skillKey;
+        q[previousIndex] = displaced;
+      }else{
+        q[idx] = skillKey;
+      }
+
+      S.player.skillQuickSlots = q;
+
+      addLog(`${skillNameByKey(skillKey)}을 스킬${idx+1}에 지정.`);
+      toast(`스킬${idx+1}: ${skillNameByKey(skillKey)}`);
+      saveRun();
+      updateSkillButtonsFromQuickSlots();
+      showSkillMenu(activeSkillPageTab);
+    };
+  });
+
+  const closeBtn=$('quickSlotCloseBtn');
+  if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
+};
+
+
+
+
+/* REQUEST ONLY: move quickslot button to right edge, force Open Door range to 1 tile for all jobs */
+(function moveQuickSlotButtonRight(){
+  let style=document.getElementById('quickSlotRightEdgeStyle');
+  if(!style){
+    style=document.createElement('style');
+    style.id='quickSlotRightEdgeStyle';
+    document.head.appendChild(style);
+  }
+  style.textContent=`
+    .skillQuickslotBtn{
+      left:auto!important;
+      right:10px!important;
+      bottom:10px!important;
+    }
+    .skillEnhanceBtn{
+      left:10px!important;
+      right:auto!important;
+    }
+  `;
+})();
+
+function openDoorPreviewRangeCells(){
+  if(!S || !S.player) return [];
+  const p=S.player;
+  return DIRS.map(([dx,dy])=>({x:p.x+dx,y:p.y+dy})).filter(c=>inMap(c.x,c.y));
+}
+
+const setSkillRangePreviewBeforeOpenDoorRangeFix = setSkillRangePreview;
+setSkillRangePreview = function(key, dur=1100){
+  if(key === 'openDoor'){
+    skillRangePreview = {key:'openDoor', until:nowMs()+dur};
+    render();
+    return;
+  }
+  return setSkillRangePreviewBeforeOpenDoorRangeFix(key, dur);
+};
+
+const renderSkillRangePreviewBeforeOpenDoorRangeFix = renderSkillRangePreview;
+renderSkillRangePreview = function(ox,oy){
+  if(skillRangePreview && skillRangePreview.key === 'openDoor'){
+    if(nowMs() > skillRangePreview.until){ skillRangePreview=null; return; }
+    openDoorPreviewRangeCells().forEach(c=>{
+      if(!inView(c.x,c.y,ox,oy)) return;
+      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+      ctx.save();
+      ctx.globalAlpha=.58;
+      ctx.fillStyle='rgba(250,204,21,.32)';
+      ctx.fillRect(px+3,py+3,TILE-6,TILE-6);
+      ctx.strokeStyle='rgba(250,204,21,.95)';
+      ctx.lineWidth=2;
+      ctx.strokeRect(px+4,py+4,TILE-8,TILE-8);
+      ctx.restore();
+    });
+    return;
+  }
+  return renderSkillRangePreviewBeforeOpenDoorRangeFix(ox,oy);
+};
+
+useQuickSlotSkill = function(slotIndex){
+  if(!S || !S.player) return;
+  const key = quickSlotSkillKey(slotIndex);
+  setSkillRangePreview(key === 'openDoor' ? 'openDoor' : key, 1200);
+  const fn = skillFunctionByKey(key);
+  fn();
+};
+
+bindQuickSlotPointerPreview = function(){
+  ['skill1','skill2','skill3'].forEach((id,idx)=>{
+    const btn=$(id);
+    if(!btn || btn.dataset.quickSlotPreviewBound2 === '1') return;
+    btn.dataset.quickSlotPreviewBound2 = '1';
+    btn.addEventListener('pointerdown', ()=>{
+      const key=quickSlotSkillKey(idx);
+      setSkillRangePreview(key === 'openDoor' ? 'openDoor' : key, 900);
+    }, {passive:true});
+  });
+};
+bindQuickSlotPointerPreview();
+
+useOpenDoorSkill = function(){
+  if(!S || !S.player) return;
+  const room = adjacentLockedDoor();
+  if(!room){
+    toast('사거리 1칸 안에 잠긴 문이 없습니다.');
+    return;
+  }
+  const doorDistance = Math.abs(S.player.x - room.door.x) + Math.abs(S.player.y - room.door.y);
+  if(doorDistance !== 1){
+    toast('문열기 사거리는 모든 직업 1칸입니다.');
+    return;
+  }
+  const pct=openDoorChance();
+  const ok = rand(100) < pct;
+  if(ok){
+    revealLockedRoom(room);
+    addFx({kind:'ring', x:room.door.x, y:room.door.y, color:'#facc15', dur:380});
+    addLog(`<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. (${pct}%)`);
+  }else{
+    addFx({kind:'hit', x:room.door.x, y:room.door.y, color:'#64748b', spark:'#cbd5e1', dur:220});
+    addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
+  }
+  afterPlayerAction();
+};
+
+
 initStartPage();
 render();
 
