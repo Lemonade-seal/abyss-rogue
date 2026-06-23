@@ -9625,29 +9625,56 @@ function analogDirectionFromEvent(e){
   if(Math.abs(x)>Math.abs(y)) return {dx:x>0?1:-1,dy:0,sx,sy};
   return {dx:0,dy:y>0?1:-1,sx,sy};
 }
-let analogHold=null, analogPointer=null, analogLast={dx:0,dy:0,wait:true,sx:0,sy:0};
+const ANALOG_NEUTRAL={dx:0,dy:0,wait:true,sx:0,sy:0};
+let analogHold=null, analogPointer=null, analogLast={...ANALOG_NEUTRAL};
 function analogAct(){
+  if(analogPointer===null) return;
   if(analogLast.wait) waitTurn(); else handleMove(analogLast.dx, analogLast.dy);
 }
 function analogSetVisual(d){
   const pad=$('analogPad'); if(!pad) return;
   pad.style.setProperty('--stick-x',(d.sx||0)+'px'); pad.style.setProperty('--stick-y',(d.sy||0)+'px'); pad.classList.add('active');
 }
-function analogStop(){
+function analogResetVisual(){
+  const pad=$('analogPad'); if(!pad) return;
+  pad.classList.remove('active');
+  pad.style.setProperty('--stick-x','0px');
+  pad.style.setProperty('--stick-y','0px');
+}
+function analogStop(e=null){
   if(analogHold){clearInterval(analogHold); analogHold=null;}
-  const pad=$('analogPad'); if(pad){pad.classList.remove('active'); pad.style.setProperty('--stick-x','0px'); pad.style.setProperty('--stick-y','0px');}
+  const pad=$('analogPad');
+  if(pad && e && e.pointerId!=null){ try{ pad.releasePointerCapture?.(e.pointerId); }catch(err){} }
   analogPointer=null;
+  analogLast={...ANALOG_NEUTRAL};
+  analogResetVisual();
+}
+function analogStopByEvent(e){
+  if(analogPointer===null) return;
+  if(!e || e.pointerId===analogPointer) analogStop(e);
 }
 const analogPad=$('analogPad');
 if(analogPad){
   analogPad.addEventListener('pointerdown',e=>{
-    e.preventDefault(); analogPointer=e.pointerId; analogPad.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+    if(analogPointer!==null) analogStop();
+    analogPointer=e.pointerId;
+    try{ analogPad.setPointerCapture?.(e.pointerId); }catch(err){}
     analogLast=analogDirectionFromEvent(e); analogSetVisual(analogLast); analogAct();
     if(analogHold) clearInterval(analogHold); analogHold=setInterval(analogAct, 165);
   });
   analogPad.addEventListener('pointermove',e=>{ if(analogPointer!==e.pointerId) return; e.preventDefault(); analogLast=analogDirectionFromEvent(e); analogSetVisual(analogLast); });
-  analogPad.addEventListener('pointerup',e=>{ if(analogPointer===e.pointerId) analogStop(); });
-  analogPad.addEventListener('pointercancel',analogStop);
+  analogPad.addEventListener('pointerup',analogStopByEvent);
+  analogPad.addEventListener('pointercancel',analogStopByEvent);
+  analogPad.addEventListener('lostpointercapture',analogStopByEvent);
+  analogPad.addEventListener('pointerleave',e=>{ if(analogPointer===e.pointerId && !(analogPad.hasPointerCapture?.(e.pointerId))) analogStop(e); });
+  document.addEventListener('pointerup',analogStopByEvent,true);
+  document.addEventListener('pointercancel',analogStopByEvent,true);
+  document.addEventListener('touchend',e=>{ if(analogPointer!==null && (!e.touches || e.touches.length===0)) analogStop(); },{passive:true});
+  document.addEventListener('touchcancel',()=>analogStop(),{passive:true});
+  window.addEventListener('blur',()=>analogStop());
+  window.addEventListener('pagehide',()=>analogStop());
+  document.addEventListener('visibilitychange',()=>{ if(document.hidden) analogStop(); });
 }
 function bindShortLongPress(btn, shortFn, longFn, holdMs=520){
   if(!btn) return;
