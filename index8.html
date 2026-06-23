@@ -9816,7 +9816,7 @@ async function beginNaverLogin(){
       return;
     }
     const {error} = await client.auth.signInWithOAuth({
-      provider:'naver',
+      provider:'custom:naver',
       options:{redirectTo:getOAuthRedirectUrl()}
     });
     if(error) throw error;
