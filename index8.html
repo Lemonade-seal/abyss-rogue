@@ -15147,110 +15147,96 @@ showQuickSlotSelect = function(skillKey){
 
 
 
-/* REQUEST ONLY: move quickslot button to right edge, force Open Door range to 1 tile for all jobs */
-(function moveQuickSlotButtonRight(){
-  let style=document.getElementById('quickSlotRightEdgeStyle');
-  if(!style){
-    style=document.createElement('style');
-    style.id='quickSlotRightEdgeStyle';
-    document.head.appendChild(style);
-  }
-  style.textContent=`
-    .skillQuickslotBtn{
+
+
+
+/* REQUEST ONLY: quickslot button right edge + key/open-door range 1 tile, safe version */
+(function(){
+  const style = document.createElement('style');
+  style.id = 'quickSlotRightAndDoorRangeSafeStyle';
+  style.textContent = `
+    .skillChoice .skillQuickslotBtn,
+    #modal #modalCard .skillChoice .skillQuickslotBtn{
+      position:absolute!important;
       left:auto!important;
       right:10px!important;
       bottom:10px!important;
+      min-width:74px!important;
     }
-    .skillEnhanceBtn{
+    .skillChoice .skillEnhanceBtn,
+    #modal #modalCard .skillChoice .skillEnhanceBtn{
+      position:absolute!important;
       left:10px!important;
       right:auto!important;
+      bottom:10px!important;
     }
   `;
+  document.head.appendChild(style);
 })();
 
-function openDoorPreviewRangeCells(){
-  if(!S || !S.player) return [];
-  const p=S.player;
-  return DIRS.map(([dx,dy])=>({x:p.x+dx,y:p.y+dy})).filter(c=>inMap(c.x,c.y));
-}
-
-const setSkillRangePreviewBeforeOpenDoorRangeFix = setSkillRangePreview;
-setSkillRangePreview = function(key, dur=1100){
-  if(key === 'openDoor'){
-    skillRangePreview = {key:'openDoor', until:nowMs()+dur};
-    render();
-    return;
+(function(){
+  function safeOpenDoorRangeCells(){
+    if(!window.S || !S.player || !Array.isArray(window.DIRS)) return [];
+    const p = S.player;
+    return DIRS.map(([dx,dy])=>({x:p.x+dx,y:p.y+dy})).filter(c=>typeof inMap === 'function' && inMap(c.x,c.y));
   }
-  return setSkillRangePreviewBeforeOpenDoorRangeFix(key, dur);
-};
 
-const renderSkillRangePreviewBeforeOpenDoorRangeFix = renderSkillRangePreview;
-renderSkillRangePreview = function(ox,oy){
-  if(skillRangePreview && skillRangePreview.key === 'openDoor'){
-    if(nowMs() > skillRangePreview.until){ skillRangePreview=null; return; }
-    openDoorPreviewRangeCells().forEach(c=>{
-      if(!inView(c.x,c.y,ox,oy)) return;
-      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
-      ctx.save();
-      ctx.globalAlpha=.58;
-      ctx.fillStyle='rgba(250,204,21,.32)';
-      ctx.fillRect(px+3,py+3,TILE-6,TILE-6);
-      ctx.strokeStyle='rgba(250,204,21,.95)';
-      ctx.lineWidth=2;
-      ctx.strokeRect(px+4,py+4,TILE-8,TILE-8);
-      ctx.restore();
-    });
-    return;
+  if(typeof window.setSkillRangePreview === 'function' && typeof window.render === 'function'){
+    const oldSetSkillRangePreview = window.setSkillRangePreview;
+    window.setSkillRangePreview = function(key, dur=1100){
+      if(key === 'openDoor'){
+        window.skillRangePreview = {key:'openDoor', until:nowMs()+dur};
+        render();
+        return;
+      }
+      return oldSetSkillRangePreview(key, dur);
+    };
   }
-  return renderSkillRangePreviewBeforeOpenDoorRangeFix(ox,oy);
-};
 
-useQuickSlotSkill = function(slotIndex){
-  if(!S || !S.player) return;
-  const key = quickSlotSkillKey(slotIndex);
-  setSkillRangePreview(key === 'openDoor' ? 'openDoor' : key, 1200);
-  const fn = skillFunctionByKey(key);
-  fn();
-};
-
-bindQuickSlotPointerPreview = function(){
-  ['skill1','skill2','skill3'].forEach((id,idx)=>{
-    const btn=$(id);
-    if(!btn || btn.dataset.quickSlotPreviewBound2 === '1') return;
-    btn.dataset.quickSlotPreviewBound2 = '1';
-    btn.addEventListener('pointerdown', ()=>{
-      const key=quickSlotSkillKey(idx);
-      setSkillRangePreview(key === 'openDoor' ? 'openDoor' : key, 900);
-    }, {passive:true});
-  });
-};
-bindQuickSlotPointerPreview();
-
-useOpenDoorSkill = function(){
-  if(!S || !S.player) return;
-  const room = adjacentLockedDoor();
-  if(!room){
-    toast('사거리 1칸 안에 잠긴 문이 없습니다.');
-    return;
+  if(typeof window.renderSkillRangePreview === 'function'){
+    const oldRenderSkillRangePreview = window.renderSkillRangePreview;
+    window.renderSkillRangePreview = function(ox, oy){
+      if(window.skillRangePreview && window.skillRangePreview.key === 'openDoor'){
+        if(nowMs() > window.skillRangePreview.until){
+          window.skillRangePreview = null;
+          return;
+        }
+        safeOpenDoorRangeCells().forEach(c=>{
+          if(typeof inView !== 'function' || !inView(c.x,c.y,ox,oy)) return;
+          const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+          ctx.save();
+          ctx.globalAlpha=.58;
+          ctx.fillStyle='rgba(250,204,21,.30)';
+          ctx.fillRect(px+3,py+3,TILE-6,TILE-6);
+          ctx.strokeStyle='rgba(250,204,21,.95)';
+          ctx.lineWidth=2;
+          ctx.strokeRect(px+4,py+4,TILE-8,TILE-8);
+          ctx.restore();
+        });
+        return;
+      }
+      return oldRenderSkillRangePreview(ox, oy);
+    };
   }
-  const doorDistance = Math.abs(S.player.x - room.door.x) + Math.abs(S.player.y - room.door.y);
-  if(doorDistance !== 1){
-    toast('문열기 사거리는 모든 직업 1칸입니다.');
-    return;
-  }
-  const pct=openDoorChance();
-  const ok = rand(100) < pct;
-  if(ok){
-    revealLockedRoom(room);
-    addFx({kind:'ring', x:room.door.x, y:room.door.y, color:'#facc15', dur:380});
-    addLog(`<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. (${pct}%)`);
-  }else{
-    addFx({kind:'hit', x:room.door.x, y:room.door.y, color:'#64748b', spark:'#cbd5e1', dur:220});
-    addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
-  }
-  afterPlayerAction();
-};
 
+  if(typeof window.useOpenDoorSkill === 'function'){
+    const oldUseOpenDoorSkill = window.useOpenDoorSkill;
+    window.useOpenDoorSkill = function(){
+      if(!window.S || !S.player) return oldUseOpenDoorSkill();
+      const room = typeof adjacentLockedDoor === 'function' ? adjacentLockedDoor() : null;
+      if(!room || !room.door){
+        toast('사거리 1칸 안에 잠긴 문이 없습니다.');
+        return;
+      }
+      const d = Math.abs(S.player.x - room.door.x) + Math.abs(S.player.y - room.door.y);
+      if(d !== 1){
+        toast('열쇠 사용 사거리는 1칸입니다.');
+        return;
+      }
+      return oldUseOpenDoorSkill();
+    };
+  }
+})();
 
 initStartPage();
 render();
