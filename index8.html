@@ -2417,24 +2417,26 @@ body.liveKeymapMode .keymapLiveDragging{
   white-space:nowrap!important;
 }
 #modal.startPage #kakaoLoginBtn{
-  color:#000000!important;
-  background:#FEE500!important;
+  color:rgba(248,250,252,.96)!important;
+  background:rgba(10,15,25,.16)!important;
   background-image:none!important;
-  box-shadow:0 0 10px rgba(254,229,0,.42),0 0 22px rgba(254,229,0,.20)!important;
+  border:1px solid rgba(226,232,240,.28)!important;
+  box-shadow:0 0 10px rgba(148,163,184,.16),0 7px 16px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;
 }
 #modal.startPage #kakaoLoginBtn span{
-  color:#000000!important;
-  text-shadow:none!important;
+  color:rgba(248,250,252,.96)!important;
+  text-shadow:0 1px 3px rgba(0,0,0,.42)!important;
 }
 #modal.startPage #naverLoginBtn{
-  color:#ffffff!important;
-  background:#03C75A!important;
+  color:rgba(248,250,252,.96)!important;
+  background:rgba(10,15,25,.16)!important;
   background-image:none!important;
-  box-shadow:0 0 10px rgba(3,199,90,.45),0 0 22px rgba(3,199,90,.22)!important;
+  border:1px solid rgba(226,232,240,.28)!important;
+  box-shadow:0 0 10px rgba(148,163,184,.16),0 7px 16px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;
 }
 #modal.startPage #naverLoginBtn span{
-  color:#ffffff!important;
-  text-shadow:none!important;
+  color:rgba(248,250,252,.96)!important;
+  text-shadow:0 1px 3px rgba(0,0,0,.42)!important;
 }
 #modal.startPage #guestLoginBtn{
   color:rgba(248,250,252,.92)!important;
@@ -2524,24 +2526,26 @@ html body #modal.startPage[data-start-mode="menu"] button.loginChoiceBtn > span{
   white-space:nowrap!important;
 }
 html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.loginChoiceBtn{
-  background:#FEE500!important;
+  background:rgba(10,15,25,.16)!important;
   background-image:none!important;
-  color:#000!important;
-  box-shadow:0 0 12px rgba(254,229,0,.78),0 0 28px rgba(254,229,0,.34)!important;
+  color:rgba(248,250,252,.96)!important;
+  border:1px solid rgba(226,232,240,.28)!important;
+  box-shadow:0 0 10px rgba(148,163,184,.16),0 7px 16px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;
 }
 html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.loginChoiceBtn > span{
-  color:#000!important;
-  text-shadow:none!important;
+  color:rgba(248,250,252,.96)!important;
+  text-shadow:0 1px 3px rgba(0,0,0,.42)!important;
 }
 html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.loginChoiceBtn{
-  background:#03C75A!important;
+  background:rgba(10,15,25,.16)!important;
   background-image:none!important;
-  color:#fff!important;
-  box-shadow:0 0 12px rgba(3,199,90,.76),0 0 28px rgba(3,199,90,.34)!important;
+  color:rgba(248,250,252,.96)!important;
+  border:1px solid rgba(226,232,240,.28)!important;
+  box-shadow:0 0 10px rgba(148,163,184,.16),0 7px 16px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;
 }
 html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.loginChoiceBtn > span{
-  color:#fff!important;
-  text-shadow:none!important;
+  color:rgba(248,250,252,.96)!important;
+  text-shadow:0 1px 3px rgba(0,0,0,.42)!important;
 }
 html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.loginChoiceBtn{
   background:rgba(10,15,25,.18)!important;
@@ -2604,6 +2608,25 @@ html body #modal.startPage .loginStartPanel{
     background-color:#020617!important;
   }
 }
+
+
+/* FINAL FIX: 카카오/네이버 로그인 버튼 투명 처리 */
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.loginChoiceBtn,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.loginChoiceBtn{
+  background:rgba(10,15,25,.16)!important;
+  background-image:none!important;
+  color:rgba(248,250,252,.96)!important;
+  border:1px solid rgba(226,232,240,.28)!important;
+  box-shadow:0 0 10px rgba(148,163,184,.16),0 7px 16px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;
+  opacity:1!important;
+  filter:none!important;
+}
+html body #modal.startPage[data-start-mode="menu"] button#kakaoLoginBtn.loginChoiceBtn > span,
+html body #modal.startPage[data-start-mode="menu"] button#naverLoginBtn.loginChoiceBtn > span{
+  color:rgba(248,250,252,.96)!important;
+  text-shadow:0 1px 3px rgba(0,0,0,.42)!important;
+}
+
 </style>
 </head>
 <body>
@@ -6400,11 +6423,11 @@ function showLoginChoice(){
   showModal(`<h1 class="srOnly">로그인 선택</h1>
     <div class="startMenuPanel loginStartPanel">
       <div class="loginChoiceGrid">
-        <button class="choice loginChoiceBtn kakaoLoginPill" id="kakaoLoginBtn" type="button" style="background:#FEE500!important;background-image:none!important;color:#000!important;border:0!important;border-radius:9999px!important;box-shadow:0 0 12px rgba(254,229,0,.78),0 0 28px rgba(254,229,0,.34)!important;opacity:1!important;filter:none!important;">
-          <span style="color:#000!important;text-shadow:none!important;">카카오 로그인</span>
+        <button class="choice loginChoiceBtn kakaoLoginPill" id="kakaoLoginBtn" type="button" style="background:rgba(10,15,25,.16)!important;background-image:none!important;color:rgba(248,250,252,.96)!important;border:1px solid rgba(226,232,240,.28)!important;border-radius:9999px!important;box-shadow:0 0 10px rgba(148,163,184,.16),0 7px 16px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;opacity:1!important;filter:none!important;">
+          <span style="color:rgba(248,250,252,.96)!important;text-shadow:0 1px 3px rgba(0,0,0,.42)!important;">카카오 로그인</span>
         </button>
-        <button class="choice loginChoiceBtn naverLoginPill" id="naverLoginBtn" type="button" style="background:#03C75A!important;background-image:none!important;color:#fff!important;border:0!important;border-radius:9999px!important;box-shadow:0 0 12px rgba(3,199,90,.76),0 0 28px rgba(3,199,90,.34)!important;opacity:1!important;filter:none!important;">
-          <span style="color:#fff!important;text-shadow:none!important;">네이버 로그인</span>
+        <button class="choice loginChoiceBtn naverLoginPill" id="naverLoginBtn" type="button" style="background:rgba(10,15,25,.16)!important;background-image:none!important;color:rgba(248,250,252,.96)!important;border:1px solid rgba(226,232,240,.28)!important;border-radius:9999px!important;box-shadow:0 0 10px rgba(148,163,184,.16),0 7px 16px rgba(0,0,0,.20),inset 0 1px 0 rgba(255,255,255,.06)!important;opacity:1!important;filter:none!important;">
+          <span style="color:rgba(248,250,252,.96)!important;text-shadow:0 1px 3px rgba(0,0,0,.42)!important;">네이버 로그인</span>
         </button>
         <button class="choice loginChoiceBtn guestLoginPill" id="guestLoginBtn" type="button">
           <span>게스트 로그인</span>
@@ -6464,7 +6487,7 @@ async function beginNaverLogin(){
       return;
     }
     const {error} = await client.auth.signInWithOAuth({
-      provider:'naver',
+      provider:'custom:naver',
       options:{redirectTo:getOAuthRedirectUrl()}
     });
     if(error) throw error;
