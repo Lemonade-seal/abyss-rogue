@@ -7744,11 +7744,12 @@ function isPlainBasicAttack(strong, opts={}){
 function addBasicAttackFx(e, strong, opts={}){
   if(!e || !S || !S.player || !isPlainBasicAttack(strong, opts)) return;
   const p=S.player;
-  if(p.classId==='warrior' || p.classId==='rogue'){
-    const color = p.classId==='rogue' ? '#c084fc' : '#dbeafe';
-    const spark = p.classId==='rogue' ? '#f0abfc' : '#93c5fd';
-    addFx({kind:'stab', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color, spark, dur:170});
-    addFx({kind:'slash', x:e.x, y:e.y, color, dur:210, angle:Math.atan2(e.y-p.y, e.x-p.x)});
+  if(p.classId==='warrior'){
+    addFx({kind:'warriorSlash', x:p.x, y:p.y, tx:e.x, ty:e.y, color:'#60a5fa', spark:'#dbeafe', dur:240});
+    return;
+  }
+  if(p.classId==='rogue'){
+    addFx({kind:'rogueCut', x:p.x, y:p.y, tx:e.x, ty:e.y, color:'#c084fc', spark:'#f0abfc', dur:220});
     return;
   }
   if(p.classId==='mage'){
@@ -7758,6 +7759,17 @@ function addBasicAttackFx(e, strong, opts={}){
   if(p.classId==='hunter'){
     addFx({kind:'projectile', shape:'arrow', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#bef264', spark:'#ecfccb', dur:180});
   }
+}
+function addMonsterHitFx(e, crit=false){
+  if(!e || !S) return;
+  addFx({
+    kind:'monsterHit',
+    x:e.x,
+    y:e.y,
+    color:crit ? '#facc15' : '#f97316',
+    spark:crit ? '#fef08a' : '#fed7aa',
+    dur:crit ? 330 : 260
+  });
 }
 function playerAttack(e, strong, opts={}){
   const p=S.player; const st=calcStats();
@@ -7775,6 +7787,7 @@ function playerAttack(e, strong, opts={}){
   if(strong && p.classId==='warrior') dmg = Math.floor(dmg*1.25);
   if(opts.mult) dmg = Math.floor(dmg*opts.mult);
   e.hp -= dmg;
+  addMonsterHitFx(e, crit);
   addLog(`${crit?'<span class="warntxt">치명!</span> ':''}${e.name}에게 <b>${dmg}</b> 피해.`);
   const burnTurns = opts.burnTurns || ((crit && hasRelic('ember')) ? 2 : 0);
   if(burnTurns){ e.burn = Math.max(e.burn||0, burnTurns); addLog(`${e.name}에게 화상이 붙었다.`); }
@@ -7785,7 +7798,7 @@ function playerAttack(e, strong, opts={}){
 }
 function chainDamage(origin, dmg){
   const victims = S.enemies.filter(e=>e.hp>0 && e!==origin && Math.abs(e.x-origin.x)+Math.abs(e.y-origin.y)<=3).slice(0,3);
-  victims.forEach(v=>{v.hp-=dmg; addLog(`폭풍이 ${v.name}에게 ${dmg} 연쇄 피해.`); if(v.hp<=0) killEnemy(v);});
+  victims.forEach(v=>{v.hp-=dmg; addMonsterHitFx(v, false); addLog(`폭풍이 ${v.name}에게 ${dmg} 연쇄 피해.`); if(v.hp<=0) killEnemy(v);});
 }
 function killEnemy(e){
   if(e.dead) return; e.dead=true; e.hp=0;
@@ -7825,6 +7838,8 @@ function enemyAttack(e, st){
   if(chance(st.eva/100)){ addLog(`${e.name}의 공격을 회피.`); return; }
   let dmg = Math.max(1, Math.floor(e.atk - st.def*.55 + rand(4) + Math.floor(S.player.floor/6) + st.taken - st.flatReduce));
   p.hp -= dmg;
+  addFx({kind:'hit', x:p.x, y:p.y, color:'#ef4444', spark:'#fecaca', dur:260});
+  addFx({kind:'ring', x:p.x, y:p.y, color:'#fb7185', dur:220});
   addLog(`<span class="badtxt">${e.name}</span>에게 ${dmg} 피해를 받음.`);
   if(hasRelic('thorn')){ const rd=Math.max(1,Math.floor(dmg*.35)); e.hp-=rd; addLog(`가시 반사 ${rd} 피해.`); if(e.hp<=0) killEnemy(e); }
   if(p.hp<=0) gameOver(false);
@@ -9004,6 +9019,65 @@ function renderEffects(ox,oy){
         const px=c.x+Math.cos(ang)*(10+p*12), py=c.y+Math.sin(ang)*(10+p*12);
         drawFxCircle(px,py,2.5,fx.spark||'#fff7ed',.9*fade,true);
       }
+    } else if(fx.kind==='warriorSlash'){
+      if(!inView(fx.tx,fx.ty,ox,oy)) continue;
+      const a=effectPosCell(fx.x,fx.y,ox,oy), b=effectPosCell(fx.tx,fx.ty,ox,oy);
+      const ang=Math.atan2(b.y-a.y,b.x-a.x);
+      ctx.save();
+      ctx.translate(b.x,b.y);
+      ctx.rotate(ang);
+      ctx.globalAlpha=.96*fade;
+      ctx.strokeStyle=fx.color||'#60a5fa';
+      ctx.lineWidth=6;
+      ctx.beginPath();
+      ctx.arc(0,0,18+p*5,-1.1,1.1);
+      ctx.stroke();
+      ctx.strokeStyle=fx.spark||'#dbeafe';
+      ctx.lineWidth=2.5;
+      ctx.beginPath();
+      ctx.moveTo(-18,-10);
+      ctx.lineTo(14,10);
+      ctx.stroke();
+      ctx.restore();
+      drawFxCircle(b.x,b.y,9+p*10,fx.color||'#60a5fa',.18*fade,true);
+    } else if(fx.kind==='rogueCut'){
+      if(!inView(fx.tx,fx.ty,ox,oy)) continue;
+      const a=effectPosCell(fx.x,fx.y,ox,oy), b=effectPosCell(fx.tx,fx.ty,ox,oy);
+      const ang=Math.atan2(b.y-a.y,b.x-a.x);
+      ctx.save();
+      ctx.translate(b.x,b.y);
+      ctx.rotate(ang);
+      ctx.globalAlpha=.95*fade;
+      ctx.strokeStyle=fx.color||'#c084fc';
+      ctx.lineWidth=3;
+      ctx.beginPath();
+      ctx.moveTo(-15,-12);
+      ctx.lineTo(15,10);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-12,11);
+      ctx.lineTo(14,-11);
+      ctx.stroke();
+      ctx.strokeStyle=fx.spark||'#f0abfc';
+      ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(-8,-15);
+      ctx.lineTo(10,3);
+      ctx.stroke();
+      ctx.restore();
+      for(let i=0;i<4;i++){
+        const off=(i-1.5)*4;
+        drawFxCircle(b.x+Math.cos(ang+Math.PI/2)*off, b.y+Math.sin(ang+Math.PI/2)*off, 2+p*5, fx.spark||'#f0abfc', .45*fade, true);
+      }
+    } else if(fx.kind==='monsterHit'){
+      const c=effectPosCell(fx.x,fx.y,ox,oy); if(!inView(fx.x,fx.y,ox,oy)) continue;
+      drawFxCircle(c.x,c.y,7+p*12,fx.color||'#f97316',.20*fade,true);
+      drawFxCircle(c.x,c.y,8+p*14,fx.color||'#f97316',.85*fade,false);
+      for(let i=0;i<5;i++){
+        const ang=(Math.PI*2/5)*i + p*1.1;
+        const px=c.x+Math.cos(ang)*(7+p*13), py=c.y+Math.sin(ang)*(7+p*13);
+        drawFxCircle(px,py,2.3,fx.spark||'#fed7aa',.82*fade,true);
+      }
     } else if(fx.kind==='smoke'){
       const c=effectPosCell(fx.x,fx.y,ox,oy); if(!inView(fx.x,fx.y,ox,oy)) continue;
       for(let i=0;i<5;i++){
@@ -9035,6 +9109,30 @@ function renderEffects(ox,oy){
     } else if(fx.kind==='ring'){
       const c=effectPosCell(fx.x,fx.y,ox,oy); if(!inView(fx.x,fx.y,ox,oy)) continue;
       drawFxCircle(c.x,c.y,12+p*16,fx.color||'#fbbf24',.8*fade,false);
+    } else if(fx.kind==='hit'){
+      const c=effectPosCell(fx.x,fx.y,ox,oy); if(!inView(fx.x,fx.y,ox,oy)) continue;
+      drawFxCircle(c.x,c.y,8+p*8,fx.color||'#ef4444',.18*fade,true);
+      drawFxCircle(c.x,c.y,10+p*10,fx.color||'#fb7185',.95*fade,false);
+      ctx.save();
+      ctx.translate(c.x,c.y);
+      ctx.globalAlpha=.92*fade;
+      ctx.strokeStyle=fx.spark||'#fecaca';
+      ctx.lineWidth=3;
+      for(let i=0;i<4;i++){
+        const ang=(Math.PI/2)*i + p*.22;
+        const sx=Math.cos(ang)*(5+p*3), sy=Math.sin(ang)*(5+p*3);
+        const ex=Math.cos(ang)*(12+p*10), ey=Math.sin(ang)*(12+p*10);
+        ctx.beginPath();
+        ctx.moveTo(sx,sy);
+        ctx.lineTo(ex,ey);
+        ctx.stroke();
+      }
+      ctx.restore();
+      for(let i=0;i<6;i++){
+        const ang=(Math.PI*2/6)*i + p*.9;
+        const px=c.x+Math.cos(ang)*(8+p*12), py=c.y+Math.sin(ang)*(8+p*12);
+        drawFxCircle(px,py,2.5,fx.spark||'#fff1f2',.85*fade,true);
+      }
     }
   }
 }
