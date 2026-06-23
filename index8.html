@@ -13621,6 +13621,264 @@ helpAccordionAndRankingScrollStyle.textContent = `
 `;
 document.head.appendChild(helpAccordionAndRankingScrollStyle);
 
+
+
+/* REQUEST ONLY: separate Kakao/Naver save data and show Naver login guide */
+function cloudProviderModeKey(mode){
+  return mode === 'naver' ? 'naver' : 'kakao';
+}
+function emptyCloudProviderSlots(){
+  return [null,null,null];
+}
+function emptyCloudProviderMeta(){
+  return normalizeMeta({souls:0,bestFloor:1,bestLevel:1,totalKills:0,runs:0,upgrades:{hp:0,atk:0,def:0,crit:0,xp:0,gold:0}});
+}
+var cloudCharacterSlotsByMode = {
+  kakao: normalizeCharacterSlots(cloudCharacterSlots || [null,null,null], 3),
+  naver: emptyCloudProviderSlots()
+};
+function syncCurrentCloudSlotsPointer(mode){
+  const key = cloudProviderModeKey(mode || activeLoginMode || 'kakao');
+  cloudCharacterSlots = normalizeCharacterSlots(cloudCharacterSlotsByMode[key] || emptyCloudProviderSlots(), 3);
+}
+getSlotsForMode = function(mode){
+  if(isCloudLoginMode(mode)){
+    const key = cloudProviderModeKey(mode);
+    if(!Array.isArray(cloudCharacterSlotsByMode[key])) cloudCharacterSlotsByMode[key] = emptyCloudProviderSlots();
+    return cloudCharacterSlotsByMode[key];
+  }
+  return guestCharacterSlots;
+};
+setSlotsForMode = function(mode, slots){
+  if(isCloudLoginMode(mode)){
+    const key = cloudProviderModeKey(mode);
+    cloudCharacterSlotsByMode[key] = normalizeCharacterSlots(slots, 3);
+    if((activeLoginMode || 'kakao') === key) syncCurrentCloudSlotsPointer(key);
+    return;
+  }
+  guestCharacterSlots = normalizeCharacterSlots(slots, 1);
+};
+function readProviderProfilesFromSave(save){
+  const src = save && typeof save === 'object' ? (save.provider_profiles || save.providerProfiles || {}) : {};
+  return src && typeof src === 'object' ? src : {};
+}
+function providerProfileFromSave(save, mode){
+  const profiles = readProviderProfilesFromSave(save);
+  const key = cloudProviderModeKey(mode);
+  return profiles[key] && typeof profiles[key] === 'object' ? profiles[key] : null;
+}
+function normalizeProviderProfileSlots(profile){
+  return profile && Array.isArray(profile.characters) ? normalizeCharacterSlots(profile.characters, 3) : null;
+}
+function cloudUserProviderIds(user){
+  const ids = [];
+  try{
+    const app = user && user.app_metadata ? user.app_metadata : {};
+    if(app.provider) ids.push(String(app.provider));
+    if(Array.isArray(app.providers)) app.providers.forEach(v=>ids.push(String(v)));
+    if(Array.isArray(user.identities)){
+      user.identities.forEach(it=>{
+        if(it && it.provider) ids.push(String(it.provider));
+        if(it && it.identity_data && it.identity_data.provider) ids.push(String(it.identity_data.provider));
+      });
+    }
+  }catch(e){}
+  return ids.map(v=>v.toLowerCase());
+}
+function cloudUserMatchesLoginMode(user, mode){
+  const key = cloudProviderModeKey(mode);
+  const ids = cloudUserProviderIds(user);
+  if(key === 'naver') return ids.includes('custom:naver') || ids.includes('naver');
+  return ids.includes('kakao');
+}
+function onlineModeLabel(mode){
+  if(mode === 'naver') return 'naver';
+  if(mode === 'kakao') return 'kakao';
+  if(mode === 'guest') return 'guest';
+  return String(mode || 'local');
+}
+function showNaverLoginGuideBox(){
+  showModal(`<h1 class="srOnly">네이버 로그인 안내</h1>
+    <div class="startMenuPanel">
+      <h2 style="margin:0 0 8px">네이버 로그인</h2>
+      <p class="muted">네이버 계정으로 로그인합니다.</p>
+      <p class="muted">네이버 저장 데이터는 카카오 저장 데이터와 별도로 관리됩니다.</p>
+    </div>`, true);
+  modal.classList.add('startPage');
+  modal.setAttribute('data-start-mode','menu');
+}
+loadCloudCharacterProfile = async function(){
+  const client = getCloudClient();
+  if(!client) throw new Error('Supabase 연결 정보가 필요하다.');
+  const user = await currentCloudUser();
+  if(!user) return false;
+
+  const mode = cloudProviderModeKey(activeLoginMode || localStorage.getItem(OAUTH_PENDING_MODE_KEY) || 'kakao');
+  const {data,error} = await client.from('game_saves').select('save_data, meta_data, updated_at').eq('user_id', user.id).maybeSingle();
+  if(error) throw error;
+
+  const save = data && data.save_data ? data.save_data : {};
+  const profiles = readProviderProfilesFromSave(save);
+
+  ['kakao','naver'].forEach(key=>{
+    const profile = profiles[key];
+    const profileSlots = normalizeProviderProfileSlots(profile);
+    if(profileSlots) cloudCharacterSlotsByMode[key] = profileSlots;
+  });
+
+  const activeProfile = providerProfileFromSave(save, mode);
+  const activeProfileSlots = normalizeProviderProfileSlots(activeProfile);
+
+  if(activeProfileSlots){
+    cloudCharacterSlotsByMode[mode] = activeProfileSlots;
+  }else if(mode === 'kakao' && Array.isArray(save.characters)){
+    cloudCharacterSlotsByMode.kakao = normalizeCharacterSlots(save.characters, 3);
+  }else if(mode === 'kakao' && save.player){
+    const p = save.player;
+    cloudCharacterSlotsByMode.kakao = normalizeCharacterSlots([{
+      nickname:p.name || p.className || '이전 캐릭터',
+      classId:p.classId || 'warrior',
+      className:p.className || (classes[p.classId]||classes.warrior).name,
+      level:clamp(Number(p.level || 1), 1, MAX_LEVEL),
+      floor:p.floor || 1,
+      updatedAt:data && data.updated_at ? data.updated_at : new Date().toISOString(),
+      run:save
+    }], 3);
+  }else{
+    cloudCharacterSlotsByMode[mode] = emptyCloudProviderSlots();
+  }
+
+  const profileMeta = activeProfile && (activeProfile.meta_data || activeProfile.metaData || activeProfile.meta);
+  if(profileMeta){
+    meta = normalizeMeta(profileMeta || {});
+  }else if(mode === 'kakao' && data && data.meta_data){
+    meta = normalizeMeta(data.meta_data || {});
+  }else{
+    meta = emptyCloudProviderMeta();
+  }
+
+  syncCurrentCloudSlotsPointer(mode);
+  return true;
+};
+saveCloudCharacterProfile = async function(){
+  if(!isCloudLoginMode(activeLoginMode)) return false;
+  const client = getCloudClient();
+  if(!client) return false;
+  const user = await currentCloudUser();
+  if(!user) return false;
+
+  const mode = cloudProviderModeKey(activeLoginMode);
+  const slots = normalizeCharacterSlots(getSlotsForMode(mode), 3);
+  cloudCharacterSlotsByMode[mode] = slots;
+  syncCurrentCloudSlotsPointer(mode);
+
+  const rankings = slots.map(ch=>buildRankRecordFromCharacter(ch, meta)).filter(Boolean);
+  const active = activeCharacterSlot != null ? slots[activeCharacterSlot] : slots.find(Boolean);
+
+  let previousSave = {};
+  try{
+    const {data} = await client.from('game_saves').select('save_data').eq('user_id', user.id).maybeSingle();
+    previousSave = data && data.save_data && typeof data.save_data === 'object' ? data.save_data : {};
+  }catch(e){
+    previousSave = {};
+  }
+
+  const profiles = Object.assign({}, readProviderProfilesFromSave(previousSave));
+  profiles[mode] = {
+    version:1,
+    provider:mode,
+    characters:slots,
+    rankings,
+    meta_data:meta || {},
+    updated_at:new Date().toISOString()
+  };
+
+  const {error} = await client.from('game_saves').upsert({
+    user_id:user.id,
+    nickname:active ? active.nickname : null,
+    save_data:Object.assign({}, previousSave, {
+      version:6,
+      active_provider:mode,
+      provider_profiles:profiles,
+      characters:slots,
+      rankings
+    }),
+    meta_data:meta || {},
+    updated_at:new Date().toISOString()
+  }, {onConflict:'user_id'});
+  if(error) throw error;
+  return true;
+};
+async function beginProviderLogin(mode, providerValue){
+  activeLoginMode = cloudProviderModeKey(mode);
+  localStorage.setItem(OAUTH_PENDING_MODE_KEY, activeLoginMode);
+
+  const client = getCloudClient();
+  if(!client){
+    toast(`Supabase 연결 정보가 없어 ${loginModeLabel(activeLoginMode)} 로그인을 사용할 수 없습니다.`);
+    return;
+  }
+
+  const user = await currentCloudUser();
+  if(user && cloudUserMatchesLoginMode(user, activeLoginMode)){
+    await loadCloudCharacterProfile();
+    showCharacterSlots(activeLoginMode);
+    return;
+  }
+
+  if(user && !cloudUserMatchesLoginMode(user, activeLoginMode)){
+    try{ await client.auth.signOut(); }catch(e){}
+  }
+
+  const {error} = await client.auth.signInWithOAuth({
+    provider:providerValue,
+    options:{redirectTo:getOAuthRedirectUrl()}
+  });
+  if(error) throw error;
+}
+beginKakaoLogin = async function(){
+  try{
+    await beginProviderLogin('kakao', 'kakao');
+  }catch(e){
+    toast('카카오 로그인 실패: ' + e.message);
+  }
+};
+beginNaverLogin = async function(){
+  try{
+    showNaverLoginGuideBox();
+    await beginProviderLogin('naver', 'custom:naver');
+  }catch(e){
+    toast('네이버 로그인 실패: ' + e.message);
+  }
+};
+onlineSelfInfo = function(){
+  const p = S && S.player ? S.player : null;
+  const nick = p ? ((typeof playerNickname === 'function') ? playerNickname(p) : (p.name || p.className || '이름 없음')) : '대기 중';
+  return {
+    id: ONLINE_CLIENT_ID,
+    nickname: String(nick || '이름 없음'),
+    className: p ? String(p.className || '-') : '-',
+    level: p ? Number(p.level || 1) : 0,
+    floor: p ? Number(p.floor || 1) : 0,
+    mode: onlineModeLabel(activeLoginMode || (S && S.loginMode) || 'local'),
+    slot: activeCharacterSlot == null ? '-' : String(activeCharacterSlot + 1),
+    updatedAt: Date.now()
+  };
+};
+showOnlineListModal = function(){
+  const list = normalizeOnlineList();
+  const rows = list.map(u=>{
+    const nick = escapeText(u.nickname || '이름 없음');
+    const cls = escapeText(u.className || '-');
+    const lv = Number(u.level || 0) ? `Lv.${Number(u.level||1)}` : '-';
+    const floor = Number(u.floor || 0) ? `${Number(u.floor||1)}층` : '-';
+    const mode = escapeText(onlineModeLabel(u.mode || 'local'));
+    const slot = escapeText(u.slot == null ? '-' : String(u.slot));
+    return `<div class="onlineUserCard"><h4>${nick}</h4><p>${lv} / ${floor} · ${cls}</p><p>접속: ${mode} · 슬롯 ${slot}</p></div>`;
+  }).join('') || '<p class="muted">현재 표시할 접속자가 없습니다.</p>';
+  showModal(`<h2>온라인 접속 인원</h2><p class="muted">현재 온라인 ${list.length}명</p><div class="onlineListBox">${rows}</div>${makeCloseBar()}`, false);
+};
+
 initStartPage();
 render();
 
