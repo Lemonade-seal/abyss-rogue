@@ -5947,6 +5947,35 @@ html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLogi
   }
 }
 
+
+
+  /* 요청 반영: 도감 목록은 표시/전체 아래 별도 박스 안에서만 스크롤 */
+  .codexListBox{
+    margin-top:10px;
+    height:clamp(390px,66dvh,560px);
+    max-height:calc(92dvh - 185px);
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:8px;
+    border:1px solid rgba(203,213,225,.28);
+    border-radius:12px;
+    background:rgba(15,23,42,.18);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 6px 16px rgba(0,0,0,.14);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+  }
+  .codexListGrid{display:grid;grid-template-columns:1fr;gap:8px;margin:0!important}
+  #modal #modalCard .codexListBox{
+    background:rgba(15,23,42,.16)!important;
+    border-color:rgba(203,213,225,.26)!important;
+    backdrop-filter:blur(6px)!important;
+    -webkit-backdrop-filter:blur(6px)!important;
+  }
+  @media(max-width:820px){.codexListBox{height:clamp(380px,62dvh,510px);max-height:calc(92dvh - 175px);padding:7px}.codexListGrid{gap:7px}}
+  @media(max-height:700px){.codexListBox{height:clamp(380px,60dvh,430px);max-height:calc(92dvh - 150px)}}
+
 </style>
 </head>
 <body>
@@ -8455,7 +8484,7 @@ function showCodexMenu(filter={}){
       <button class="btn good" id="codexApplyFilter">적용</button>
     </div>
     <div class="codexSummary">표시 ${list.length} / 전체 ${MONSTER_BOOK.length}</div>
-    <div class="grid3" style="grid-template-columns:1fr; margin-top:10px">${rows}</div>`,false);
+    <div class="codexListBox"><div class="codexListGrid">${rows}</div></div>`,false);
   const readFilter=()=>({
     type:$('codexTypeFilter')?.value||'all',
     status:$('codexStatusFilter')?.value||'all',
@@ -9686,6 +9715,13 @@ let guestCharacterSlots = [null];
 let guestMetaState = normalizeMeta({souls:0,bestFloor:1,bestLevel:1,totalKills:0,runs:0,upgrades:{hp:0,atk:0,def:0,crit:0,xp:0,gold:0}});
 let cloudCharacterSaveTimer = null;
 const OAUTH_PENDING_MODE_KEY = 'abyss_rogue_oauth_provider_v1';
+const OAUTH_PROVIDER_PARAM = 'oauth_provider';
+function normalizeOAuthLoginMode(value){
+  const v = String(value || '').toLowerCase();
+  if(v.includes('naver')) return 'naver';
+  if(v.includes('kakao')) return 'kakao';
+  return '';
+}
 function isCloudLoginMode(mode){ return mode === 'kakao' || mode === 'naver'; }
 function loginModeLabel(mode){ return mode === 'naver' ? '네이버' : (mode === 'kakao' ? '카카오' : '게스트'); }
 function loginSaveLabel(mode){ return isCloudLoginMode(mode) ? `${loginModeLabel(mode)}/Supabase` : '게스트'; }
@@ -9887,10 +9923,10 @@ async function beginKakaoLogin(){
       showCharacterSlots('kakao');
       return;
     }
-    const redirectTo = getOAuthRedirectUrl();
+    const redirectTo = getOAuthRedirectUrl('kakao');
     const {error} = await client.auth.signInWithOAuth({
       provider:'kakao',
-      options:{redirectTo:getOAuthRedirectUrl()}
+      options:{redirectTo}
     });
     if(error) throw error;
   }catch(e){
@@ -9915,7 +9951,7 @@ async function beginNaverLogin(){
     }
     const {error} = await client.auth.signInWithOAuth({
       provider:'custom:naver',
-      options:{redirectTo:getOAuthRedirectUrl()}
+      options:{redirectTo:getOAuthRedirectUrl('naver')}
     });
     if(error) throw error;
   }catch(e){
@@ -10847,8 +10883,9 @@ showCharacterCreate = function(mode, slotIndex){
   originalShowCharacterCreateForCleanStartScreen(mode, slotIndex);
 };
 
-function getOAuthRedirectUrl(){
-  const projectUrl = 'https://lemonade-seal.github.io/abyss-rogue/index8.html?v=054';
+function getOAuthRedirectUrl(mode){
+  const providerMode = normalizeOAuthLoginMode(mode) || normalizeOAuthLoginMode(activeLoginMode);
+  const projectUrl = 'https://lemonade-seal.github.io/abyss-rogue/index8.html?v=054' + (providerMode ? `&${OAUTH_PROVIDER_PARAM}=${encodeURIComponent(providerMode)}` : '');
   try{
     const u = new URL(location.href);
     if(u.hostname === 'lemonade-seal.github.io'){
@@ -10857,6 +10894,8 @@ function getOAuthRedirectUrl(){
     u.hash = '';
     ['code','state','error','error_code','error_description'].forEach(k=>u.searchParams.delete(k));
     u.searchParams.set('v','054');
+    if(providerMode) u.searchParams.set(OAUTH_PROVIDER_PARAM, providerMode);
+    else u.searchParams.delete(OAUTH_PROVIDER_PARAM);
     return u.href;
   }catch(e){
     return projectUrl;
@@ -10872,8 +10911,9 @@ async function handleKakaoOAuthReturn(){
     location.hash.includes('error');
   if(!isAuthReturn) return false;
 
-  const pendingMode = localStorage.getItem(OAUTH_PENDING_MODE_KEY) || 'kakao';
-  activeLoginMode = isCloudLoginMode(pendingMode) ? pendingMode : 'kakao';
+  const urlMode = normalizeOAuthLoginMode(u.searchParams.get(OAUTH_PROVIDER_PARAM) || u.searchParams.get('login_mode') || u.searchParams.get('provider'));
+  const storedMode = normalizeOAuthLoginMode(localStorage.getItem(OAUTH_PENDING_MODE_KEY));
+  activeLoginMode = urlMode || storedMode || 'kakao';
   const oauthLabel = loginModeLabel(activeLoginMode);
   showModal(`<h1 class="srOnly">${oauthLabel} 로그인 처리</h1>
     <div class="startMenuPanel">
@@ -10893,7 +10933,7 @@ async function handleKakaoOAuthReturn(){
 
     const clean = new URL(location.href);
     clean.hash = '';
-    ['code','state','error','error_code','error_description'].forEach(k=>clean.searchParams.delete(k));
+    ['code','state','error','error_code','error_description', OAUTH_PROVIDER_PARAM, 'login_mode', 'provider'].forEach(k=>clean.searchParams.delete(k));
     history.replaceState(null, document.title, clean.pathname + clean.search);
 
     localStorage.removeItem(OAUTH_PENDING_MODE_KEY);
@@ -13930,7 +13970,7 @@ async function beginProviderLogin(mode, providerValue){
 
   const {error} = await client.auth.signInWithOAuth({
     provider:providerValue,
-    options:{redirectTo:getOAuthRedirectUrl()}
+    options:{redirectTo:getOAuthRedirectUrl(activeLoginMode)}
   });
   if(error) throw error;
 }
@@ -15305,6 +15345,169 @@ showQuickSlotSelect = function(skillKey){
       setSkillRangePreview('openDoor', 900);
     }, {capture:true, passive:false});
   });
+})();
+
+
+/* FIX: 타유저 랭킹 기록 갱신/새로고침 안정화
+   - provider별 저장 분리 패치가 공개 랭킹 동기화를 덮어쓴 문제 복구
+   - public ranking이 이미 있으면 game_saves fallback을 생략하던 문제 수정
+   - 랭킹 모달에 즉시 새로고침 버튼 추가 */
+(function(){
+  function rankingRefreshModeKey(){
+    return cloudProviderModeKey(activeLoginMode || (S && S.loginMode) || 'kakao');
+  }
+
+  const legacyPublicRankIdForRankingRefreshFix = publicRankIdFor;
+  publicRankIdFor = function(userId, slotIndex, mode){
+    const provider = cloudProviderModeKey(mode || activeLoginMode || (S && S.loginMode) || 'kakao');
+    return `${userId}_${provider}_${slotIndex}`;
+  };
+  function legacyPublicRankId(userId, slotIndex){
+    return legacyPublicRankIdForRankingRefreshFix(userId, slotIndex);
+  }
+  async function deletePublicRankById(client, rankId){
+    try{
+      await client.from(PUBLIC_RANKING_TABLE).delete().eq('rank_id', rankId);
+    }catch(e){
+      console.warn('public ranking delete skipped:', e && e.message ? e.message : e);
+    }
+  }
+
+  syncPublicRankingRowsForCurrentUser = async function(){
+    if(!isCloudLoginMode(activeLoginMode)) return false;
+    const client = getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) return false;
+
+    const mode = rankingRefreshModeKey();
+    const slots = normalizeCharacterSlots(getSlotsForMode(mode), 3);
+    const rows = [];
+    slots.forEach((ch, i)=>{
+      const rec = buildRankRecordFromCharacter(ch, meta);
+      if(!rec) return;
+      rows.push({
+        rank_id:publicRankIdFor(user.id, i, mode),
+        user_id:user.id,
+        slot_index:i,
+        nickname:String(rec.nickname || '이름 없음'),
+        class_name:String(rec.className || '-'),
+        level:Number(rec.level || 1),
+        floor:Number(rec.floor || 1),
+        combat_power:Number(rec.combatPower || 0),
+        score:Number(rec.score || 0),
+        updated_at:new Date().toISOString()
+      });
+    });
+
+    try{
+      if(rows.length){
+        const {error} = await client.from(PUBLIC_RANKING_TABLE).upsert(rows, {onConflict:'rank_id'});
+        if(error) throw error;
+      }
+      for(let i=0;i<3;i++){
+        // 예전 user_slot 형식으로 남아 있던 자기 랭킹은 중복/구버전 노출 방지를 위해 정리한다.
+        await deletePublicRankById(client, legacyPublicRankId(user.id, i));
+        if(!rows.some(r=>r.slot_index === i)){
+          await deletePublicRankById(client, publicRankIdFor(user.id, i, mode));
+        }
+      }
+      return true;
+    }catch(e){
+      console.warn('public ranking sync skipped:', e && e.message ? e.message : e);
+      return false;
+    }
+  };
+
+  const saveCloudCharacterProfileBeforeRankingRefreshFix = saveCloudCharacterProfile;
+  saveCloudCharacterProfile = async function(){
+    const result = await saveCloudCharacterProfileBeforeRankingRefreshFix.apply(this, arguments);
+    await syncPublicRankingRowsForCurrentUser();
+    return result;
+  };
+
+  collectRankingRecords = async function(){
+    const records = [];
+    let usedPublicTable = false;
+
+    if(isCloudLoginMode(activeLoginMode)){
+      const client = getCloudClient();
+      const user = await currentCloudUser();
+      if(client && user){
+        await syncPublicRankingRowsForCurrentUser();
+        try{
+          const {data,error} = await client
+            .from(PUBLIC_RANKING_TABLE)
+            .select('rank_id,user_id,slot_index,nickname,class_name,level,floor,combat_power,score,updated_at')
+            .order('score', {ascending:false})
+            .limit(1000);
+          if(error) throw error;
+          if(Array.isArray(data)){
+            usedPublicTable = true;
+            data.forEach(row=>{
+              const rec = rankRecordFromPublicRow(row);
+              if(rec) records.push(rec);
+            });
+          }
+        }catch(e){
+          console.warn('public ranking table unavailable, fallback to game_saves:', e && e.message ? e.message : e);
+        }
+      }
+
+      // public 테이블이 존재해도 stale row만 있는 경우가 있어서 game_saves/local 기록도 항상 병합한다.
+      try{
+        const fallback = await previousCollectRankingRecordsForPublicRank();
+        if(Array.isArray(fallback)) fallback.forEach(r=>{ if(r) records.push(r); });
+      }catch(e){
+        console.warn('ranking fallback merge skipped:', e && e.message ? e.message : e);
+      }
+      normalizeCharacterSlots(getSlotsForMode(activeLoginMode), 3).forEach(ch=>{
+        const rec = buildRankRecordFromCharacter(ch, meta);
+        if(rec) records.push(rec);
+      });
+    }
+
+    const dedup = new Map();
+    records.forEach(r=>{
+      const rec = normalizeStoredRankRecord(r);
+      if(!rec) return;
+      const key = `${rec.nickname}|${rec.className}`;
+      const prev = dedup.get(key);
+      if(!prev || compareRankRecords(rec, prev) > 0) dedup.set(key, rec);
+    });
+    const result = Array.from(dedup.values())
+      .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+      .slice(0,50);
+    result._usedPublicTable = usedPublicTable;
+    return result;
+  };
+
+  function bindRankingRefreshButton(){
+    const table = document.querySelector('#modalCard .rankingTable');
+    if(!table || $('rankingRefreshBtn')) return;
+    const bar = document.createElement('div');
+    bar.className = 'grid2';
+    bar.style.margin = '8px 0 4px';
+    bar.innerHTML = '<button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button><span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">최신 저장 기록 기준</span>';
+    const note = modalCard.querySelector('p.muted');
+    if(note && note.parentNode) note.parentNode.insertBefore(bar, note.nextSibling);
+    else modalCard.insertBefore(bar, table);
+    const btn = $('rankingRefreshBtn');
+    if(btn){
+      btn.onclick = async ()=>{
+        btn.disabled = true;
+        btn.textContent = '새로고침 중...';
+        await showRankingMenu();
+      };
+    }
+  }
+
+  const showRankingMenuBeforeRefreshFix = showRankingMenu;
+  showRankingMenu = async function(){
+    const result = await showRankingMenuBeforeRefreshFix.apply(this, arguments);
+    setTimeout(bindRankingRefreshButton, 0);
+    return result;
+  };
+  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
 })();
 
 initStartPage();
