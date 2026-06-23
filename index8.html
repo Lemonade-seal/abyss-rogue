@@ -15537,6 +15537,176 @@ showQuickSlotSelect = function(skillKey){
   if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
 })();
 
+
+/* FIX: 랭킹을 서버 공용 테이블(game_rankings) 기준으로 강제
+   - 모든 유저가 같은 순위표를 보도록 game_rankings만 조회한다.
+   - game_saves/localStorage fallback은 표시 랭킹에서 제외한다.
+   - 테이블/RLS 미설정 시 설정 필요 메시지를 명확히 보여준다. */
+(function(){
+  if(typeof PUBLIC_RANKING_TABLE === 'undefined') return;
+
+  function serverRankingModeKey(){
+    return cloudProviderModeKey(activeLoginMode || (S && S.loginMode) || 'kakao');
+  }
+  function serverRankingRowId(userId, slotIndex, mode){
+    try{
+      return publicRankIdFor(userId, slotIndex, mode || serverRankingModeKey());
+    }catch(e){
+      const provider = serverRankingModeKey();
+      return `${userId}_${provider}_${slotIndex}`;
+    }
+  }
+  function serverRankRecordFromPublicRow(row){
+    const rec = rankRecordFromPublicRow(row);
+    if(!rec) return null;
+    rec.rankId = row.rank_id || `${row.user_id || 'user'}_${row.slot_index || 0}`;
+    rec.userId = row.user_id || '';
+    rec.slotIndex = Number(row.slot_index || 0);
+    return rec;
+  }
+
+  syncPublicRankingRowsForCurrentUser = async function(){
+    const mode = serverRankingModeKey();
+    if(!isCloudLoginMode(mode)) return false;
+    const client = getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) return false;
+
+    const slots = normalizeCharacterSlots(getSlotsForMode(mode), 3);
+    const rows = [];
+    slots.forEach((ch, i)=>{
+      const rec = buildRankRecordFromCharacter(ch, meta);
+      if(!rec) return;
+      rows.push({
+        rank_id:serverRankingRowId(user.id, i, mode),
+        user_id:user.id,
+        slot_index:i,
+        nickname:String(rec.nickname || '이름 없음'),
+        class_name:String(rec.className || '-'),
+        level:Number(rec.level || 1),
+        floor:Number(rec.floor || 1),
+        combat_power:Number(rec.combatPower || 0),
+        score:Number(rec.score || 0),
+        updated_at:new Date().toISOString()
+      });
+    });
+
+    try{
+      if(rows.length){
+        const {error} = await client.from(PUBLIC_RANKING_TABLE).upsert(rows, {onConflict:'rank_id'});
+        if(error) throw error;
+      }
+      for(let i=0;i<3;i++){
+        if(!rows.some(r=>r.slot_index === i)){
+          await client.from(PUBLIC_RANKING_TABLE).delete().eq('rank_id', serverRankingRowId(user.id, i, mode));
+        }
+      }
+      return true;
+    }catch(e){
+      console.warn('server ranking sync failed:', e && e.message ? e.message : e);
+      return false;
+    }
+  };
+
+  const saveCloudCharacterProfileBeforeServerRankingOnly = saveCloudCharacterProfile;
+  saveCloudCharacterProfile = async function(){
+    const result = await saveCloudCharacterProfileBeforeServerRankingOnly.apply(this, arguments);
+    await syncPublicRankingRowsForCurrentUser();
+    return result;
+  };
+
+  collectRankingRecords = async function(){
+    if(!isCloudLoginMode(activeLoginMode)) return [];
+    const client = getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) throw new Error('로그인 세션 또는 Supabase 클라이언트를 확인할 수 없습니다.');
+
+    await syncPublicRankingRowsForCurrentUser();
+
+    const {data,error} = await client
+      .from(PUBLIC_RANKING_TABLE)
+      .select('rank_id,user_id,slot_index,nickname,class_name,level,floor,combat_power,score,updated_at')
+      .order('score', {ascending:false})
+      .limit(1000);
+    if(error){
+      throw new Error(`서버 랭킹 테이블(${PUBLIC_RANKING_TABLE}) 조회 실패: ${error.message}`);
+    }
+
+    const dedup = new Map();
+    (Array.isArray(data) ? data : []).forEach(row=>{
+      const rec = serverRankRecordFromPublicRow(row);
+      if(!rec) return;
+      const key = rec.rankId || `${rec.userId}_${rec.slotIndex}`;
+      const prev = dedup.get(key);
+      if(!prev || compareRankRecords(rec, prev) > 0) dedup.set(key, rec);
+    });
+    const result = Array.from(dedup.values())
+      .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+      .slice(0,50);
+    result._usedPublicTable = true;
+    result._serverOnly = true;
+    return result;
+  };
+
+  showRankingMenu = async function(){
+    pauseAutoForChoice();
+    if(!isCloudLoginMode(activeLoginMode)){
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">게스트 로그인은 서버 랭킹에 등록되지 않습니다. 카카오/네이버 로그인 후 이용하세요.</p>
+        ${makeCloseBar()}`, false);
+      bindCloseOnly();
+      return;
+    }
+
+    showModal(`<h2>랭킹</h2><p class="muted">서버 랭킹 정보를 불러오는 중입니다.</p>`, false);
+    try{
+      if(S && S.player){
+        syncActiveCharacterFromRun();
+        await saveCloudCharacterProfile();
+      }
+      const records = await collectRankingRecords();
+      const rows = records.map((r,i)=>`<tr>
+        <td class="${i<3?'rankTop':''}">${i+1}</td>
+        <td>${escapeText(r.nickname)}</td>
+        <td>${escapeText(r.className)}</td>
+        <td>${Number(r.level || 1)}</td>
+        <td>${Number(r.floor || 1)}</td>
+        <td>${Number(r.combatPower || 0).toLocaleString()}</td>
+        <td>${Number(r.score || 0).toLocaleString()}</td>
+      </tr>`).join('');
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">서버 공용 테이블 <b>${escapeText(PUBLIC_RANKING_TABLE)}</b> 기준입니다. 모든 로그인 유저가 같은 랭킹을 봅니다.</p>
+        <div class="grid2" style="margin:8px 0 4px">
+          <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
+          <span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">서버 저장 기록 기준</span>
+        </div>
+        <table class="rankingTable">
+          <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" style="text-align:center" class="muted">서버에 등록된 랭킹이 없습니다.</td></tr>'}</tbody>
+        </table>
+        ${makeCloseBar()}`, false);
+      const btn = $('rankingRefreshBtn');
+      if(btn){
+        btn.onclick = async ()=>{
+          btn.disabled = true;
+          btn.textContent = '새로고침 중...';
+          await showRankingMenu();
+        };
+      }
+      bindCloseOnly();
+    }catch(e){
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">랭킹은 서버 테이블 기준으로만 표시합니다.</p>
+        <p class="muted badtxt">${escapeText(e && e.message ? e.message : String(e))}</p>
+        <p class="muted">Supabase에 <b>${escapeText(PUBLIC_RANKING_TABLE)}</b> 테이블과 RLS 정책이 없으면 모든 유저 동기화 랭킹을 사용할 수 없습니다.</p>
+        ${makeCloseBar()}`, false);
+      bindCloseOnly();
+    }
+  };
+
+  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+})();
+
 initStartPage();
 render();
 
