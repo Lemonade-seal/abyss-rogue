@@ -9396,14 +9396,97 @@ function tryAutoSkillPriority(opts={}){
 
   return false;
 }
+function enemyAutoAttackRange(e){
+  // 몬스터 실제 공격 판정 기준만 사용한다.
+  // 안전오토에서는 플레이어 공격 사거리를 고려하지 않는다.
+  return e && e.ranged ? 5 : 1;
+}
+function safeAutoEnemyInCurrentView(e){
+  if(!S || !S.player || !e || e.hp<=0) return false;
+  const p=S.player;
+  const ox = p.x - Math.floor(VIEW/2);
+  const oy = p.y - Math.floor(VIEW/2);
+  return inView(e.x,e.y,ox,oy) && !!S.seen?.[e.y]?.[e.x];
+}
+function safeAutoEnemyHasAttackSight(e){
+  if(!S || !S.player || !e || e.hp<=0) return false;
+  const p=S.player;
+  const d=dist(e,p);
+
+  // 근접 몬스터는 실제로 인접해야 공격한다. 벽 너머는 자동으로 공격 불가 처리된다.
+  if(!e.ranged) return d<=1;
+
+  // 원거리 몬스터는 실제 적 공격 판정과 동일하게 직선 + 벽 없음일 때만 사거리로 본다.
+  return d<=enemyAutoAttackRange(e) && clearLine(e.x,e.y,p.x,p.y);
+}
+function safeAutoEnemyLineBlocked(e){
+  if(!S || !S.player || !e || e.hp<=0) return false;
+  const p=S.player;
+  if(!safeAutoEnemyInCurrentView(e)) return false;
+
+  // 같은 줄에 있는데 벽 때문에 적의 원거리 공격선이 막힌 경우.
+  // 이때는 적 사거리 대신 4칸 전 정지 기준을 쓴다.
+  if(e.ranged && (e.x===p.x || e.y===p.y) && !clearLine(e.x,e.y,p.x,p.y)) return true;
+
+  // 근접 적이 벽 바로 건너편에 보이는 경우도 너무 붙지 않도록 4칸 기준으로 본다.
+  if(!e.ranged && dist(e,p)<=4){
+    const stepToward = nextStepToward(e.x,e.y);
+    if(!stepToward) return true;
+  }
+  return false;
+}
+function safeAutoStopDistanceForEnemy(e){
+  // 안전오토 기준: 나는 공격하지 않는다.
+  // 따라서 플레이어 사거리는 제외하고 적 공격 사거리 바로 바깥에서 멈춘다.
+  if(safeAutoEnemyLineBlocked(e)) return 4;
+  return enemyAutoAttackRange(e) + 1;
+}
+function safeAutoShouldStopNearEnemy(e){
+  if(!S || !S.player || !e || e.hp<=0) return false;
+  if(!safeAutoEnemyInCurrentView(e)) return false;
+  return dist(e,S.player) <= safeAutoStopDistanceForEnemy(e);
+}
+function autoVisibleEnemies(enemies){
+  if(!S || !S.player) return [];
+  // 안전오토는 현재 화면/시야에 보이는 적만 대상으로 한다.
+  // 이미 발견했지만 현재 화면 밖이거나 벽 너머 공격선만 있는 적은 공격 사거리 판단에서 제외한다.
+  return (enemies || S.enemies || []).filter(e=>e.hp>0 && safeAutoEnemyInCurrentView(e));
+}
 function autoExplore(){
   if(!canAct()) return;
+  ensureRunFields();
   const p=S.player;
   const enemies=S.enemies.filter(e=>e.hp>0);
-  if(autoResolveAwaitAim(enemies)) return;
-  if(enemies.length && tryAutoSkillPriority({allowGapClose:false})) return;
-  if(autoBasicAttack()) return;
-  if(enemies.some(e=>e.hp>0&&dist(e,p)<=4)){ stopAuto(); toast('근처에 적이 있어 안전오토 정지.'); return; }
+
+  // 안전오토 기준: 전투하지 않는다. 조준 대기 상태가 남아 있으면 자동 발사를 막고 해제한다.
+  if(p.awaitAim){
+    p.awaitAim='';
+    renderAll();
+    saveRun();
+    return;
+  }
+
+  const visibleEnemies = autoVisibleEnemies(enemies);
+  const nearEnemy = visibleEnemies
+    .filter(e=>safeAutoShouldStopNearEnemy(e))
+    .sort((a,b)=>dist(a,p)-dist(b,p))[0];
+  if(nearEnemy){
+    const stopDistance = safeAutoStopDistanceForEnemy(nearEnemy);
+    faceToward(nearEnemy.x, nearEnemy.y);
+    stopAuto();
+    toast(`적 공격 사거리 진입 전(${stopDistance}칸)에 도달. 안전오토 정지.`);
+    return;
+  }
+
+  // 보이는 적이 멀리 있으면 적 공격 사거리 바로 전까지 이동한다.
+  // 벽에 가려진 원거리 적은 실제 공격선이 없으므로 사거리 계산에서 제외하고,
+  // 너무 가까이 붙는 경우에는 4칸 거리에서 정지한다.
+  const enemyTarget = visibleEnemies.length ? autoSelectEnemy(visibleEnemies, {keepCurrent:true}) : null;
+  if(enemyTarget){
+    const step = autoStepToAdjacent(enemyTarget.x, enemyTarget.y) || autoStepToward(enemyTarget.x, enemyTarget.y);
+    if(step){ autoMove(step); return; }
+  }
+
   const target = nearestTarget();
   if(!target){ stopAuto(); toast('탐험할 목표가 없습니다.'); return; }
   const step = autoStepToward(target.x,target.y);
