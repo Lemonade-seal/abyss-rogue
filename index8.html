@@ -93,7 +93,7 @@
   .mapLogPanel.off{display:none}
   .mapLogPanel.chat{min-height:92px;max-height:128px}
   .mapLogPanel.chat .mapLogBox{max-height:104px;overflow:visible}
-  .mapChatMessages{max-height:64px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;margin-bottom:5px;font-size:11px;line-height:1.28;color:#dbe7ff;padding-right:3px;scroll-behavior:smooth}
+  .mapChatMessages{max-height:64px;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;margin-bottom:5px;font-size:11px;line-height:1.28;color:#dbe7ff;padding-right:3px;scroll-behavior:auto;overflow-anchor:none}
   .mapChatMessages p{margin:0 0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .mapChatLine{font-family:inherit;font-size:11px;font-weight:400;line-height:1.28;letter-spacing:normal;color:#dbe7ff}
   .mapChatMeta{font-family:inherit;font-weight:400;color:inherit;letter-spacing:normal}
@@ -7548,13 +7548,31 @@ function currentLogHtml(){
   const logs = Array.isArray(S.log) ? S.log.join('') : '';
   return S.player && S.player.awaitAim ? logs + '<p class="rare">기술 방향을 선택.</p>' : logs;
 }
+let mapChatForceBottomOnce = false;
+function getMapChatScrollState(){
+  const el = document.querySelector('.mapChatMessages');
+  if(!el) return {atBottom:true, top:0, height:0};
+  const gap = el.scrollHeight - el.clientHeight - el.scrollTop;
+  return {atBottom:gap <= 8, top:el.scrollTop, height:el.scrollHeight};
+}
+function applyMapChatScrollState(state, forceBottom=false){
+  const el = document.querySelector('.mapChatMessages');
+  if(!el) return;
+  if(forceBottom || !state || state.atBottom){
+    el.scrollTop = el.scrollHeight;
+  }else{
+    el.scrollTop = Math.max(0, Math.min(state.top || 0, el.scrollHeight - el.clientHeight));
+  }
+}
+function scrollMapChatToBottom(){
+  const el = document.querySelector('.mapChatMessages');
+  if(el) el.scrollTop = el.scrollHeight;
+}
 function scrollLogChatToBottom(){
   const sideLog = $('logBox');
   if(sideLog) sideLog.scrollTop = sideLog.scrollHeight;
   const mapBox = $('mapLogBox');
   if(mapBox && mapPanelMode==='log') mapBox.scrollTop = mapBox.scrollHeight;
-  const chatMsgs = document.querySelector('.mapChatMessages');
-  if(chatMsgs) chatMsgs.scrollTop = chatMsgs.scrollHeight;
 }
 function updateLogChatButton(){
   const b=$('logChatBtn'); if(!b) return;
@@ -7597,16 +7615,20 @@ function renderMapPanel(logHtmlOverride, forceChatRender=false){
     ensureRunFields();
     titleEl.textContent = '채팅';
     const activeInput = document.activeElement && document.activeElement.id==='mapChatInput' ? document.activeElement : null;
-    if(activeInput && !forceChatRender){
-      // 오토 진행 중 renderAll이 반복 호출되어도 채팅 입력 DOM을 갈아엎지 않는다.
-      // 입력 포커스와 작성 중인 문장이 유지되어 오토 중에도 채팅을 칠 수 있다.
-      return;
-    }
+    if(activeInput && !forceChatRender) return;
+    const scrollState = getMapChatScrollState();
     const activeDraft = activeInput ? activeInput.value : '';
     const msgs = (S.chat||[]).slice(-50).map(chatLineHtml).join('');
+    const renderKey = msgs + '|draft:' + activeDraft;
+    if(!mapChatForceBottomOnce && box.dataset.chatRenderKey === renderKey){
+      bindMapChatInput();
+      return;
+    }
     box.innerHTML = `${msgs ? `<div class="mapChatMessages">${msgs}</div>` : '<div class="mapChatEmpty">채팅 내역 없음</div>'}<div class="mapChatInputRow"><input id="mapChatInput" type="text" maxlength="60" placeholder="채팅 입력" value="${escHtml(activeDraft)}"><button id="mapChatSend" type="button">전송</button></div>`;
+    box.dataset.chatRenderKey = renderKey;
     bindMapChatInput();
-    scrollLogChatToBottom();
+    applyMapChatScrollState(scrollState, mapChatForceBottomOnce);
+    mapChatForceBottomOnce = false;
     return;
   }
   titleEl.textContent = '로그';
@@ -7639,6 +7661,7 @@ function sendMapChatMessage(){
   S.chat.push({sender:chatNickname(), level:S.player.level, text, floor:S.player.floor, turn:S.player.turn});
   S.chat = S.chat.slice(-50);
   if(input) input.value='';
+  mapChatForceBottomOnce = true;
   renderMapPanel(null, true);
   if(autoMode==='safe' || autoMode==='full'){ setTimeout(()=>{ const next=$('mapChatInput'); if(next) next.focus(); }, 0); }
   saveRun();
@@ -15591,7 +15614,7 @@ showQuickSlotSelect = function(skillKey){
       return;
     }
 
-    showModal(`<h2>랭킹</h2><p class="muted">서버 랭킹 정보를 불러오는 중입니다. 순위 기준: 층 → 레벨 → 전투력 → 점수 → 최근 갱신. 점수는 층/레벨/전투력/사냥/파밍 성과를 합산합니다.</p>`, false);
+    showModal(`<h2>랭킹</h2><p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>`, false);
     try{
       if(S && S.player){
         syncActiveCharacterFromRun();
@@ -15608,10 +15631,10 @@ showQuickSlotSelect = function(skillKey){
         <td>${Number(r.score || 0).toLocaleString()}</td>
       </tr>`).join('');
       showModal(`<h2>랭킹</h2>
-        <p class="muted">서버 공용 테이블 <b>${escapeText(PUBLIC_RANKING_TABLE)}</b> 기준입니다. 모든 로그인 유저가 같은 랭킹을 봅니다.</p>
+        <p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>
         <div class="grid2" style="margin:8px 0 4px">
           <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
-          <span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">서버 저장 기록 기준</span>
+          <span></span>
         </div>
         <table class="rankingTable">
           <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
@@ -16138,10 +16161,10 @@ function autoFullExplore(){
       .slice(-80);
     S.chatOrder = 'oldestFirst';
   }
-  function appendLocalChatMessage(msg){
+  function appendLocalChatMessage(msg, forceBottom=false){
+    mapChatForceBottomOnce = !!forceBottom;
     mergeChatMessages([msg]);
     if(typeof renderMapPanel === 'function') renderMapPanel(null, true);
-    if(typeof scrollLogChatToBottom === 'function') setTimeout(scrollLogChatToBottom, 0);
   }
 
   let serverChatChannel = null;
@@ -16223,7 +16246,7 @@ function autoFullExplore(){
       .single();
     if(error) throw error;
     const msg = normalizeChatRow(data || Object.assign({}, payload, {created_at:new Date().toISOString()}));
-    if(msg) appendLocalChatMessage(msg);
+    if(msg) appendLocalChatMessage(msg, true);
     return true;
   }
 
@@ -16239,11 +16262,11 @@ function autoFullExplore(){
       ensureServerChatSubscription();
       sendServerChatMessage(text).catch(e=>{
         console.warn('server chat send failed:', e && e.message ? e.message : e);
-        appendLocalChatMessage({sender:currentNick(), nickname:currentNick(), level:S?.player?.level||1, floor:S?.player?.floor||1, text, createdAt:new Date().toISOString(), source:'localFallback'});
+        appendLocalChatMessage({sender:currentNick(), nickname:currentNick(), level:S?.player?.level||1, floor:S?.player?.floor||1, text, createdAt:new Date().toISOString(), source:'localFallback'}, true);
         if(typeof toast === 'function') toast('서버 채팅 전송 실패. 로컬에만 표시됨.');
       });
     }else{
-      appendLocalChatMessage({sender:currentNick(), nickname:currentNick(), level:S?.player?.level||1, floor:S?.player?.floor||1, text, createdAt:new Date().toISOString(), source:'guest'});
+      appendLocalChatMessage({sender:currentNick(), nickname:currentNick(), level:S?.player?.level||1, floor:S?.player?.floor||1, text, createdAt:new Date().toISOString(), source:'guest'}, true);
     }
     if(typeof showAlertBanner === 'function') showAlertBanner('누군가 말을 하고 있습니다.', 'chat');
     if(autoMode==='safe' || autoMode==='full') setTimeout(()=>{ const next=$('mapChatInput'); if(next) next.focus(); }, 0);
@@ -16771,7 +16794,7 @@ function autoFullExplore(){
     }
     if(serverRankingRenderingV2) return;
     serverRankingRenderingV2 = true;
-    showModal(`<h2>랭킹</h2><p class="muted">서버 랭킹 정보를 불러오는 중입니다. 순위 기준: 층 → 레벨 → 전투력 → 점수 → 최근 갱신. 점수는 층/레벨/전투력/사냥/파밍 성과를 합산합니다.</p>`, false);
+    showModal(`<h2>랭킹</h2><p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>`, false);
     try{
       const records = await collectRankingRecords();
       const rows = records.map((r,i)=>`<tr>
@@ -16784,10 +16807,10 @@ function autoFullExplore(){
         <td>${Number(r.score || 0).toLocaleString()}</td>
       </tr>`).join('');
       showModal(`<h2>랭킹</h2>
-        <p class="muted">서버 공용 테이블 <b>${escapeText(SERVER_RANKING_TABLE_V2)}</b> 기준입니다. 표시 ${records.length}명. 순위 기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b>.<br>점수: <b>층×10,000,000 + 레벨×100,000 + 전투력×10 + 처치/영혼/상호작용/유물/스킬강화 보너스</b>.</p>
+        <p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>
         <div class="grid2" style="margin:8px 0 4px">
           <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
-          <span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">수동 새로고침 전용</span>
+          <span></span>
         </div>
         <table class="rankingTable">
           <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
@@ -16855,14 +16878,14 @@ function autoFullExplore(){
    점수는 이제 순위 기준과 같은 방향으로 계산한다.
    층이 가장 크고, 그 다음 레벨/전투력/사냥·파밍 성과가 반영된다. */
 (function(){
-  const SCORE_WEIGHT_FLOOR = 10000000;
-  const SCORE_WEIGHT_LEVEL = 100000;
-  const SCORE_WEIGHT_POWER = 10;
-  const SCORE_WEIGHT_KILL = 2000;
-  const SCORE_WEIGHT_SOUL = 1000;
-  const SCORE_WEIGHT_OPENED = 500;
-  const SCORE_WEIGHT_RELIC = 25000;
-  const SCORE_WEIGHT_SKILL = 5000;
+  const SCORE_WEIGHT_FLOOR = 10000;
+  const SCORE_WEIGHT_LEVEL = 100;
+  const SCORE_WEIGHT_POWER = 0.01;
+  const SCORE_WEIGHT_KILL = 2;
+  const SCORE_WEIGHT_SOUL = 1;
+  const SCORE_WEIGHT_OPENED = 0.5;
+  const SCORE_WEIGHT_RELIC = 25;
+  const SCORE_WEIGHT_SKILL = 5;
 
   function safeNum(v, def=0){
     const n = Number(v);
@@ -16896,7 +16919,7 @@ function autoFullExplore(){
     ));
   }
   window.finalRankingScoreFromFields = finalRankingScoreFromFields;
-  window.rankingScoreFormulaText = '층×10,000,000 + 레벨×100,000 + 전투력×10 + 처치×2,000 + 영혼×1,000 + 상호작용×500 + 유물×25,000 + 스킬강화×5,000';
+  window.rankingScoreFormulaText = '층×10,000 + 레벨×100 + 전투력÷100 + 처치×2 + 영혼×1 + 상호작용×0.5 + 유물×25 + 스킬강화×5';
 
   const oldCombatPowerForRun = combatPowerForRun;
   combatPowerForRun = function(run, metaObj){
