@@ -6348,7 +6348,6 @@ function saveRun(){
     queueCloudSave();
   }
 }
-function hasSave(){return !!localStorage.getItem(SAVE_KEY);}
 function hydrateLoadedRun(message){
   if(!S || !S.player) return false;
   S.modalQueue = [];
@@ -6362,14 +6361,6 @@ function hydrateLoadedRun(message){
   addLog(message || '저장된 원정을 불러왔다.');
   renderAll();
   return true;
-}
-function loadRun(){
-  try{
-    const raw = localStorage.getItem(SAVE_KEY);
-    if(!raw) return false;
-    S = JSON.parse(raw);
-    return hydrateLoadedRun('저장된 원정을 불러왔다.');
-  }catch(e){ return false; }
 }
 async function saveCloud(){
   if(!cloudConfigured()) return false;
@@ -7373,21 +7364,6 @@ function starterEquip(slot, clsId='warrior'){
   return Object.assign({slot, name:row[0], baseType:row[1], job:clsId, jobName:(classes[clsId]||classes.warrior).name, rarity:0, value:1}, stats);
 }
 
-function newRun(clsId){
-  stopAuto();
-  const p = createPlayer(clsId);
-  S = {map:[], seen:[], rooms:[], enemies:[], items:[], merchants:[], discovered:{}, fx:[], player:p, log:[], logOrder:'oldestFirst', chat:[], chatOrder:'oldestFirst', mapPanelMode:'log', dead:false, auto:false, modalQueue:[], floorMod:null, bounty:null, seed:Date.now()};
-  mapPanelMode = 'log';
-  ensureRunFields();
-  Object.values(p.equip).forEach(it=>recordInventory('equip', it.name, 1, `시작 장비 · ${SLOT_KO[it.slot]} · ${it.jobName||p.className||'직업 전용'} · ${RARITY[it.rarity]} · ${statLine(it)}`, {equip:it}));
-  meta.runs++; saveMeta();
-  generateFloor(1, true);
-  addLog(`${p.className} 원정 시작. 난이도: 심연. 기술: ${classes[clsId].skill}`);
-  hideModal();
-  renderAll();
-  saveRun();
-}
-
 function generateFloor(floor, first=false){
   const p = S.player;
   p.floor = floor;
@@ -7966,10 +7942,6 @@ function hasRangedPath(x1,y1,x2,y2,pierce=false){
   if(x1!==x2 && y1!==y2) return false;
   return clearLine(x1,y1,x2,y2);
 }
-function nearestEnemy(maxRange, filterFn){
-  const p=S.player;
-  return S.enemies.filter(e=>e.hp>0&&dist(e,p)<=maxRange&&(!filterFn||filterFn(e))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
-}
 function rangedEnemy(maxRange, skillKey='smash', filterFn){
   const p=S.player; const pierce=canPierceWalls(skillKey);
   return S.enemies.filter(e=>e.hp>0&&dist(e,p)<=maxRange&&hasRangedPath(p.x,p.y,e.x,e.y,pierce)&&(!filterFn||filterFn(e))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
@@ -7987,17 +7959,6 @@ function basicRangedEnemy(){
   const p=S.player; const range=basicRangedRange();
   if(!range) return null;
   return S.enemies.filter(e=>e.hp>0&&dist(e,p)<=range&&hasRangedPath(p.x,p.y,e.x,e.y,false)).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
-}
-function directionalRangedEnemy(dx,dy){
-  const p=S.player; const range=basicRangedRange();
-  if(!range) return null;
-  for(let i=1;i<=range;i++){
-    const x=p.x+dx*i, y=p.y+dy*i;
-    if(!inMap(x,y) || S.map[y][x]==='#') return null;
-    const e=enemyAt(x,y);
-    if(e) return e;
-  }
-  return null;
 }
 function basicRangedAttack(e){
   const p=S.player;
@@ -8261,9 +8222,6 @@ function makeEquip(source='normal'){
   Object.keys(it).forEach(k=>{if(typeof it[k]==='number') it[k]=Math.floor(it[k]);});
   return it;
 }
-
-function equipBaseKey(it){ return (it&&it.baseType) || (it&&it.name ? it.name.replace(/^(낡은|단단한|빛나는|심연의|고대의) /,'').replace(/ \+\d+$/,'') : ''); }
-function isSameEquipLine(a,b){ return !!a && !!b && a.slot===b.slot && equipBaseKey(a)===equipBaseKey(b); }
 function itemScore(it){ return (it.atk||0)*4 + (it.def||0)*5 + (it.maxHp||0)*.55 + (it.maxMp||0)*.35 + (it.crit||0)*1.6 + (it.eva||0)*1.8 + (it.rarity||0)*4; }
 function statLine(it){
   return ([['공격',it.atk],['방어',it.def],['HP',it.maxHp],['MP',it.maxMp],['치명',it.crit?'+'+it.crit+'%':0],['회피',it.eva?'+'+it.eva+'%':0]].filter(x=>x[1]).map(x=>`${x[0]} ${x[1]}`).join(' · ') || '특수 효과 없음');
@@ -8505,13 +8463,6 @@ function skillEnhanceDesc(k){
   const lv=skillLv(k); const info=skillCostInfo(lv);
   if(lv>=20) return 'MAX 강화 완료';
   return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · ${lv>=15?'벽 관통 활성':' +15 벽 관통'}`;
-}
-function showSkillEnhanceMenu(){
-  if(!S) return; pauseAutoForChoice(); ensureRunFields();
-  const keys=['smash','dash','heal'];
-  const cards=keys.map(k=>{ const lv=skillLv(k); return `<div class="choice"><h4>${skillNameByKey(k)} <span class="legend">+${lv}</span></h4><p>${skillEnhanceDesc(k)}</p><button class="btn good smallbtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>강화</button></div>`; }).join('');
-  showModal(`<h2>스킬 강화</h2><p class="muted">골드로 강화한다. 실패 시 표에 따라 유지 또는 하락한다. 최대 +20.</p><div class="grid3" style="grid-template-columns:1fr; margin-top:10px">${cards}</div>`, false);
-  modalCard.querySelectorAll('[data-skill-enhance]').forEach(btn=>btn.onclick=()=>enhanceSkill(btn.dataset.skillEnhance));
 }
 function enhanceSkill(k){
   ensureRunFields(); const p=S.player; const lv=skillLv(k);
@@ -9213,12 +9164,6 @@ function autoEnemyUid(e){
   if(!e.autoUid) e.autoUid = 'ae' + (autoEnemySeq++);
   return e.autoUid;
 }
-function clearAutoTargetIfInvalid(enemies){
-  if(!S) return;
-  const list = enemies || (S.enemies||[]).filter(e=>e.hp>0);
-  if(!list.length){ S.autoTargetUid = null; S.autoGoal = null; return; }
-  if(S.autoTargetUid && !list.some(e=>autoEnemyUid(e)===S.autoTargetUid)){ S.autoTargetUid = null; S.autoGoal = null; }
-}
 function autoSelectEnemy(enemies, opts={}){
   if(!S || !S.player) return null;
   const p = S.player;
@@ -9428,19 +9373,6 @@ function validAutoGoal(goal, uid, tx, ty){
   if(!passable(goal.x,goal.y) || enemyAt(goal.x,goal.y)) return false;
   return true;
 }
-
-function autoResolveAwaitAim(enemies){
-  const p=S.player;
-  if(!p.awaitAim) return false;
-  const t = autoSelectEnemy(enemies||S.enemies.filter(e=>e.hp>0), {keepCurrent:true});
-  if(t){
-    const dx=Math.sign(t.x-p.x), dy=Math.sign(t.y-p.y);
-    resolveAimedSkill(Math.abs(dx)>=Math.abs(dy)?dx:0, Math.abs(dy)>Math.abs(dx)?dy:0);
-  } else {
-    p.awaitAim=''; renderAll(); saveRun();
-  }
-  return true;
-}
 function autoBasicAttack(){
   const p=S.player;
   const close = autoSelectAdjacentEnemy(S.enemies);
@@ -9493,17 +9425,6 @@ function safeAutoEnemyInCurrentView(e){
   const ox = p.x - Math.floor(VIEW/2);
   const oy = p.y - Math.floor(VIEW/2);
   return inView(e.x,e.y,ox,oy) && !!S.seen?.[e.y]?.[e.x];
-}
-function safeAutoEnemyHasAttackSight(e){
-  if(!S || !S.player || !e || e.hp<=0) return false;
-  const p=S.player;
-  const d=dist(e,p);
-
-  // 근접 몬스터는 실제로 인접해야 공격한다. 벽 너머는 자동으로 공격 불가 처리된다.
-  if(!e.ranged) return d<=1;
-
-  // 원거리 몬스터는 실제 적 공격 판정과 동일하게 직선 + 벽 없음일 때만 사거리로 본다.
-  return d<=enemyAutoAttackRange(e) && clearLine(e.x,e.y,p.x,p.y);
 }
 function safeAutoEnemyLineBlocked(e){
   if(!S || !S.player || !e || e.hp<=0) return false;
@@ -9578,95 +9499,6 @@ function autoExplore(){
   const step = autoStepToward(target.x,target.y);
   if(step){ autoMove(step); return; }
   waitTurn();
-}
-function autoFullExplore(){
-  if(!canAct()) return;
-  ensureRunFields();
-  const p=S.player;
-  const st=calcStats();
-  const enemies=S.enemies.filter(e=>e.hp>0);
-  if(autoResolveAwaitAim(enemies)) return;
-  if(p.potions>0 && p.cd.potion<=0 && p.hp <= st.maxHp*.42){ clearAutoRoam(); usePotion(); return; }
-
-  // 오브젝트/전투가 보이면 무작위 배회보다 항상 해당 행동을 우선 처리한다.
-  if(enemies.length && tryAutoSkillPriority({allowGapClose:true})){ clearAutoRoam(); return; }
-  if(autoBasicAttack()){ clearAutoRoam(); return; }
-
-  // 루프 탈출 상태에서는 같은 목표를 바로 다시 추적하면 네모 순환이 재발한다.
-  // 공격 가능한 상황은 위에서 이미 처리했으므로, 여기서는 먼저 금지칸을 피해 몇 칸 벗어난다.
-  if(S.autoRoamTicks && S.autoRoamTicks > 0 && S.autoRoamReason === 'loopBreak'){
-    if(autoTryRoamMove()) return;
-  }
-
-  // 보스층에서는 보스가 살아 있으면 보스 추적을 최우선으로 유지한다.
-  const bossTarget = livingBossEnemy();
-  if(isBossFloor() && bossTarget){
-    clearAutoRoam();
-    S.autoTargetUid = autoEnemyUid(bossTarget);
-    const step = autoStepToAdjacent(bossTarget.x, bossTarget.y);
-    if(step){ autoMove(step); return; }
-    enterAutoRoam('bossBlocked');
-    waitTurn();
-    return;
-  }
-
-  // 시야 안 가까운 적은 먼저 추적한다. 길이 안 잡히면 한 턴 멈춘 뒤 무작위 길따라 배회로 전환한다.
-  const nearbyEnemy = autoSelectEnemy(enemies.filter(e=>dist(e,p)<=7 || S.seen[e.y]?.[e.x]), {keepCurrent:true});
-  if(nearbyEnemy){
-    const step = autoStepToAdjacent(nearbyEnemy.x, nearbyEnemy.y);
-    if(step){ clearAutoRoam(); autoMove(step); return; }
-    enterAutoRoam('enemyBlocked');
-    waitTurn();
-    return;
-  }
-
-  const itemTarget = S.items.slice().sort((a,b)=>dist(a,p)-dist(b,p))[0];
-  if(itemTarget){
-    const step=autoStepToward(itemTarget.x,itemTarget.y);
-    if(step){ clearAutoRoam(); autoMove(step); return; }
-    enterAutoRoam('itemBlocked');
-    waitTurn();
-    return;
-  }
-
-  const enemyTarget = autoSelectEnemy(enemies, {keepCurrent:true});
-  if(enemyTarget){
-    const step = autoStepToAdjacent(enemyTarget.x, enemyTarget.y);
-    if(step){ clearAutoRoam(); autoMove(step); return; }
-    enterAutoRoam('enemyBlocked');
-    waitTurn();
-    return;
-  }
-
-  if(S.exit && ((isBossFloor() && !livingBossEnemy()) || (!isBossFloor() && !S.enemies.some(e=>e.hp>0) && !S.items.length))){
-    const step=autoStepToward(S.exit.x,S.exit.y);
-    if(step){ clearAutoRoam(); autoMove(step); return; }
-    if(p.x===S.exit.x && p.y===S.exit.y){ clearAutoRoam(); nextFloor(); return; }
-    enterAutoRoam('exitBlocked');
-    waitTurn();
-    return;
-  }
-
-  // 버벅임 감지 후에는 다음 플랜에서 목표를 억지로 재계산하지 않고 길을 따라 무작위로 이동한다.
-  if(S.autoRoamTicks && S.autoRoamTicks > 0){
-    if(autoTryRoamMove()) return;
-  }
-
-  const target = nearestTarget();
-  if(target){
-    const step=autoStepToward(target.x,target.y);
-    if(step){ autoMove(step); return; }
-    enterAutoRoam('exploreBlocked');
-    waitTurn();
-    return;
-  }
-
-  enterAutoRoam('noTarget');
-  if(autoTryRoamMove()) return;
-  waitTurn();
-}
-function tryFullAutoSkill(){
-  return tryAutoSkillPriority({allowGapClose:true});
 }
 function nextStepToAdjacent(tx,ty){
   const p=S.player;
@@ -10613,8 +10445,6 @@ showSystemMenu = function(){
   };
 };
 
-
-
 /* ===== 요청 반영: 닉네임 HUD + 전투력/랭킹 + 게스트 닉네임 제한 + 스킬 글자 이동 ===== */
 function playerNickname(p){
   if(!p) return '-';
@@ -11067,8 +10897,6 @@ updateUi = function(){
 if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
 if($('menuMenuBtn')) $('menuMenuBtn').onclick = showSystemMenu;
 
-
-
 /* 시작 화면 전용: 뒤쪽 게임 UI 완전 숨김 */
 function setStartScreenVisible(on){
   document.body.classList.toggle('startScreen', !!on);
@@ -11173,9 +11001,6 @@ async function initStartPage(){
   if(!handled) showStart();
 }
 
-
-
-
 /* 최종 고정: 게임 시작 기본 로그창 + 기존 로그/채팅/off 순환 사용 */
 function restoreDefaultLogPanel(){
   mapPanelMode = 'log';
@@ -11198,8 +11023,6 @@ startSavedCharacter = function(mode, slotIndex){
   originalStartSavedCharacterRestoreDefaultLog(mode, slotIndex);
   restoreDefaultLogPanel();
 };
-
-
 
 /* 요청 반영: 온라인 배지 + 접속 인원 리스트 */
 const ONLINE_PRESENCE_CHANNEL = 'life-rpg-online-presence-v1';
@@ -11398,9 +11221,6 @@ updateUi = function(){
   refreshNicknameMarquee();
 };
 window.addEventListener('resize', refreshNicknameMarquee);
-
-
-
 
 /* 검사 수정: 새 원정은 캐릭터 슬롯 삭제가 아니라 진행도 초기화 후 슬롯 화면으로 이동 */
 function deleteCharacterSlotOnly(mode, slotIndex){
@@ -11790,8 +11610,6 @@ gameOver = function(retire){
   return result;
 };
 
-
-
 /* 랭킹 안정화: 온라인 presence가 아니라 공개 최고기록 테이블(game_rankings) 기준으로 조회 */
 const PUBLIC_RANKING_TABLE = 'game_rankings';
 function publicRankIdFor(userId, slotIndex){ return `${userId}_${slotIndex}`; }
@@ -11980,10 +11798,6 @@ function soulUpgradeBonusInfo(upgrades){
   const gold = Number(u.gold || 0) * 5;
   return {hp, atk, def, crit, xp, gold};
 }
-function soulUpgradeBonusShortText(){
-  const b = soulUpgradeBonusInfo();
-  return `HP +${b.hp} / 공격 +${b.atk} / 방어 +${b.def} / 치명 +${b.crit}% / 경험치 +${b.xp}% / 골드 +${b.gold}%`;
-}
 function soulUpgradeBonusStatsHtml(){
   const b = soulUpgradeBonusInfo();
   return `<h3 style="margin:12px 0 6px">영혼 강화 보정</h3>
@@ -12112,9 +11926,6 @@ showStatsMenu = function(){
   bindCloseOnly();
 };
 if($('statMenuBtn')) $('statMenuBtn').onclick = showStatsMenu;
-
-
-
 
 /* 설정 메뉴 / 키맵핑 / 게임 화면 핀치 확대축소 */
 const CONTROL_LAYOUT_KEY = 'abyss_control_layout_v3';
@@ -12483,8 +12294,6 @@ function bindGamePinchZoom(){
 }
 applyControlLayout();
 bindGamePinchZoom();
-
-
 
 /* 요청 반영: 확대 축소 최소값 100%, 실제 게임화면 키맵핑 모드 */
 try{
@@ -12874,8 +12683,6 @@ function bindGameZoomResetTouch(){
 }
 setGameZoom(Math.max(1, gameZoomValue || 1));
 bindGameZoomResetTouch();
-
-
 
 /* 최종 보정: 키맵핑 드래그 크기 고정 + 패드 실제 이동거리 반영 */
 function liveFixedButtonHeight(el){
@@ -13729,38 +13536,6 @@ function pcKeyHelpRows(){
 function renderHelpTable(rows){
   return `<div class="helpTable">${rows.map(r=>`<div><b>${escHtml(r[0])}</b><span>${escHtml(r[1])}</span></div>`).join('')}</div>`;
 }
-function showHelpMenu(){
-  if(S) pauseAutoForChoice();
-  const keyRows = pcKeyHelpRows();
-  showModal(`<h2>도움말</h2>
-    <p class="muted">폰/패드는 세로모드 전용입니다. PC에서는 키보드와 마우스 조작을 같이 사용할 수 있습니다.</p>
-    <h3 style="margin:14px 0 7px">기본 버튼</h3>
-    ${renderHelpTable([
-      ['아날로그 패드', '짧게 누르거나 끌어서 이동. 가운데는 대기입니다.'],
-      ['스킬 1~3', '짧게 누르면 사용. 방향 지정 스킬은 누른 뒤 방향을 입력합니다.'],
-      ['물약', '현재 보유 물약을 사용합니다. 쿨타임이 있으면 사용할 수 없습니다.'],
-      ['공격', '인접한 적을 공격합니다. 마도사/궁수는 사거리 안의 적도 기본공격합니다.'],
-      ['오토 짧게 누름', '안전오토 시작/정지.'],
-      ['오토 길게 누름', '완전오토 시작. 공격·스킬·물약까지 자동 처리합니다.'],
-      ['미니맵 짧게 누름', '화면 위 미니맵 표시/숨김.'],
-      ['미니맵 길게 누름', '전체맵 팝업을 엽니다.'],
-      ['로그 버튼', '로그 → 채팅 → 숨김 순서로 전환합니다.'],
-      ['설정', '키맵핑, 도움말, 캐릭터 선택, 캐릭터 삭제 메뉴입니다.']
-    ])}
-    <h3 style="margin:14px 0 7px">키보드 사용법</h3>
-    ${renderHelpTable(keyRows)}
-    <h3 style="margin:14px 0 7px">마우스 사용법</h3>
-    ${renderHelpTable([
-      ['좌클릭: 플레이어 주변 칸', '해당 방향으로 1칸 이동합니다. 인접 적을 누르면 그 적을 공격합니다.'],
-      ['좌클릭: 먼 칸', '클릭한 방향으로 한 칸 이동합니다. 조준 중이면 그 방향으로 스킬을 사용합니다.'],
-      ['우클릭', '기본공격을 실행합니다.'],
-      ['휠', '게임 화면 배율을 조정합니다.'],
-      ['설정 → 키맵핑', '하단 버튼과 아날로그 위치를 실제 게임 화면에서 드래그해 재배치합니다.']
-    ])}
-    <div class="grid2" style="margin-top:14px"><button class="btn" id="helpBackBtn">설정으로</button><button class="btn good" id="helpCloseBtn">닫기</button></div>`, false);
-  const back=$('helpBackBtn'); if(back) back.onclick=showSystemMenu;
-  const close=$('helpCloseBtn'); if(close) close.onclick=()=>{ hideModal(); renderAll(); };
-}
 
 showSystemMenu = function(){
   if(!S) return;
@@ -13974,8 +13749,6 @@ helpAccordionAndRankingScrollStyle.textContent = `
   @media(max-width:520px){.rankingScroll{max-height:58dvh}.rankingScroll .rankingTable{min-width:560px}}
 `;
 document.head.appendChild(helpAccordionAndRankingScrollStyle);
-
-
 
 /* REQUEST ONLY: separate Kakao/Naver save data and show Naver login guide */
 function cloudProviderModeKey(mode){
@@ -14233,8 +14006,6 @@ showOnlineListModal = function(){
   showModal(`<h2>온라인 접속 인원</h2><p class="muted">현재 온라인 ${list.length}명</p><div class="onlineListBox">${rows}</div>${makeCloseBar()}`, false);
 };
 
-
-
 /* REQUEST ONLY: alert banner, alert settings, account submenu, system menu layout */
 const ALERT_SETTINGS_KEY = 'abyss_rogue_alert_settings_v1';
 function defaultAlertSettings(){
@@ -14436,8 +14207,6 @@ if($('menuMenuBtn')){
   $('menuMenuBtn').onclick = showSystemMenu;
 }
 
-
-
 /* REQUEST ONLY: deleting a character removes that character's soul contribution from soul upgrades */
 function soulTrackingModeKey(mode){
   return isCloudLoginMode(mode) ? mode : 'guest';
@@ -14623,8 +14392,6 @@ showDeleteCharacterConfirm = function(mode, slotIndex){
   };
 };
 
-
-
 /* REQUEST ONLY: skill tabs, common Open Door skill, locked dark rooms */
 let activeSkillPageTab = 'job';
 
@@ -14729,10 +14496,6 @@ enhanceSkill = function(k){
   addLog(`${skillNameByKey(k)} 강화 ${result}. 현재 +${p.skillEnhance[k]}.`);
   renderAll(); saveRun(); showSkillMenu(k === 'openDoor' ? 'common' : activeSkillPageTab);
 };
-
-function lockedRoomOpenState(room){
-  return !!(room && room.opened);
-}
 function lockedDoorAt(x,y, includeOpened=false){
   if(!S || !Array.isArray(S.lockedRooms)) return null;
   return S.lockedRooms.find(r=>r && r.door && r.door.x===x && r.door.y===y && (includeOpened || !r.opened)) || null;
@@ -14956,14 +14719,10 @@ mapCellClass = function(x,y){
   return mapCellClassBeforeLockedRooms(x,y);
 };
 
-
-
 /* REQUEST ONLY: connect bottom skill button to tabbed skill menu */
 if($('skillMenuBtn')){
   $('skillMenuBtn').onclick = ()=>showSkillMenu('job');
 }
-
-
 
 /* REQUEST ONLY: equal common skill panel size and quickslot assignment for all skills */
 function ensureSkillQuickSlots(){
@@ -15152,8 +14911,6 @@ document.addEventListener('keydown', e=>{
   }
 }, true);
 
-
-
 /* REQUEST ONLY: quickslot select window button labels */
 showQuickSlotSelect = function(skillKey){
   ensureSkillQuickSlots();
@@ -15184,8 +14941,6 @@ showQuickSlotSelect = function(skillKey){
   const closeBtn=$('quickSlotCloseBtn');
   if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
 };
-
-
 
 /* REQUEST ONLY: prevent duplicate skill quickslot assignment */
 showQuickSlotSelect = function(skillKey){
@@ -15225,8 +14980,6 @@ showQuickSlotSelect = function(skillKey){
   const closeBtn=$('quickSlotCloseBtn');
   if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
 };
-
-
 
 /* REQUEST ONLY: lower Open Door chance and fix range to 1 tile */
 openDoorChance = function(){
@@ -15281,9 +15034,6 @@ useOpenDoorSkill = function(){
   }
   afterPlayerAction();
 };
-
-
-
 
 /* REQUEST ONLY: rogue bonus, boss can open locked door, fog display, quickslot swap rules */
 openDoorChance = function(){
@@ -15421,12 +15171,6 @@ showQuickSlotSelect = function(skillKey){
   const closeBtn=$('quickSlotCloseBtn');
   if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
 };
-
-
-
-
-
-
 
 /* REQUEST ONLY: quickslot button right edge + key/open-door range 1 tile, safe version */
 (function(){
@@ -15896,8 +15640,6 @@ showQuickSlotSelect = function(skillKey){
   if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
 })();
 
-
-
 /* REQUEST ONLY: full auto mode refactor - hunt first, adaptive potion, nearby loot, deterministic floor clear */
 function fullAutoResetFloorState(){
   if(!S || !S.player) return;
@@ -16252,14 +15994,6 @@ function autoFullExplore(){
   if(autoTryRoamMove()) return;
   waitTurn();
 }
-function tryFullAutoSkill(){
-  const enemies=S?.enemies?.filter(e=>e.hp>0) || [];
-  const info=fullAutoSelectEnemyTarget(enemies);
-  if(info) fullAutoSetTarget(info);
-  return tryAutoSkillPriority({allowGapClose:true});
-}
-
-
 
 /* FINAL FIX: online game server sync + mobile keyboard orientation guard
    - 채팅 입력 중 iOS/Android 키보드가 올라와도 가로모드 차단 안내가 뜨지 않게 한다.
@@ -16863,12 +16597,6 @@ function tryFullAutoSkill(){
       return v2RankPriorityCompare(ar, br);
     };
   }catch(e){}
-  function v2RankingModalOpen(){
-    const modal = $('modal');
-    const card = $('modalCard');
-    if(!modal || !card || !modal.classList.contains('show')) return false;
-    return /랭킹/.test(card.textContent || '');
-  }
   function v2CharacterForActiveSlot(mode){
     try{
       if(S && S.player && typeof syncActiveCharacterFromRun === 'function') syncActiveCharacterFromRun();
