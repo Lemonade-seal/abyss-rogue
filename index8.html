@@ -16811,6 +16811,305 @@ function tryFullAutoSkill(){
   upsertServerOnlineRow(true);
 })();
 
+
+/* FINAL FIX v2: ranking must be server-wide and actively synchronized
+   - 다른 유저가 랭킹창을 열지 않아도 저장/플레이 중 주기적으로 game_rankings에 반영한다.
+   - 랭킹 테이블 Realtime/polling으로 랭킹창을 최신화한다.
+   - RPC 결과만 믿지 않고 game_rankings 직접 조회와 병합한다. */
+(function(){
+  const SERVER_RANKING_TABLE_V2 = (typeof PUBLIC_RANKING_TABLE !== 'undefined' && PUBLIC_RANKING_TABLE) ? PUBLIC_RANKING_TABLE : 'game_rankings';
+  const SERVER_RANKING_CHANNEL_V2 = 'life-rpg-server-ranking-v3';
+  const SERVER_RANKING_SYNC_MS_V2 = 10000;
+  const SERVER_RANKING_REFRESH_MS_V2 = 6000;
+  let serverRankingSyncTimerV2 = null;
+  let serverRankingChannelV2 = null;
+  let serverRankingChannelSigV2 = '';
+  let serverRankingRefreshTimerV2 = null;
+  let serverRankingRenderingV2 = false;
+
+  function v2IsCloud(){
+    try{ return typeof isCloudLoginMode === 'function' && isCloudLoginMode(activeLoginMode || (S && S.loginMode)); }
+    catch(e){ return false; }
+  }
+  function v2Mode(){
+    try{ return cloudProviderModeKey(activeLoginMode || (S && S.loginMode) || 'kakao'); }
+    catch(e){ return (activeLoginMode === 'naver') ? 'naver' : 'kakao'; }
+  }
+  function v2Slot(){
+    const n = Number(activeCharacterSlot == null ? 0 : activeCharacterSlot);
+    return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+  }
+  function v2RankId(userId, slot, mode){
+    try{ return publicRankIdFor(userId, slot, mode); }
+    catch(e){ return `${userId}_${mode || v2Mode()}_${slot}`; }
+  }
+  function v2RankingModalOpen(){
+    const modal = $('modal');
+    const card = $('modalCard');
+    if(!modal || !card || !modal.classList.contains('show')) return false;
+    return /랭킹/.test(card.textContent || '');
+  }
+  function v2CharacterForActiveSlot(mode){
+    try{
+      if(S && S.player && typeof syncActiveCharacterFromRun === 'function') syncActiveCharacterFromRun();
+    }catch(e){}
+    const slots = normalizeCharacterSlots(getSlotsForMode(mode), 3);
+    let ch = slots[v2Slot()] || null;
+    if(!ch && S && S.player){
+      const p = S.player;
+      ch = {
+        nickname:p.name || S.characterNickname || p.className || '이름 없음',
+        classId:p.classId || S.characterClassId || 'warrior',
+        className:p.className || ((classes[p.classId]||classes.warrior).name),
+        level:Number(p.level || 1),
+        floor:Number(p.floor || 1),
+        run:deepClone(S),
+        updatedAt:new Date().toISOString()
+      };
+    }
+    return ch;
+  }
+  function v2RankRowFromCharacter(userId, ch, slot, mode){
+    if(!ch) return null;
+    let rec = null;
+    try{ rec = buildRankRecordFromCharacter(ch, meta); }catch(e){}
+    if(!rec && ch.run){
+      try{ rec = rankRecordFromRun(ch.run, meta || {}, ch.nickname || '이름 없음'); }catch(e){}
+    }
+    if(!rec) return null;
+    return {
+      rank_id:v2RankId(userId, slot, mode),
+      user_id:userId,
+      provider:mode,
+      slot_index:Number(slot || 0),
+      nickname:String(rec.nickname || ch.nickname || '이름 없음').slice(0,32),
+      class_name:String(rec.className || ch.className || '-').slice(0,32),
+      level:Number(rec.level || ch.level || 1),
+      floor:Number(rec.floor || ch.floor || 1),
+      combat_power:Number(rec.combatPower || ch.combatPower || 0),
+      score:Number(rec.score || ch.score || 0),
+      updated_at:new Date().toISOString()
+    };
+  }
+  async function v2UpsertRankRow(client, row){
+    if(!client || !row) return false;
+    try{
+      const {error} = await client.rpc('upsert_game_ranking', {
+        p_provider:row.provider,
+        p_slot_index:row.slot_index,
+        p_nickname:row.nickname,
+        p_class_name:row.class_name,
+        p_level:row.level,
+        p_floor:row.floor,
+        p_combat_power:row.combat_power,
+        p_score:row.score
+      });
+      if(!error) return true;
+      console.warn('ranking v2 rpc upsert fallback:', error.message);
+    }catch(e){
+      console.warn('ranking v2 rpc upsert unavailable:', e && e.message ? e.message : e);
+    }
+    const {error:directError} = await client.from(SERVER_RANKING_TABLE_V2).upsert(row, {onConflict:'rank_id'});
+    if(directError) throw directError;
+    return true;
+  }
+  async function v2SyncActiveRankingNow(reason='auto'){
+    if(!v2IsCloud()) return false;
+    const client = getCloudClient && getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) return false;
+    const mode = v2Mode();
+    const slot = v2Slot();
+    const ch = v2CharacterForActiveSlot(mode);
+    const row = v2RankRowFromCharacter(user.id, ch, slot, mode);
+    if(!row) return false;
+    try{
+      await v2UpsertRankRow(client, row);
+      S._lastRankingSyncAt = Date.now();
+      S._lastRankingSyncReason = reason;
+      return true;
+    }catch(e){
+      console.warn('active ranking sync failed:', e && e.message ? e.message : e);
+      return false;
+    }
+  }
+  function v2QueueRankingSync(reason='queued'){
+    if(!v2IsCloud()) return;
+    clearTimeout(serverRankingSyncTimerV2);
+    serverRankingSyncTimerV2 = setTimeout(()=>{
+      v2SyncActiveRankingNow(reason).catch(e=>console.warn('ranking queued sync failed:', e && e.message ? e.message : e));
+    }, 500);
+  }
+
+  const saveRunBeforeRankingV2 = saveRun;
+  saveRun = function(){
+    const result = saveRunBeforeRankingV2.apply(this, arguments);
+    v2QueueRankingSync('saveRun');
+    return result;
+  };
+  const saveMetaBeforeRankingV2 = saveMeta;
+  saveMeta = function(){
+    const result = saveMetaBeforeRankingV2.apply(this, arguments);
+    v2QueueRankingSync('saveMeta');
+    return result;
+  };
+  const saveCloudCharacterProfileBeforeRankingV2 = saveCloudCharacterProfile;
+  saveCloudCharacterProfile = async function(){
+    const result = await saveCloudCharacterProfileBeforeRankingV2.apply(this, arguments);
+    await v2SyncActiveRankingNow('cloudSave');
+    return result;
+  };
+
+  async function v2FetchRankingRows(client){
+    const out = [];
+    try{
+      const {data,error} = await client.rpc('get_game_rankings', {p_limit:500});
+      if(!error && Array.isArray(data)) out.push(...data);
+      else if(error) console.warn('ranking v2 rpc select failed:', error.message);
+    }catch(e){
+      console.warn('ranking v2 rpc select unavailable:', e && e.message ? e.message : e);
+    }
+    try{
+      const {data,error} = await client
+        .from(SERVER_RANKING_TABLE_V2)
+        .select('rank_id,user_id,provider,slot_index,nickname,class_name,level,floor,combat_power,score,updated_at')
+        .order('score', {ascending:false})
+        .limit(1000);
+      if(error) throw error;
+      if(Array.isArray(data)) out.push(...data);
+    }catch(e){
+      if(!out.length) throw new Error(`서버 랭킹 직접 조회 실패: ${e && e.message ? e.message : e}`);
+      console.warn('ranking v2 direct select failed:', e && e.message ? e.message : e);
+    }
+    return out;
+  }
+
+  collectRankingRecords = async function(){
+    if(!v2IsCloud()) return [];
+    const client = getCloudClient && getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) throw new Error('로그인 세션 또는 Supabase 클라이언트를 확인할 수 없습니다.');
+    await v2SyncActiveRankingNow('rankingOpen');
+    const rows = await v2FetchRankingRows(client);
+    const dedup = new Map();
+    rows.forEach(row=>{
+      const rec = rankRecordFromPublicRow(row);
+      if(!rec) return;
+      rec.rankNo = Number(row.rank_no || 0);
+      rec.rankId = row.rank_id || `${row.user_id || 'user'}_${row.provider || 'unknown'}_${row.slot_index || 0}`;
+      rec.userId = row.user_id || '';
+      rec.provider = row.provider || 'unknown';
+      rec.slotIndex = Number(row.slot_index || 0);
+      const key = rec.rankId;
+      const prev = dedup.get(key);
+      if(!prev || compareRankRecords(rec, prev) > 0) dedup.set(key, rec);
+    });
+    const result = Array.from(dedup.values())
+      .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+      .slice(0,100);
+    result._usedPublicTable = true;
+    result._serverOnly = true;
+    return result;
+  };
+
+  showRankingMenu = async function(){
+    pauseAutoForChoice();
+    if(!v2IsCloud()){
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">게스트 로그인은 서버 랭킹에 등록되지 않습니다. 카카오/네이버 로그인 후 이용하세요.</p>
+        ${makeCloseBar()}`, false);
+      bindCloseOnly();
+      return;
+    }
+    if(serverRankingRenderingV2) return;
+    serverRankingRenderingV2 = true;
+    showModal(`<h2>랭킹</h2><p class="muted">서버 랭킹 정보를 불러오는 중입니다.</p>`, false);
+    try{
+      const records = await collectRankingRecords();
+      const rows = records.map((r,i)=>`<tr>
+        <td class="${i<3?'rankTop':''}">${i+1}</td>
+        <td>${escapeText(r.nickname)}</td>
+        <td>${escapeText(r.className)}</td>
+        <td>${Number(r.level || 1)}</td>
+        <td>${Number(r.floor || 1)}</td>
+        <td>${Number(r.combatPower || 0).toLocaleString()}</td>
+        <td>${Number(r.score || 0).toLocaleString()}</td>
+      </tr>`).join('');
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">서버 공용 테이블 <b>${escapeText(SERVER_RANKING_TABLE_V2)}</b> 기준입니다. 표시 ${records.length}명.</p>
+        <div class="grid2" style="margin:8px 0 4px">
+          <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
+          <span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">서버 실시간/주기 갱신</span>
+        </div>
+        <table class="rankingTable">
+          <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" style="text-align:center" class="muted">서버에 등록된 랭킹이 없습니다.</td></tr>'}</tbody>
+        </table>
+        ${makeCloseBar()}`, false);
+      const btn = $('rankingRefreshBtn');
+      if(btn){
+        btn.onclick = async ()=>{
+          btn.disabled = true;
+          btn.textContent = '새로고침 중...';
+          serverRankingRenderingV2 = false;
+          await showRankingMenu();
+        };
+      }
+      bindCloseOnly();
+      try{ wrapRankingTableIfNeeded(); }catch(e){}
+    }catch(e){
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">랭킹은 서버 테이블 기준으로만 표시합니다.</p>
+        <p class="muted badtxt">${escapeText(e && e.message ? e.message : String(e))}</p>
+        <p class="muted">Supabase의 <b>${escapeText(SERVER_RANKING_TABLE_V2)}</b> 테이블/RLS/RPC를 확인하세요.</p>
+        ${makeCloseBar()}`, false);
+      bindCloseOnly();
+    }finally{
+      serverRankingRenderingV2 = false;
+    }
+  };
+  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+
+  function ensureRankingRealtimeV2(){
+    if(!v2IsCloud()) return;
+    const client = getCloudClient && getCloudClient();
+    if(!client || typeof client.channel !== 'function') return;
+    const sig = (cloudClientSignature || '') + '|' + SERVER_RANKING_CHANNEL_V2;
+    if(serverRankingChannelV2 && serverRankingChannelSigV2 === sig) return;
+    try{
+      if(serverRankingChannelV2 && typeof client.removeChannel === 'function') client.removeChannel(serverRankingChannelV2);
+    }catch(e){}
+    serverRankingChannelSigV2 = sig;
+    try{
+      serverRankingChannelV2 = client.channel(SERVER_RANKING_CHANNEL_V2)
+        .on('postgres_changes', {event:'*', schema:'public', table:SERVER_RANKING_TABLE_V2}, ()=>{
+          if(v2RankingModalOpen() && !serverRankingRenderingV2){
+            clearTimeout(serverRankingRefreshTimerV2);
+            serverRankingRefreshTimerV2 = setTimeout(()=>showRankingMenu(), 400);
+          }
+        })
+        .subscribe();
+    }catch(e){
+      console.warn('ranking realtime subscribe failed:', e && e.message ? e.message : e);
+    }
+  }
+  try{
+    setInterval(()=>{
+      ensureRankingRealtimeV2();
+      v2SyncActiveRankingNow('heartbeat').catch(()=>{});
+      if(v2RankingModalOpen() && !serverRankingRenderingV2){
+        clearTimeout(serverRankingRefreshTimerV2);
+        serverRankingRefreshTimerV2 = setTimeout(()=>showRankingMenu(), 250);
+      }
+    }, SERVER_RANKING_SYNC_MS_V2);
+    setInterval(()=>{
+      if(v2RankingModalOpen() && !serverRankingRenderingV2) showRankingMenu();
+    }, SERVER_RANKING_REFRESH_MS_V2);
+  }catch(e){}
+  ensureRankingRealtimeV2();
+  v2QueueRankingSync('init');
+})();
+
 initStartPage();
 render();
 
