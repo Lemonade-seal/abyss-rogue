@@ -9277,33 +9277,46 @@ function registerAutoPosition(beforeX, beforeY, afterX, afterY){
   if(!S || !S.player) return;
   if(!Array.isArray(S.autoPathLog)) S.autoPathLog = [];
   S.autoPathLog.push({x:afterX, y:afterY});
-  if(S.autoPathLog.length > 16) S.autoPathLog.shift();
+  if(S.autoPathLog.length > 24) S.autoPathLog.shift();
 
   const log = S.autoPathLog;
   const n = log.length;
   const wasReverse = n>=3 && log[n-1].x===log[n-3].x && log[n-1].y===log[n-3].y;
-  const repeatedHere = log.slice(Math.max(0,n-8)).filter(pos=>pos.x===afterX && pos.y===afterY).length >= 3;
-  const squareLoop = autoIsRepeatingLoop(log, 4) || autoIsRepeatingLoop(log, 3);
-  if(wasReverse || repeatedHere || squareLoop) S.autoStuckScore = (S.autoStuckScore||0) + (squareLoop ? 2 : 1);
+  const repeatedHere = log.slice(Math.max(0,n-10)).filter(pos=>pos.x===afterX && pos.y===afterY).length >= 3;
+  const cycleLoop = autoIsRepeatingLoop(log, 4) || autoIsRepeatingLoop(log, 3);
+  const boxLoop = autoIsBoxLoop(log);
+  const loopDetected = cycleLoop || boxLoop;
+
+  if(wasReverse || repeatedHere || loopDetected) S.autoStuckScore = (S.autoStuckScore||0) + (loopDetected ? 3 : 1);
   else S.autoStuckScore = Math.max(0, (S.autoStuckScore||0) - 1);
 
-  if(S.autoStuckScore >= 3) enterAutoRoam(squareLoop ? 'loopBreak' : 'zigzag');
+  if(loopDetected){
+    markAutoForbiddenCells(log.slice(-6), 16);
+    enterAutoRoam('loopBreak');
+    return;
+  }
+  if(S.autoStuckScore >= 3){
+    markAutoForbiddenCells(log.slice(-5), 10);
+    enterAutoRoam('zigzag');
+  }
 }
 
 function enterAutoRoam(reason='stuck'){
   if(!S) return;
-  S.autoRoamTicks = Math.max(S.autoRoamTicks||0, 8);
+  S.autoRoamTicks = Math.max(S.autoRoamTicks||0, reason==='loopBreak' ? 12 : 8);
   S.autoRoamReason = reason;
   S.autoTargetUid = null;
   S.autoGoal = null;
   S.autoStuckScore = 0;
-  S.autoPathLog = [];
+  // 경로 기록을 지우면 같은 네모 루프를 다시 새로 시작한다.
+  // 그래서 기록은 유지하고, 최근 칸을 임시 금지칸으로 남겨 다음 판단에서 피하게 한다.
 }
 
 function clearAutoRoam(){
   if(!S) return;
   S.autoRoamTicks = 0;
   S.autoRoamReason = '';
+  cleanupAutoForbiddenCells();
 }
 
 function autoIsRepeatingLoop(log, size){
@@ -9317,6 +9330,50 @@ function autoIsRepeatingLoop(log, size){
   // 직선 왕복은 기존 reverse 판정이 처리하므로, 서로 다른 칸이 3개 이상일 때만 순환으로 본다.
   const unique = new Set(log.slice(n-size).map(pos=>key(pos.x,pos.y)));
   return unique.size >= 3;
+}
+
+function autoIsBoxLoop(log){
+  if(!Array.isArray(log) || log.length < 5) return false;
+  const last5 = log.slice(-5);
+  const first = last5[0], last = last5[4];
+  if(!first || !last || first.x!==last.x || first.y!==last.y) return false;
+  const core = last5.slice(0,4);
+  const unique = new Map(core.map(pos=>[key(pos.x,pos.y), pos]));
+  if(unique.size !== 4) return false;
+  const xs = [...unique.values()].map(pos=>pos.x);
+  const ys = [...unique.values()].map(pos=>pos.y);
+  return Math.max(...xs)-Math.min(...xs) <= 1 && Math.max(...ys)-Math.min(...ys) <= 1;
+}
+
+function autoForbiddenStore(){
+  if(!S) return null;
+  if(!S.autoForbiddenCells || typeof S.autoForbiddenCells !== 'object') S.autoForbiddenCells = {};
+  return S.autoForbiddenCells;
+}
+
+function markAutoForbiddenCells(cells, turns=10){
+  if(!S || !S.player || !Array.isArray(cells)) return;
+  const store = autoForbiddenStore();
+  const until = (S.player.turn || 0) + turns;
+  cells.forEach(pos=>{
+    if(!pos) return;
+    store[key(pos.x,pos.y)] = Math.max(store[key(pos.x,pos.y)] || 0, until);
+  });
+}
+
+function cleanupAutoForbiddenCells(){
+  if(!S || !S.player || !S.autoForbiddenCells) return;
+  const nowTurn = S.player.turn || 0;
+  Object.keys(S.autoForbiddenCells).forEach(k=>{
+    if((S.autoForbiddenCells[k] || 0) <= nowTurn) delete S.autoForbiddenCells[k];
+  });
+}
+
+function autoIsForbiddenCell(x,y){
+  if(!S || !S.player || !S.autoForbiddenCells) return false;
+  if(S.player.x === x && S.player.y === y) return false;
+  cleanupAutoForbiddenCells();
+  return (S.autoForbiddenCells[key(x,y)] || 0) > (S.player.turn || 0);
 }
 
 function autoRecentVisitPenalty(x,y, span=10){
@@ -9337,7 +9394,9 @@ function autoRandomRoamStep(){
     .filter(c=>passable(c.nx,c.ny)&&!enemyAt(c.nx,c.ny));
   if(!cand.length) return null;
 
-  const nonReverse = cand.filter(c=>!(S.autoPrevX===c.nx && S.autoPrevY===c.ny));
+  const notForbidden = cand.filter(c=>!autoIsForbiddenCell(c.nx,c.ny));
+  const basePool = notForbidden.length ? notForbidden : cand;
+  const nonReverse = basePool.filter(c=>!(S.autoPrevX===c.nx && S.autoPrevY===c.ny));
   const fresh = nonReverse.filter(c=>autoRecentVisitPenalty(c.nx,c.ny,8)===0);
   const pool = fresh.length ? fresh : (nonReverse.length ? nonReverse : cand);
   const scored = pool.map(c=>{
@@ -9533,6 +9592,12 @@ function autoFullExplore(){
   if(enemies.length && tryAutoSkillPriority({allowGapClose:true})){ clearAutoRoam(); return; }
   if(autoBasicAttack()){ clearAutoRoam(); return; }
 
+  // 루프 탈출 상태에서는 같은 목표를 바로 다시 추적하면 네모 순환이 재발한다.
+  // 공격 가능한 상황은 위에서 이미 처리했으므로, 여기서는 먼저 금지칸을 피해 몇 칸 벗어난다.
+  if(S.autoRoamTicks && S.autoRoamTicks > 0 && S.autoRoamReason === 'loopBreak'){
+    if(autoTryRoamMove()) return;
+  }
+
   // 보스층에서는 보스가 살아 있으면 보스 추적을 최우선으로 유지한다.
   const bossTarget = livingBossEnemy();
   if(isBossFloor() && bossTarget){
@@ -9626,7 +9691,9 @@ function nextStepToAdjacent(tx,ty){
     const approach = Math.abs((p.x+step.dx)-tx)+Math.abs((p.y+step.dy)-ty);
     const recentGoal = autoRecentVisitPenalty(c.x,c.y,10);
     const recentNext = autoRecentVisitPenalty(p.x+step.dx,p.y+step.dy,10);
-    scored.push({c,step,score:d*10 + approach + reverse*120 + recentGoal*20 + recentNext*30});
+    const forbiddenGoal = autoIsForbiddenCell(c.x,c.y) ? 1 : 0;
+    const forbiddenNext = autoIsForbiddenCell(p.x+step.dx,p.y+step.dy) ? 1 : 0;
+    scored.push({c,step,score:d*10 + approach + reverse*120 + recentGoal*20 + recentNext*30 + forbiddenGoal*500 + forbiddenNext*800});
   }
   scored.sort((a,b)=>a.score-b.score || a.c.y-b.c.y || a.c.x-b.c.x);
   if(scored.length){
@@ -9666,6 +9733,7 @@ function nextStepToward(tx,ty){
     for(const [dx,dy] of orderedDirs){
       const nx=cur.x+dx, ny=cur.y+dy, k=key(nx,ny);
       if(seen.has(k)||!passable(nx,ny)||enemyAt(nx,ny)) continue;
+      if(autoIsForbiddenCell(nx,ny) && !(nx===tx && ny===ty)) continue;
       seen.add(k); q.push({x:nx,y:ny,first:cur.first||{dx,dy}});
     }
   }
@@ -9677,7 +9745,9 @@ function unstickStep(target=null){
   const p=S.player;
   const cand=DIRS.map(([dx,dy])=>({dx,dy,nx:p.x+dx,ny:p.y+dy})).filter(c=>passable(c.nx,c.ny)&&!enemyAt(c.nx,c.ny));
   if(!cand.length) return null;
-  cand.sort((a,b)=>{
+  const usable = cand.filter(c=>!autoIsForbiddenCell(c.nx,c.ny));
+  const pool = usable.length ? usable : cand;
+  pool.sort((a,b)=>{
     const ar=(S.autoPrevX===a.nx && S.autoPrevY===a.ny)?1:0;
     const br=(S.autoPrevX===b.nx && S.autoPrevY===b.ny)?1:0;
     const ad=target?Math.abs(a.nx-target.x)+Math.abs(a.ny-target.y):999;
@@ -9687,7 +9757,7 @@ function unstickStep(target=null){
     const aw=adjacentWallCount(a.nx,a.ny), bw=adjacentWallCount(b.nx,b.ny);
     return ar-br || av-bv || ad-bd || bf-af || aw-bw || a.ny-b.ny || a.nx-b.nx;
   });
-  return {dx:cand[0].dx, dy:cand[0].dy};
+  return {dx:pool[0].dx, dy:pool[0].dy};
 }
 function autoStepToward(tx,ty){ return nextStepToward(tx,ty) || unstickStep({x:tx,y:ty}); }
 function autoStepToAdjacent(tx,ty){
@@ -9726,7 +9796,7 @@ function startFullAuto(){
   toast('완전오토 시작. 공격·스킬·물약 자동 사용.');
 }
 function toggleAuto(){ startSafeAuto(); }
-function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; if(S){ S.autoTargetUid=null; S.autoGoal=null; S.autoPrevX=null; S.autoPrevY=null; S.autoRoamTicks=0; S.autoRoamReason=''; S.autoStuckScore=0; S.autoPathLog=[]; } updateAutoButton(); }
+function stopAuto(){ if(autoTimer){clearInterval(autoTimer);autoTimer=null;} autoMode='off'; if(S){ S.autoTargetUid=null; S.autoGoal=null; S.autoPrevX=null; S.autoPrevY=null; S.autoRoamTicks=0; S.autoRoamReason=''; S.autoStuckScore=0; S.autoPathLog=[]; S.autoForbiddenCells={}; } updateAutoButton(); }
 
 
 function handleMove(dx,dy){
