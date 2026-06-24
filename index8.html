@@ -16260,6 +16260,557 @@ function tryFullAutoSkill(){
 }
 
 
+
+/* FINAL FIX: online game server sync + mobile keyboard orientation guard
+   - 채팅 입력 중 iOS/Android 키보드가 올라와도 가로모드 차단 안내가 뜨지 않게 한다.
+   - 채팅/온라인 목록/랭킹을 Supabase 서버 기준으로 동기화한다.
+   - Realtime이 꺼져 있어도 주기적 조회로 fallback한다. */
+(function(){
+  const SERVER_CHAT_TABLE = 'game_chat_messages';
+  const SERVER_ONLINE_TABLE = 'game_online_users';
+  const SERVER_CHAT_CHANNEL = 'life-rpg-server-chat-v2';
+  const SERVER_ONLINE_CHANNEL = 'life-rpg-server-online-v2';
+  const SERVER_CHAT_FETCH_MS = 3000;
+  const SERVER_ONLINE_FETCH_MS = 8000;
+  const SERVER_ONLINE_STALE_MS = 45000;
+
+  /* 1) 모바일 키보드와 가로모드 차단 안내 분리 */
+  function activeEditableElement(){
+    const el = document.activeElement;
+    if(!el) return null;
+    const tag = String(el.tagName || '').toLowerCase();
+    if(tag === 'input' || tag === 'textarea' || tag === 'select') return el;
+    if(el.isContentEditable) return el;
+    return null;
+  }
+  function updateSoftKeyboardClass(){
+    try{
+      const vv = window.visualViewport;
+      const editable = !!activeEditableElement();
+      const heightLoss = vv ? Math.max(0, window.innerHeight - vv.height - Math.max(0, vv.offsetTop || 0)) : 0;
+      const keyboardLikely = editable && heightLoss > Math.max(110, window.innerHeight * 0.16);
+      document.body.classList.toggle('textInputFocused', editable);
+      document.body.classList.toggle('softKeyboardOpen', keyboardLikely || editable);
+    }catch(e){}
+  }
+  function installKeyboardOrientationStyle(){
+    if(document.getElementById('keyboardOrientationFixStyle')) return;
+    const style = document.createElement('style');
+    style.id = 'keyboardOrientationFixStyle';
+    style.textContent = `
+      body.textInputFocused #orientationBlocker,
+      body.softKeyboardOpen #orientationBlocker{
+        display:none!important;
+      }
+      body.textInputFocused > #app,
+      body.textInputFocused > #modal,
+      body.softKeyboardOpen > #app,
+      body.softKeyboardOpen > #modal{
+        filter:none!important;
+        pointer-events:auto!important;
+        user-select:auto!important;
+      }
+      body.textInputFocused #mapChatInput,
+      body.softKeyboardOpen #mapChatInput{
+        -webkit-user-select:text!important;
+        user-select:text!important;
+        caret-color:auto!important;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  installKeyboardOrientationStyle();
+  try{
+    document.addEventListener('focusin', updateSoftKeyboardClass, true);
+    document.addEventListener('focusout', ()=>setTimeout(updateSoftKeyboardClass, 120), true);
+    window.addEventListener('resize', updateSoftKeyboardClass, {passive:true});
+    window.addEventListener('orientationchange', ()=>setTimeout(updateSoftKeyboardClass, 250), {passive:true});
+    if(window.visualViewport){
+      window.visualViewport.addEventListener('resize', updateSoftKeyboardClass, {passive:true});
+      window.visualViewport.addEventListener('scroll', updateSoftKeyboardClass, {passive:true});
+    }
+  }catch(e){}
+  updateSoftKeyboardClass();
+
+  if(typeof isPhoneTabletLandscapeBlocked === 'function'){
+    const isPhoneTabletLandscapeBlockedBeforeKeyboardFix = isPhoneTabletLandscapeBlocked;
+    isPhoneTabletLandscapeBlocked = function(){
+      if(activeEditableElement() || document.body.classList.contains('softKeyboardOpen') || document.body.classList.contains('textInputFocused')) return false;
+      return isPhoneTabletLandscapeBlockedBeforeKeyboardFix.apply(this, arguments);
+    };
+  }
+
+  function serverModeKey(){
+    try{ return cloudProviderModeKey(activeLoginMode || (S && S.loginMode) || 'kakao'); }
+    catch(e){ return (activeLoginMode === 'naver') ? 'naver' : 'kakao'; }
+  }
+  function isServerLogin(){
+    return typeof isCloudLoginMode === 'function' && isCloudLoginMode(activeLoginMode || (S && S.loginMode));
+  }
+  function currentSlotNumber(){
+    return activeCharacterSlot == null ? null : Number(activeCharacterSlot || 0);
+  }
+  function currentNick(){
+    try{
+      if(S && S.player && typeof playerNickname === 'function') return playerNickname(S.player);
+      if(typeof chatNickname === 'function') return chatNickname();
+    }catch(e){}
+    return (S && S.player && (S.player.name || S.player.className)) || '이름 없음';
+  }
+  function currentClassName(){
+    return (S && S.player && S.player.className) ? String(S.player.className) : '-';
+  }
+  function normalizeChatRow(row){
+    if(!row) return null;
+    const text = String(row.text || '').trim();
+    if(!text) return null;
+    return {
+      id: row.id || row.message_id || '',
+      serverId: row.id || row.message_id || '',
+      userId: row.user_id || '',
+      clientId: row.client_id || '',
+      sender: row.nickname || row.sender || '이름 없음',
+      nickname: row.nickname || row.sender || '이름 없음',
+      className: row.class_name || '-',
+      level: Number(row.level || 1),
+      floor: Number(row.floor || 1),
+      text,
+      createdAt: row.created_at || row.createdAt || new Date().toISOString(),
+      turn: S && S.player ? S.player.turn : 0,
+      source:'server'
+    };
+  }
+  function localChatKey(m){
+    return String(m.serverId || m.id || '') || [m.sender || m.nickname || '', m.floor || '', m.level || '', m.text || '', m.createdAt || ''].join('|');
+  }
+  function mergeChatMessages(msgs){
+    if(!S) return;
+    if(!Array.isArray(S.chat)) S.chat = [];
+    if(S.chatOrder !== 'oldestFirst'){
+      S.chat.reverse();
+      S.chatOrder = 'oldestFirst';
+    }
+    const map = new Map();
+    S.chat.forEach(m=>{
+      if(!m || !m.text) return;
+      map.set(localChatKey(m), m);
+    });
+    (Array.isArray(msgs) ? msgs : []).forEach(m=>{
+      if(!m || !m.text) return;
+      map.set(localChatKey(m), m);
+    });
+    S.chat = Array.from(map.values())
+      .sort((a,b)=>String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+      .slice(-80);
+    S.chatOrder = 'oldestFirst';
+  }
+  function appendLocalChatMessage(msg){
+    mergeChatMessages([msg]);
+    if(typeof renderMapPanel === 'function') renderMapPanel(null, true);
+    if(typeof scrollLogChatToBottom === 'function') setTimeout(scrollLogChatToBottom, 0);
+  }
+
+  let serverChatChannel = null;
+  let serverChatSignature = '';
+  let serverChatLastFetch = 0;
+  let serverChatBusy = false;
+
+  async function fetchServerChat(force=false){
+    if(!isServerLogin() || serverChatBusy) return false;
+    const now = Date.now();
+    if(!force && now - serverChatLastFetch < SERVER_CHAT_FETCH_MS) return false;
+    serverChatLastFetch = now;
+    serverChatBusy = true;
+    try{
+      const client = getCloudClient && getCloudClient();
+      if(!client) return false;
+      const {data,error} = await client
+        .from(SERVER_CHAT_TABLE)
+        .select('id,user_id,provider,client_id,nickname,class_name,level,floor,text,created_at')
+        .order('created_at', {ascending:false})
+        .limit(80);
+      if(error) throw error;
+      const rows = (Array.isArray(data) ? data : []).slice().reverse().map(normalizeChatRow).filter(Boolean);
+      mergeChatMessages(rows);
+      if(mapPanelMode === 'chat' && typeof renderMapPanel === 'function') renderMapPanel(null, true);
+      return true;
+    }catch(e){
+      console.warn('server chat fetch failed:', e && e.message ? e.message : e);
+      return false;
+    }finally{
+      serverChatBusy = false;
+    }
+  }
+  async function ensureServerChatSubscription(){
+    if(!isServerLogin()) return;
+    const client = getCloudClient && getCloudClient();
+    if(!client || typeof client.channel !== 'function') return;
+    const sig = (cloudClientSignature || '') + '|' + SERVER_CHAT_CHANNEL;
+    if(serverChatChannel && serverChatSignature === sig) return;
+    try{
+      if(serverChatChannel && typeof client.removeChannel === 'function') await client.removeChannel(serverChatChannel);
+    }catch(e){}
+    serverChatSignature = sig;
+    try{
+      serverChatChannel = client.channel(SERVER_CHAT_CHANNEL)
+        .on('postgres_changes', {event:'INSERT', schema:'public', table:SERVER_CHAT_TABLE}, payload=>{
+          const msg = normalizeChatRow(payload && payload.new);
+          if(msg){
+            appendLocalChatMessage(msg);
+            if(msg.clientId !== ONLINE_CLIENT_ID && typeof showAlertBanner === 'function') showAlertBanner('누군가 말을 하고 있습니다.', 'chat');
+          }
+        })
+        .subscribe(status=>{
+          if(status === 'SUBSCRIBED') fetchServerChat(true);
+        });
+    }catch(e){
+      console.warn('server chat realtime subscribe failed:', e && e.message ? e.message : e);
+    }
+  }
+  async function sendServerChatMessage(text){
+    const client = getCloudClient && getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) throw new Error('채팅 서버 로그인이 필요합니다.');
+    const p = S && S.player ? S.player : null;
+    const payload = {
+      user_id:user.id,
+      provider:serverModeKey(),
+      client_id:ONLINE_CLIENT_ID,
+      nickname:String(currentNick() || '이름 없음').slice(0,32),
+      class_name:String(currentClassName() || '-').slice(0,32),
+      level:p ? Number(p.level || 1) : 1,
+      floor:p ? Number(p.floor || 1) : 1,
+      text:String(text || '').trim().slice(0,120)
+    };
+    const {data,error} = await client
+      .from(SERVER_CHAT_TABLE)
+      .insert(payload)
+      .select('id,user_id,provider,client_id,nickname,class_name,level,floor,text,created_at')
+      .single();
+    if(error) throw error;
+    const msg = normalizeChatRow(data || Object.assign({}, payload, {created_at:new Date().toISOString()}));
+    if(msg) appendLocalChatMessage(msg);
+    return true;
+  }
+
+  const sendMapChatMessageBeforeServerSync = sendMapChatMessage;
+  sendMapChatMessage = function(){
+    updateSoftKeyboardClass();
+    const input = $('mapChatInput');
+    const text = (input && input.value ? input.value : '').trim();
+    if(!text) return;
+    if(input) input.value = '';
+
+    if(isServerLogin()){
+      ensureServerChatSubscription();
+      sendServerChatMessage(text).catch(e=>{
+        console.warn('server chat send failed:', e && e.message ? e.message : e);
+        appendLocalChatMessage({sender:currentNick(), nickname:currentNick(), level:S?.player?.level||1, floor:S?.player?.floor||1, text, createdAt:new Date().toISOString(), source:'localFallback'});
+        if(typeof toast === 'function') toast('서버 채팅 전송 실패. 로컬에만 표시됨.');
+      });
+    }else{
+      appendLocalChatMessage({sender:currentNick(), nickname:currentNick(), level:S?.player?.level||1, floor:S?.player?.floor||1, text, createdAt:new Date().toISOString(), source:'guest'});
+    }
+    if(typeof showAlertBanner === 'function') showAlertBanner('누군가 말을 하고 있습니다.', 'chat');
+    if(autoMode==='safe' || autoMode==='full') setTimeout(()=>{ const next=$('mapChatInput'); if(next) next.focus(); }, 0);
+  };
+
+  const setMapPanelModeBeforeServerSync = setMapPanelMode;
+  setMapPanelMode = function(mode){
+    const result = setMapPanelModeBeforeServerSync.apply(this, arguments);
+    if(mapPanelMode === 'chat'){
+      ensureServerChatSubscription();
+      fetchServerChat(true);
+    }
+    return result;
+  };
+  const toggleLogChatPanelBeforeServerSync = toggleLogChatPanel;
+  toggleLogChatPanel = function(){
+    const result = toggleLogChatPanelBeforeServerSync.apply(this, arguments);
+    if(mapPanelMode === 'chat'){
+      ensureServerChatSubscription();
+      fetchServerChat(true);
+    }
+    return result;
+  };
+  if($('logChatBtn')) $('logChatBtn').onclick = toggleLogChatPanel;
+
+  /* 2) 서버 온라인 목록: presence + DB heartbeat 병행 */
+  let serverOnlineRows = [];
+  let serverOnlineLastFetch = 0;
+  let serverOnlineBusy = false;
+  let serverOnlineChannel = null;
+  let serverOnlineSignature = '';
+
+  function onlineRowToUser(row){
+    if(!row) return null;
+    return {
+      id: row.online_id || row.client_id || row.user_id || Math.random(),
+      userId: row.user_id || '',
+      clientId: row.client_id || '',
+      nickname: row.nickname || '이름 없음',
+      className: row.class_name || '-',
+      level: Number(row.level || 0),
+      floor: Number(row.floor || 0),
+      mode: row.provider || row.mode || 'local',
+      slot: row.slot_index == null ? '-' : String(Number(row.slot_index) + 1),
+      updatedAt: new Date(row.updated_at || Date.now()).getTime()
+    };
+  }
+  function mergeOnlineUsers(baseList){
+    const byId = new Map();
+    (Array.isArray(baseList) ? baseList : []).forEach(u=>{
+      if(!u) return;
+      const id = String(u.id || u.clientId || u.userId || Math.random());
+      byId.set(id, u);
+    });
+    serverOnlineRows.map(onlineRowToUser).filter(Boolean).forEach(u=>{
+      const id = String(u.id || u.clientId || u.userId || Math.random());
+      const old = byId.get(id);
+      if(!old || Number(u.updatedAt || 0) >= Number(old.updatedAt || 0)) byId.set(id, u);
+    });
+    if(!byId.size && typeof onlineSelfInfo === 'function'){
+      const self = onlineSelfInfo();
+      byId.set(String(self.id || ONLINE_CLIENT_ID), self);
+    }
+    return Array.from(byId.values()).sort((a,b)=>String(a.nickname||'').localeCompare(String(b.nickname||''),'ko'));
+  }
+
+  const normalizeOnlineListBeforeServerTable = normalizeOnlineList;
+  normalizeOnlineList = function(){
+    return mergeOnlineUsers(normalizeOnlineListBeforeServerTable.apply(this, arguments));
+  };
+
+  async function fetchServerOnlineRows(force=false){
+    if(!isServerLogin() || serverOnlineBusy) return false;
+    const now = Date.now();
+    if(!force && now - serverOnlineLastFetch < SERVER_ONLINE_FETCH_MS) return false;
+    serverOnlineLastFetch = now;
+    serverOnlineBusy = true;
+    try{
+      const client = getCloudClient && getCloudClient();
+      if(!client) return false;
+      const since = new Date(Date.now() - SERVER_ONLINE_STALE_MS).toISOString();
+      const {data,error} = await client
+        .from(SERVER_ONLINE_TABLE)
+        .select('online_id,user_id,provider,client_id,nickname,class_name,level,floor,slot_index,updated_at')
+        .gte('updated_at', since)
+        .order('updated_at', {ascending:false})
+        .limit(200);
+      if(error) throw error;
+      serverOnlineRows = Array.isArray(data) ? data : [];
+      if(typeof updateOnlineBadge === 'function') updateOnlineBadge();
+      return true;
+    }catch(e){
+      console.warn('server online fetch failed:', e && e.message ? e.message : e);
+      return false;
+    }finally{
+      serverOnlineBusy = false;
+    }
+  }
+  async function upsertServerOnlineRow(force=false){
+    if(!isServerLogin()) return false;
+    const client = getCloudClient && getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) return false;
+    try{
+      const p = S && S.player ? S.player : null;
+      const payload = {
+        online_id:ONLINE_CLIENT_ID,
+        user_id:user.id,
+        provider:serverModeKey(),
+        client_id:ONLINE_CLIENT_ID,
+        nickname:String(currentNick() || '이름 없음').slice(0,32),
+        class_name:String(currentClassName() || '-').slice(0,32),
+        level:p ? Number(p.level || 1) : 0,
+        floor:p ? Number(p.floor || 1) : 0,
+        slot_index:currentSlotNumber(),
+        updated_at:new Date().toISOString()
+      };
+      const {error} = await client.from(SERVER_ONLINE_TABLE).upsert(payload, {onConflict:'online_id'});
+      if(error) throw error;
+      await fetchServerOnlineRows(force);
+      return true;
+    }catch(e){
+      console.warn('server online upsert failed:', e && e.message ? e.message : e);
+      return false;
+    }
+  }
+  async function ensureServerOnlineSubscription(){
+    if(!isServerLogin()) return;
+    const client = getCloudClient && getCloudClient();
+    if(!client || typeof client.channel !== 'function') return;
+    const sig = (cloudClientSignature || '') + '|' + SERVER_ONLINE_CHANNEL;
+    if(serverOnlineChannel && serverOnlineSignature === sig) return;
+    try{
+      if(serverOnlineChannel && typeof client.removeChannel === 'function') await client.removeChannel(serverOnlineChannel);
+    }catch(e){}
+    serverOnlineSignature = sig;
+    try{
+      serverOnlineChannel = client.channel(SERVER_ONLINE_CHANNEL)
+        .on('postgres_changes', {event:'*', schema:'public', table:SERVER_ONLINE_TABLE}, ()=>fetchServerOnlineRows(true))
+        .subscribe(status=>{
+          if(status === 'SUBSCRIBED') fetchServerOnlineRows(true);
+        });
+    }catch(e){
+      console.warn('server online realtime subscribe failed:', e && e.message ? e.message : e);
+    }
+  }
+
+  const syncOnlinePresenceBeforeServerTable = syncOnlinePresence;
+  syncOnlinePresence = async function(force=false){
+    const result = await syncOnlinePresenceBeforeServerTable.apply(this, arguments);
+    ensureServerOnlineSubscription();
+    await upsertServerOnlineRow(force);
+    return result;
+  };
+
+  const showOnlineListModalBeforeServerTable = showOnlineListModal;
+  showOnlineListModal = function(){
+    fetchServerOnlineRows(true).finally(()=>{
+      showOnlineListModalBeforeServerTable();
+    });
+  };
+
+  try{
+    window.addEventListener('beforeunload', ()=>{
+      try{
+        const client = getCloudClient && getCloudClient();
+        if(client && isServerLogin()) client.from(SERVER_ONLINE_TABLE).delete().eq('online_id', ONLINE_CLIENT_ID).then(()=>{});
+      }catch(e){}
+    });
+    setInterval(()=>{
+      ensureServerChatSubscription();
+      ensureServerOnlineSubscription();
+      if(mapPanelMode === 'chat') fetchServerChat(false);
+      upsertServerOnlineRow(false);
+    }, 5000);
+  }catch(e){}
+
+  /* 3) 서버 랭킹: RPC 우선, 직접 테이블 fallback. direct upsert에도 provider 포함. */
+  function serverRankPayloadFromCharacter(userId, ch, slotIndex, mode){
+    const rec = buildRankRecordFromCharacter(ch, meta);
+    if(!rec) return null;
+    return {
+      rank_id:publicRankIdFor(userId, slotIndex, mode),
+      user_id:userId,
+      provider:mode,
+      slot_index:Number(slotIndex || 0),
+      nickname:String(rec.nickname || '이름 없음'),
+      class_name:String(rec.className || '-'),
+      level:Number(rec.level || 1),
+      floor:Number(rec.floor || 1),
+      combat_power:Number(rec.combatPower || 0),
+      score:Number(rec.score || 0),
+      updated_at:new Date().toISOString()
+    };
+  }
+  async function upsertRankingRowRobust(client, row){
+    try{
+      const {error} = await client.rpc('upsert_game_ranking', {
+        p_provider:row.provider,
+        p_slot_index:row.slot_index,
+        p_nickname:row.nickname,
+        p_class_name:row.class_name,
+        p_level:row.level,
+        p_floor:row.floor,
+        p_combat_power:row.combat_power,
+        p_score:row.score
+      });
+      if(!error) return true;
+      console.warn('ranking rpc upsert fallback:', error.message);
+    }catch(e){
+      console.warn('ranking rpc upsert unavailable:', e && e.message ? e.message : e);
+    }
+    const {error:directError} = await client.from(PUBLIC_RANKING_TABLE).upsert(row, {onConflict:'rank_id'});
+    if(directError) throw directError;
+    return true;
+  }
+  syncPublicRankingRowsForCurrentUser = async function(){
+    if(!isServerLogin()) return false;
+    const client = getCloudClient && getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) return false;
+    const mode = serverModeKey();
+    const slots = normalizeCharacterSlots(getSlotsForMode(mode), 3);
+    const rows = [];
+    slots.forEach((ch,i)=>{
+      const row = serverRankPayloadFromCharacter(user.id, ch, i, mode);
+      if(row) rows.push(row);
+    });
+    try{
+      for(const row of rows) await upsertRankingRowRobust(client, row);
+      for(let i=0;i<3;i++){
+        const currentId = publicRankIdFor(user.id, i, mode);
+        const legacyId = `${user.id}_${i}`;
+        try{ await client.from(PUBLIC_RANKING_TABLE).delete().eq('rank_id', legacyId); }catch(e){}
+        if(!rows.some(r=>r.slot_index === i)){
+          try{ await client.from(PUBLIC_RANKING_TABLE).delete().eq('rank_id', currentId); }catch(e){}
+        }
+      }
+      return true;
+    }catch(e){
+      console.warn('server ranking sync failed:', e && e.message ? e.message : e);
+      return false;
+    }
+  };
+
+  function rankRecordFromServerRow(row){
+    const rec = rankRecordFromPublicRow(row);
+    if(!rec) return null;
+    rec.rankNo = Number(row.rank_no || 0);
+    rec.rankId = row.rank_id || '';
+    rec.userId = row.user_id || '';
+    rec.provider = row.provider || '';
+    rec.slotIndex = Number(row.slot_index || 0);
+    return rec;
+  }
+  collectRankingRecords = async function(){
+    if(!isServerLogin()) return [];
+    const client = getCloudClient && getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user) throw new Error('로그인 세션 또는 Supabase 클라이언트를 확인할 수 없습니다.');
+    await syncPublicRankingRowsForCurrentUser();
+
+    let rows = [];
+    try{
+      const {data,error} = await client.rpc('get_game_rankings', {p_limit:100});
+      if(error) throw error;
+      rows = Array.isArray(data) ? data : [];
+    }catch(e){
+      console.warn('ranking rpc select fallback:', e && e.message ? e.message : e);
+      const {data,error} = await client
+        .from(PUBLIC_RANKING_TABLE)
+        .select('rank_id,user_id,provider,slot_index,nickname,class_name,level,floor,combat_power,score,updated_at')
+        .order('score', {ascending:false})
+        .limit(1000);
+      if(error) throw new Error(`서버 랭킹 테이블(${PUBLIC_RANKING_TABLE}) 조회 실패: ${error.message}`);
+      rows = Array.isArray(data) ? data : [];
+    }
+    const dedup = new Map();
+    rows.forEach(row=>{
+      const rec = rankRecordFromServerRow(row);
+      if(!rec) return;
+      const key = rec.rankId || `${rec.userId}_${rec.provider}_${rec.slotIndex}`;
+      const prev = dedup.get(key);
+      if(!prev || compareRankRecords(rec, prev) > 0) dedup.set(key, rec);
+    });
+    const result = Array.from(dedup.values())
+      .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+      .slice(0,50);
+    result._usedPublicTable = true;
+    result._serverOnly = true;
+    return result;
+  };
+
+  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+
+  ensureServerChatSubscription();
+  ensureServerOnlineSubscription();
+  fetchServerChat(true);
+  upsertServerOnlineRow(true);
+})();
+
 initStartPage();
 render();
 
