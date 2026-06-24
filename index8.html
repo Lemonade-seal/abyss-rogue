@@ -10987,7 +10987,7 @@ async function collectRankingRecords(){
     const prev = dedup.get(key);
     if(!prev || r.score > prev.score) dedup.set(key, r);
   });
-  return Array.from(dedup.values()).sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level)).slice(0,50);
+  return Array.from(dedup.values()).sort((a,b)=>(b.floor-a.floor)||(b.level-a.level)||(b.combatPower-a.combatPower)||(b.score-a.score)).slice(0,50);
 }
 async function showRankingMenu(){
   pauseAutoForChoice();
@@ -11670,7 +11670,7 @@ collectRankingRecords = async function(){
     if(!prev || compareRankRecords(r, prev) > 0) dedup.set(key, r);
   });
   return Array.from(dedup.values())
-    .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+    .sort((a,b)=>(b.floor-a.floor)||(b.level-a.level)||(b.combatPower-a.combatPower)||(b.score-a.score))
     .slice(0,50);
 };
 const originalGameOverForBestRankPersist = gameOver;
@@ -11890,7 +11890,7 @@ collectRankingRecords = async function(){
     if(!prev || compareRankRecords(r, prev) > 0) dedup.set(key, r);
   });
   const result = Array.from(dedup.values())
-    .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+    .sort((a,b)=>(b.floor-a.floor)||(b.level-a.level)||(b.combatPower-a.combatPower)||(b.score-a.score))
     .slice(0,50);
   result._usedPublicTable = usedPublicTable;
   return result;
@@ -15691,7 +15691,7 @@ showQuickSlotSelect = function(skillKey){
       if(!prev || compareRankRecords(rec, prev) > 0) dedup.set(key, rec);
     });
     const result = Array.from(dedup.values())
-      .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+      .sort((a,b)=>(b.floor-a.floor)||(b.level-a.level)||(b.combatPower-a.combatPower)||(b.score-a.score))
       .slice(0,50);
     result._usedPublicTable = usedPublicTable;
     return result;
@@ -15830,7 +15830,7 @@ showQuickSlotSelect = function(skillKey){
       if(!prev || compareRankRecords(rec, prev) > 0) dedup.set(key, rec);
     });
     const result = Array.from(dedup.values())
-      .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+      .sort((a,b)=>(b.floor-a.floor)||(b.level-a.level)||(b.combatPower-a.combatPower)||(b.score-a.score))
       .slice(0,50);
     result._usedPublicTable = true;
     result._serverOnly = true;
@@ -15847,7 +15847,7 @@ showQuickSlotSelect = function(skillKey){
       return;
     }
 
-    showModal(`<h2>랭킹</h2><p class="muted">서버 랭킹 정보를 불러오는 중입니다.</p>`, false);
+    showModal(`<h2>랭킹</h2><p class="muted">서버 랭킹 정보를 불러오는 중입니다. 순위 기준: 층 → 레벨 → 전투력 → 점수 → 최근 갱신. 점수는 층/레벨/전투력/사냥/파밍 성과를 합산합니다.</p>`, false);
     try{
       if(S && S.player){
         syncActiveCharacterFromRun();
@@ -16796,7 +16796,7 @@ function tryFullAutoSkill(){
       if(!prev || compareRankRecords(rec, prev) > 0) dedup.set(key, rec);
     });
     const result = Array.from(dedup.values())
-      .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+      .sort((a,b)=>(b.floor-a.floor)||(b.level-a.level)||(b.combatPower-a.combatPower)||(b.score-a.score))
       .slice(0,50);
     result._usedPublicTable = true;
     result._serverOnly = true;
@@ -16843,6 +16843,26 @@ function tryFullAutoSkill(){
     try{ return publicRankIdFor(userId, slot, mode); }
     catch(e){ return `${userId}_${mode || v2Mode()}_${slot}`; }
   }
+  function v2RankUpdatedTime(rec){
+    const t = Date.parse(rec && (rec.updatedAt || rec.updated_at) || '');
+    return Number.isFinite(t) ? t : 0;
+  }
+  function v2RankPriorityCompare(a,b){
+    const ar = a || {};
+    const br = b || {};
+    return (Number(ar.floor || 0) - Number(br.floor || 0))
+      || (Number(ar.level || 0) - Number(br.level || 0))
+      || (Number(ar.combatPower || ar.combat_power || 0) - Number(br.combatPower || br.combat_power || 0))
+      || (Number(ar.score || 0) - Number(br.score || 0))
+      || (v2RankUpdatedTime(ar) - v2RankUpdatedTime(br));
+  }
+  try{
+    compareRankRecords = function(a,b){
+      const ar = normalizeStoredRankRecord(a) || a || {floor:0,level:0,combatPower:0,score:0};
+      const br = normalizeStoredRankRecord(b) || b || {floor:0,level:0,combatPower:0,score:0};
+      return v2RankPriorityCompare(ar, br);
+    };
+  }catch(e){}
   function v2RankingModalOpen(){
     const modal = $('modal');
     const card = $('modalCard');
@@ -17005,7 +17025,7 @@ function tryFullAutoSkill(){
       if(!prev || compareRankRecords(rec, prev) > 0) dedup.set(key, rec);
     });
     const result = Array.from(dedup.values())
-      .sort((a,b)=>(b.score-a.score)||(b.combatPower-a.combatPower)||(b.floor-a.floor)||(b.level-a.level))
+      .sort((a,b)=>v2RankPriorityCompare(b,a))
       .slice(0,100);
     result._usedPublicTable = true;
     result._serverOnly = true;
@@ -17023,7 +17043,7 @@ function tryFullAutoSkill(){
     }
     if(serverRankingRenderingV2) return;
     serverRankingRenderingV2 = true;
-    showModal(`<h2>랭킹</h2><p class="muted">서버 랭킹 정보를 불러오는 중입니다.</p>`, false);
+    showModal(`<h2>랭킹</h2><p class="muted">서버 랭킹 정보를 불러오는 중입니다. 순위 기준: 층 → 레벨 → 전투력 → 점수 → 최근 갱신. 점수는 층/레벨/전투력/사냥/파밍 성과를 합산합니다.</p>`, false);
     try{
       const records = await collectRankingRecords();
       const rows = records.map((r,i)=>`<tr>
@@ -17036,10 +17056,10 @@ function tryFullAutoSkill(){
         <td>${Number(r.score || 0).toLocaleString()}</td>
       </tr>`).join('');
       showModal(`<h2>랭킹</h2>
-        <p class="muted">서버 공용 테이블 <b>${escapeText(SERVER_RANKING_TABLE_V2)}</b> 기준입니다. 표시 ${records.length}명.</p>
+        <p class="muted">서버 공용 테이블 <b>${escapeText(SERVER_RANKING_TABLE_V2)}</b> 기준입니다. 표시 ${records.length}명. 순위 기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b>.<br>점수: <b>층×10,000,000 + 레벨×100,000 + 전투력×10 + 처치/영혼/상호작용/유물/스킬강화 보너스</b>.</p>
         <div class="grid2" style="margin:8px 0 4px">
           <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
-          <span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">서버 실시간/주기 갱신</span>
+          <span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">수동 새로고침 전용</span>
         </div>
         <table class="rankingTable">
           <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
@@ -17051,6 +17071,7 @@ function tryFullAutoSkill(){
         btn.onclick = async ()=>{
           btn.disabled = true;
           btn.textContent = '새로고침 중...';
+          await v2SyncActiveRankingNow('manualRefresh');
           serverRankingRenderingV2 = false;
           await showRankingMenu();
         };
@@ -17083,10 +17104,7 @@ function tryFullAutoSkill(){
     try{
       serverRankingChannelV2 = client.channel(SERVER_RANKING_CHANNEL_V2)
         .on('postgres_changes', {event:'*', schema:'public', table:SERVER_RANKING_TABLE_V2}, ()=>{
-          if(v2RankingModalOpen() && !serverRankingRenderingV2){
-            clearTimeout(serverRankingRefreshTimerV2);
-            serverRankingRefreshTimerV2 = setTimeout(()=>showRankingMenu(), 400);
-          }
+          /* 랭킹 화면은 자동 새로고침하지 않는다. 유저가 버튼을 누를 때만 다시 조회한다. */
         })
         .subscribe();
     }catch(e){
@@ -17097,17 +17115,132 @@ function tryFullAutoSkill(){
     setInterval(()=>{
       ensureRankingRealtimeV2();
       v2SyncActiveRankingNow('heartbeat').catch(()=>{});
-      if(v2RankingModalOpen() && !serverRankingRenderingV2){
-        clearTimeout(serverRankingRefreshTimerV2);
-        serverRankingRefreshTimerV2 = setTimeout(()=>showRankingMenu(), 250);
-      }
+      /* 랭킹 모달은 자동 새로고침하지 않는다. */
     }, SERVER_RANKING_SYNC_MS_V2);
-    setInterval(()=>{
-      if(v2RankingModalOpen() && !serverRankingRenderingV2) showRankingMenu();
-    }, SERVER_RANKING_REFRESH_MS_V2);
   }catch(e){}
   ensureRankingRealtimeV2();
   v2QueueRankingSync('init');
+})();
+
+
+/* FINAL FIX v4: ranking score recalculation
+   점수는 이제 순위 기준과 같은 방향으로 계산한다.
+   층이 가장 크고, 그 다음 레벨/전투력/사냥·파밍 성과가 반영된다. */
+(function(){
+  const SCORE_WEIGHT_FLOOR = 10000000;
+  const SCORE_WEIGHT_LEVEL = 100000;
+  const SCORE_WEIGHT_POWER = 10;
+  const SCORE_WEIGHT_KILL = 2000;
+  const SCORE_WEIGHT_SOUL = 1000;
+  const SCORE_WEIGHT_OPENED = 500;
+  const SCORE_WEIGHT_RELIC = 25000;
+  const SCORE_WEIGHT_SKILL = 5000;
+
+  function safeNum(v, def=0){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : def;
+  }
+  function positiveInt(v, def=0){
+    return Math.max(def, Math.floor(safeNum(v, def)));
+  }
+  function sumNumberValues(obj){
+    if(!obj || typeof obj !== 'object') return 0;
+    return Object.values(obj).reduce((a,b)=>a+positiveInt(b,0),0);
+  }
+  function finalRankingScoreFromFields(floor, level, combatPower, extras={}){
+    const f = positiveInt(floor,1);
+    const lv = positiveInt(level,1);
+    const power = Math.max(0, Math.floor(safeNum(combatPower,0)));
+    const kills = positiveInt(extras.kills,0);
+    const souls = positiveInt(extras.souls,0);
+    const opened = positiveInt(extras.opened,0);
+    const relics = positiveInt(extras.relics,0);
+    const skillTotal = positiveInt(extras.skillTotal,0);
+    return Math.max(0, Math.floor(
+      f * SCORE_WEIGHT_FLOOR +
+      lv * SCORE_WEIGHT_LEVEL +
+      power * SCORE_WEIGHT_POWER +
+      kills * SCORE_WEIGHT_KILL +
+      souls * SCORE_WEIGHT_SOUL +
+      opened * SCORE_WEIGHT_OPENED +
+      relics * SCORE_WEIGHT_RELIC +
+      skillTotal * SCORE_WEIGHT_SKILL
+    ));
+  }
+  window.finalRankingScoreFromFields = finalRankingScoreFromFields;
+  window.rankingScoreFormulaText = '층×10,000,000 + 레벨×100,000 + 전투력×10 + 처치×2,000 + 영혼×1,000 + 상호작용×500 + 유물×25,000 + 스킬강화×5,000';
+
+  const oldCombatPowerForRun = combatPowerForRun;
+  combatPowerForRun = function(run, metaObj){
+    const p = run && run.player ? run.player : null;
+    if(!p) return 0;
+    const st = calcStatsForRun(run, metaObj || meta || {});
+    const skillTotal = sumNumberValues(p.skillEnhance) + sumNumberValues(p.skillLv);
+    return Math.max(0, Math.floor(
+      positiveInt(p.level,1) * 120 +
+      positiveInt(p.floor,1) * 180 +
+      safeNum(st.maxHp,0) * 2.0 +
+      safeNum(st.maxMp,0) * 1.2 +
+      safeNum(st.atk,0) * 22 +
+      safeNum(st.def,0) * 18 +
+      safeNum(st.crit,0) * 10 +
+      safeNum(st.eva,0) * 8 +
+      (Array.isArray(p.relics) ? p.relics.length : 0) * 90 +
+      skillTotal * 35
+    ));
+  };
+
+  rankingScoreForRun = function(run, metaObj){
+    const p = run && run.player ? run.player : null;
+    if(!p) return 0;
+    const power = combatPowerForRun(run, metaObj || meta || {});
+    const skillTotal = sumNumberValues(p.skillEnhance) + sumNumberValues(p.skillLv);
+    return finalRankingScoreFromFields(p.floor || 1, p.level || 1, power, {
+      kills:p.kills || 0,
+      souls:p.soulsRun || 0,
+      opened:p.opened || 0,
+      relics:Array.isArray(p.relics) ? p.relics.length : 0,
+      skillTotal
+    });
+  };
+  currentCombatPower = function(){
+    return S && S.player ? combatPowerForRun(S, meta) : 0;
+  };
+  currentRankingScore = function(){
+    return S && S.player ? rankingScoreForRun(S, meta) : 0;
+  };
+
+  const oldNormalizeStoredRankRecord = normalizeStoredRankRecord;
+  normalizeStoredRankRecord = function(rec, fallbackNick){
+    const r = oldNormalizeStoredRankRecord(rec, fallbackNick);
+    if(!r) return r;
+    r.score = finalRankingScoreFromFields(r.floor || 1, r.level || 1, r.combatPower || 0);
+    return r;
+  };
+
+  rankRecordFromRun = function(run, metaObj, fallbackNick){
+    const p = run && run.player ? run.player : null;
+    if(!p) return null;
+    return {
+      nickname:String(fallbackNick || p.name || p.className || '이름 없음'),
+      className:String(p.className || (classes[p.classId]||classes.warrior).name),
+      level:clamp(Number(p.level || 1), 1, MAX_LEVEL),
+      floor:Number(p.floor || 1),
+      combatPower:Number(combatPowerForRun(run, metaObj || meta || {})),
+      score:Number(rankingScoreForRun(run, metaObj || meta || {})),
+      updatedAt:new Date().toISOString()
+    };
+  };
+
+  try{
+    const oldRankRecordFromPublicRow = rankRecordFromPublicRow;
+    rankRecordFromPublicRow = function(row){
+      const rec = oldRankRecordFromPublicRow(row);
+      if(!rec) return rec;
+      rec.score = finalRankingScoreFromFields(rec.floor || 1, rec.level || 1, rec.combatPower || 0);
+      return rec;
+    };
+  }catch(e){}
 })();
 
 initStartPage();
