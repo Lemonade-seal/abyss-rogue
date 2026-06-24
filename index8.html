@@ -9383,7 +9383,7 @@ function tryAutoSkillPriority(opts={}){
   // 2번 스킬: 공격/접근 가능한 상황이면 기본공격보다 먼저 사용한다.
   if(p.cd.dash<=0){
     if(p.classId==='mage' && p.mp>=10 && enemies.some(e=>dist(e,p)<=2&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash')))){ skillMage2(); return true; }
-    if(allowGapClose && nearestDist>1 && nearestDist<=3 && (p.classId==='warrior'||p.classId==='rogue'||p.classId==='hunter')){ skillDash(); return true; }
+    if(allowGapClose && nearestDist>1 && nearestDist<=3 && (p.classId==='warrior'||p.classId==='rogue')){ skillDash(); return true; }
   }
 
   // 3번 스킬: 공격형은 우선 사용하고, 회복/버프형은 전투 중 필요한 경우에만 사용한다.
