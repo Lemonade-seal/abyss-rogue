@@ -9277,16 +9277,17 @@ function registerAutoPosition(beforeX, beforeY, afterX, afterY){
   if(!S || !S.player) return;
   if(!Array.isArray(S.autoPathLog)) S.autoPathLog = [];
   S.autoPathLog.push({x:afterX, y:afterY});
-  if(S.autoPathLog.length > 10) S.autoPathLog.shift();
+  if(S.autoPathLog.length > 16) S.autoPathLog.shift();
 
   const log = S.autoPathLog;
   const n = log.length;
   const wasReverse = n>=3 && log[n-1].x===log[n-3].x && log[n-1].y===log[n-3].y;
-  const repeatedHere = log.slice(Math.max(0,n-6)).filter(pos=>pos.x===afterX && pos.y===afterY).length >= 3;
-  if(wasReverse || repeatedHere) S.autoStuckScore = (S.autoStuckScore||0) + 1;
+  const repeatedHere = log.slice(Math.max(0,n-8)).filter(pos=>pos.x===afterX && pos.y===afterY).length >= 3;
+  const squareLoop = autoIsRepeatingLoop(log, 4) || autoIsRepeatingLoop(log, 3);
+  if(wasReverse || repeatedHere || squareLoop) S.autoStuckScore = (S.autoStuckScore||0) + (squareLoop ? 2 : 1);
   else S.autoStuckScore = Math.max(0, (S.autoStuckScore||0) - 1);
 
-  if(S.autoStuckScore >= 3) enterAutoRoam('zigzag');
+  if(S.autoStuckScore >= 3) enterAutoRoam(squareLoop ? 'loopBreak' : 'zigzag');
 }
 
 function enterAutoRoam(reason='stuck'){
@@ -9305,6 +9306,30 @@ function clearAutoRoam(){
   S.autoRoamReason = '';
 }
 
+function autoIsRepeatingLoop(log, size){
+  if(!Array.isArray(log) || log.length < size*2) return false;
+  const n = log.length;
+  for(let i=0;i<size;i++){
+    const a = log[n-1-i];
+    const b = log[n-1-i-size];
+    if(!a || !b || a.x!==b.x || a.y!==b.y) return false;
+  }
+  // 직선 왕복은 기존 reverse 판정이 처리하므로, 서로 다른 칸이 3개 이상일 때만 순환으로 본다.
+  const unique = new Set(log.slice(n-size).map(pos=>key(pos.x,pos.y)));
+  return unique.size >= 3;
+}
+
+function autoRecentVisitPenalty(x,y, span=10){
+  if(!S || !Array.isArray(S.autoPathLog)) return 0;
+  const log = S.autoPathLog.slice(-span);
+  let penalty = 0;
+  for(let i=0;i<log.length;i++){
+    const pos = log[log.length-1-i];
+    if(pos.x===x && pos.y===y) penalty += Math.max(1, span-i);
+  }
+  return penalty;
+}
+
 function autoRandomRoamStep(){
   if(!S || !S.player) return null;
   const p=S.player;
@@ -9313,14 +9338,16 @@ function autoRandomRoamStep(){
   if(!cand.length) return null;
 
   const nonReverse = cand.filter(c=>!(S.autoPrevX===c.nx && S.autoPrevY===c.ny));
-  const pool = nonReverse.length ? nonReverse : cand;
+  const fresh = nonReverse.filter(c=>autoRecentVisitPenalty(c.nx,c.ny,8)===0);
+  const pool = fresh.length ? fresh : (nonReverse.length ? nonReverse : cand);
   const scored = pool.map(c=>{
     const frontier = frontierScore(c.nx,c.ny);
     const unseenAround = frontier > 0 ? 0 : 1;
     const reverse = (S.autoPrevX===c.nx && S.autoPrevY===c.ny) ? 1 : 0;
+    const recent = autoRecentVisitPenalty(c.nx,c.ny,10);
     const wall = adjacentWallCount(c.nx,c.ny);
-    const drift = ((c.nx*31 + c.ny*17 + (S.player.turn||0)*7) % 100) / 100;
-    return {c, score:unseenAround*80 + reverse*50 + wall*3 + drift};
+    const drift = ((c.nx*31 + c.ny*17 + (S.player.turn||0)*7 + (S.autoRoamTicks||0)*13) % 100) / 100;
+    return {c, score:unseenAround*80 + reverse*80 + recent*18 + wall*3 + drift};
   }).sort((a,b)=>a.score-b.score);
   return {dx:scored[0].c.dx, dy:scored[0].c.dy};
 }
@@ -9597,7 +9624,9 @@ function nextStepToAdjacent(tx,ty){
     const reverse = isAutoReverseStep(step) ? 1 : 0;
     const d = Math.abs(c.x-p.x)+Math.abs(c.y-p.y);
     const approach = Math.abs((p.x+step.dx)-tx)+Math.abs((p.y+step.dy)-ty);
-    scored.push({c,step,score:d*10 + approach + reverse*100});
+    const recentGoal = autoRecentVisitPenalty(c.x,c.y,10);
+    const recentNext = autoRecentVisitPenalty(p.x+step.dx,p.y+step.dy,10);
+    scored.push({c,step,score:d*10 + approach + reverse*120 + recentGoal*20 + recentNext*30});
   }
   scored.sort((a,b)=>a.score-b.score || a.c.y-b.c.y || a.c.x-b.c.x);
   if(scored.length){
@@ -9624,9 +9653,11 @@ function nextStepToward(tx,ty){
   const orderedDirs=DIRS.slice().sort((a,b)=>{
     const ar=(S.autoPrevX===p.x+a[0] && S.autoPrevY===p.y+a[1])?1:0;
     const br=(S.autoPrevX===p.x+b[0] && S.autoPrevY===p.y+b[1])?1:0;
+    const av=autoRecentVisitPenalty(p.x+a[0],p.y+a[1],8);
+    const bv=autoRecentVisitPenalty(p.x+b[0],p.y+b[1],8);
     const ad=Math.abs(p.x+a[0]-tx)+Math.abs(p.y+a[1]-ty);
     const bd=Math.abs(p.x+b[0]-tx)+Math.abs(p.y+b[1]-ty);
-    return ar-br || ad-bd;
+    return ar-br || av-bv || ad-bd;
   });
   const q=[{x:p.x,y:p.y,first:null}], seen=new Set([key(p.x,p.y)]);
   for(let qi=0;qi<q.length && qi<1800;qi++){
@@ -9651,14 +9682,19 @@ function unstickStep(target=null){
     const br=(S.autoPrevX===b.nx && S.autoPrevY===b.ny)?1:0;
     const ad=target?Math.abs(a.nx-target.x)+Math.abs(a.ny-target.y):999;
     const bd=target?Math.abs(b.nx-target.x)+Math.abs(b.ny-target.y):999;
+    const av=autoRecentVisitPenalty(a.nx,a.ny,10), bv=autoRecentVisitPenalty(b.nx,b.ny,10);
     const af=frontierScore(a.nx,a.ny), bf=frontierScore(b.nx,b.ny);
     const aw=adjacentWallCount(a.nx,a.ny), bw=adjacentWallCount(b.nx,b.ny);
-    return ar-br || ad-bd || bf-af || aw-bw || a.ny-b.ny || a.nx-b.nx;
+    return ar-br || av-bv || ad-bd || bf-af || aw-bw || a.ny-b.ny || a.nx-b.nx;
   });
   return {dx:cand[0].dx, dy:cand[0].dy};
 }
 function autoStepToward(tx,ty){ return nextStepToward(tx,ty) || unstickStep({x:tx,y:ty}); }
-function autoStepToAdjacent(tx,ty){ return nextStepToAdjacent(tx,ty); }
+function autoStepToAdjacent(tx,ty){
+  if(!S || !S.player) return null;
+  if(Math.abs(S.player.x-tx)+Math.abs(S.player.y-ty)<=1) return null;
+  return nextStepToAdjacent(tx,ty) || unstickStep({x:tx,y:ty});
+}
 function updateAutoButton(){
   const b=$('autoBtn'); if(!b) return;
   b.classList.remove('good','full');
