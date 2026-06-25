@@ -7156,7 +7156,7 @@ function typeGuideHtml(item){
   if(t==='gold') return `상점 구매, 스킬 강화, 각종 선택 비용에 사용하는 기본 재화다. 이 기록의 누적 수량은 <b>${item.qty}</b>이다.`;
   if(t==='soul') return `원정 종료 후 영혼 강화에 쓰는 메타 성장 재화다. 원정 중 획득분으로 기록된다.`;
   if(t==='chest') return `장비 3개 중 하나를 고르는 보상이다. 기존 장비와 신규 장비를 비교한 뒤 선택 버튼으로 확정한다. 확정 시 기존 장비는 자동 판매된다.`;
-  if(t==='skillgem') return `무작위 직업 기술 하나를 +1 강화한다. 강화 수치가 오르면 피해량, 사거리, 쿨타임 보정이 증가한다.`;
+  if(t==='skillgem') return `무작위 직업 기술 하나를 +1 강화한다. 단, +19에서 +20 마스터 강화에는 적용되지 않는다.`;
   if(t==='relic') return `원정 동안 강한 고유 효과를 제공한다. 같은 유물은 중복 보유하지 않는다.`;
   if(t==='equip') return `캐릭터 능력치를 직접 올리는 장착 아이템이다. 대표 5부위인 무기/방어구/장갑/신발/장신구 슬롯 중 하나에 들어간다.`;
   if(t==='growth') return `레벨업 때 선택하는 성장 보상이다. 선택 즉시 기본 능력치나 보유 재화에 반영된다.`;
@@ -7300,7 +7300,7 @@ function updateBounty(e){
     if(b.reward==='gold') S.player.gold += 140 + S.player.floor*18;
     if(b.reward==='soul') S.player.soulsRun += 3 + Math.floor(S.player.floor/4);
     if(b.reward==='relic') placeItem('relic',{});
-    if(b.reward==='skillgem') placeItem('skillgem',{});
+    if(b.reward==='skillgem'){ if(chance(.12)) placeItem('skillgem',{}); else S.player.gold += 120 + S.player.floor*12; }
     if(b.reward==='chest') placeItem('chest',{});
     S.bounty=null;
   }
@@ -7308,10 +7308,16 @@ function updateBounty(e){
 function grantRandomSkillLevel(source='기술 파편'){
   ensureRunFields();
   const keys=['smash','dash','heal'];
-  const candidates=keys.filter(k=>S.player.skillEnhance[k]<20);
-  if(!candidates.length){ S.player.gold+=250; addLog(`${source}: 모든 스킬이 최대라 250G 획득.`); return; }
-  const k=one(candidates); S.player.skillEnhance[k]++;
-  recordInventory('skillgem', source, 1, `${skillNameByKey(k)} +${S.player.skillEnhance[k]}`, {skill:k, skillName:skillNameByKey(k), level:S.player.skillEnhance[k], desc:skillEnhanceDesc(k)});
+  const candidates=keys.filter(k=>(S.player.skillEnhance[k]||0)<19);
+  if(!candidates.length){
+    S.player.gold+=250;
+    addLog(`${source}: +19 이상에는 통하지 않아 250G로 전환.`);
+    toast(`${source}: +19 이상에는 통하지 않는다.`);
+    return;
+  }
+  const k=one(candidates);
+  S.player.skillEnhance[k]=Math.min(19,(S.player.skillEnhance[k]||0)+1);
+  recordInventory('skillgem', source, 1, `${skillNameByKey(k)} +${S.player.skillEnhance[k]}`, {skill:k, skillName:skillNameByKey(k), level:S.player.skillEnhance[k], maxByGem:19, desc:skillEnhanceDesc(k)});
   addLog(`<span class="rare">${source}</span>: ${skillNameByKey(k)} +${S.player.skillEnhance[k]} 강화.`);
 }
 function showCampChoice(){
@@ -7320,7 +7326,7 @@ function showCampChoice(){
   const choices=[
     {name:'휴식', desc:'HP/MP 45% 회복', f:()=>{p.hp=clamp(p.hp+Math.floor(st.maxHp*.45),1,st.maxHp);p.mp=clamp(p.mp+Math.floor(st.maxMp*.45),0,st.maxMp);}},
     {name:'정비', desc:'골드 80을 얻고 물약 +1', f:()=>{p.gold+=80;p.potions=Math.min(p.potions+1,5+(st.potionCap||0));}},
-    {name:'명상', desc:'무작위 스킬 강화 +1', f:()=>grantRandomSkillLevel('야영 명상')}
+    {name:'명상', desc:'무작위 스킬 강화 +1 (+19까지만)', f:()=>grantRandomSkillLevel('야영 명상')}
   ];
   showModal(`<h2>야영지</h2><p class="muted">한 번 쉬어갈 수 있다.</p><div class="grid3">${choices.map((c,i)=>`<div class="choice" data-i="${i}"><h4>${c.name}</h4><p>${c.desc}</p></div>`).join('')}</div>`,false);
   modalCard.querySelectorAll('.choice').forEach((el,i)=>el.onclick=()=>{choices[i].f(); recordInventory('camp', `야영지 ${choices[i].name}`, 1, choices[i].desc, {choice:choices[i].name, desc:choices[i].desc}); addLog(`야영지: ${choices[i].name} 선택.`); hideModal(); renderAll(); saveRun(); resumeAutoAfterChoice();});
@@ -7458,9 +7464,9 @@ function spawnContent(floor){
   if(chance(.20) || S.floorMod?.id==='treasure') placeItem('camp', {});
   if(chance(.15) || S.floorMod?.id==='treasure') placeItem('vault', {});
   if(chance(.13)) placeItem('oracle', {});
-  if(chance(.18)) placeItem('skillgem', {});
+  if(chance(.015)) placeItem('skillgem', {});
   if(floor>=35 && floor<=55){
-    if(chance(.70)) placeItem('skillgem', {});
+    if(chance(.035)) placeItem('skillgem', {});
     if(chance(.65)) placeItem('chest', {source:'elite'});
   }
   if(chance(.22) || S.floorMod?.id==='curse') placeItem('soul', {amount:1+Math.floor(floor/6)});
@@ -7885,7 +7891,7 @@ function killEnemy(e){
   const chestChance = e.boss ? .80 : (e.elite ? .18 : .08);
   if(chance(chestChance)) S.items.push({x:e.x,y:e.y,type:'chest',source:e.boss?'boss':(e.elite?'elite':'normal')});
   if(chance(.12)) S.items.push({x:e.x,y:e.y,type:'potion'});
-  if(chance(.035)) S.items.push({x:e.x,y:e.y,type:'skillgem'});
+  if(chance(.004)) S.items.push({x:e.x,y:e.y,type:'skillgem'});
   if(chance(.045)) S.items.push({x:e.x,y:e.y,type:'soul',amount:1});
 }
 
@@ -14724,13 +14730,14 @@ function populateLockedRoom(room, floor){
   }else if(room.rewardType==='treasure'){
     for(let i=0;i<5+rand(5);i++) placeLockedRoomItem(room,'gold',{amount:Math.floor((20+rand(40)+floor*5)*goldRate())});
     for(let i=0;i<2+rand(3);i++) placeLockedRoomItem(room,'chest',{source:chance(.35)?'elite':'normal'});
-    if(chance(.35)) placeLockedRoomItem(room,'skillgem',{});
+    if(chance(.05)) placeLockedRoomItem(room,'skillgem',{});
     if(chance(.22)) placeLockedRoomItem(room,'relic',{});
     if(chance(.28)) placeLockedRoomItem(room,'soul',{amount:1+Math.floor(floor/8)});
   }else{
-    ['vault','oracle','camp','shrine','skillgem','chest'].forEach(t=>{
+    ['vault','oracle','camp','shrine','chest'].forEach(t=>{
       if(chance(.72)) placeLockedRoomItem(room,t,t==='chest'?{source:'elite'}:{});
     });
+    if(chance(.06)) placeLockedRoomItem(room,'skillgem',{});
     for(let i=0;i<2+rand(4);i++){
       const c=one(room.cells);
       if(!S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) S.enemies.push(makeEnemy(c.x,c.y,floor,false));
@@ -18475,6 +18482,78 @@ skillEnhanceDesc = function(k){
   }
   return txt;
 };
+
+
+
+/* FINAL PATCH: hunter precision master becomes directional piercing shot */
+(function(){
+  if(window.ALL_MASTER_SKILLS && ALL_MASTER_SKILLS.hunter && ALL_MASTER_SKILLS.hunter.smash){
+    ALL_MASTER_SKILLS.hunter.smash.name='매의 심판';
+    ALL_MASTER_SKILLS.hunter.smash.chance=35;
+    ALL_MASTER_SKILLS.hunter.smash.trigger='정밀사격 명중 후 확률 연계';
+    ALL_MASTER_SKILLS.hunter.smash.range='조준 방향 직선 관통';
+    ALL_MASTER_SKILLS.hunter.smash.effect='첫 대상 추가 피해, 뒤쪽 적 최대 3명 감소 피해';
+  }
+
+  function hunterPrecisionPierceTargets(firstTarget, maxRange){
+    const p=S && S.player;
+    if(!p || !firstTarget) return [];
+    const dx=Math.sign(firstTarget.x-p.x);
+    const dy=Math.sign(firstTarget.y-p.y);
+    if((dx!==0 && dy!==0) || (dx===0 && dy===0)) return [];
+    const firstDist=dist(firstTarget,p);
+    const hits=[];
+    for(let step=1; step<=maxRange; step++){
+      const x=p.x+dx*step, y=p.y+dy*step;
+      if(!passable(x,y)) break;
+      const e=enemyAt(x,y);
+      if(e && e.hp>0 && e!==firstTarget && step>firstDist){
+        hits.push(e);
+        if(hits.length>=3) break;
+      }
+    }
+    return hits;
+  }
+
+  skillHunter1 = function(){
+    if(!skillCooldownGateForFinalPatch('smash','정밀사격')) return;
+    const p=S.player;
+    const range=5+skillRangeBonus('smash');
+    const e=lineEnemy(range,'smash');
+    if(!e){ toast('직선 사거리 안에 적이 없다.'); return; }
+    const dx=Math.sign(e.x-p.x), dy=Math.sign(e.y-p.y);
+    setPlayerDirByDelta(dx,dy);
+    skillActionBanner('정밀사격 발동!');
+    addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190});
+    addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220});
+    p.cd.smash=typeof classSkillCooldownValue==='function' ? classSkillCooldownValue('hunter','smash') : Math.max(5,9-skillCdBonus('smash'));
+    const dmg=playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true});
+    addLog('정밀사격!');
+    if(tryMasterChain('hunter','smash')){
+      showMasterChainBanner('hunter','smash');
+      if(e.hp>0){
+        const firstExtra=Math.max(1,Math.floor(dmg*0.25)+Math.floor(skillPowerBonus('smash')*0.5));
+        dealMasterDamage(e,firstExtra,'매의 심판이','#84cc16');
+      }
+      const pierceTargets=hunterPrecisionPierceTargets(e,range);
+      pierceTargets.forEach((target,idx)=>{
+        const ratio=Math.max(0.35,0.55-idx*0.08);
+        const pierceDmg=Math.max(1,Math.floor(dmg*ratio)+Math.floor(skillPowerBonus('smash')*0.35));
+        addFx({kind:'line', x1:p.x, y1:p.y, x2:target.x, y2:target.y, color:'#bef264', dur:210});
+        dealMasterDamage(target,pierceDmg,'관통 사격이','#bef264');
+      });
+    }
+    afterPlayerAction();
+  };
+
+  if(typeof skillBaseDescForMaster==='function'){
+    const oldSkillBaseDescForMaster=skillBaseDescForMaster;
+    skillBaseDescForMaster=function(cls,k){
+      if(cls==='hunter' && k==='smash') return '직선 사거리 5칸의 강한 사격. 마스터 연계 시 같은 방향으로 관통한다.';
+      return oldSkillBaseDescForMaster(cls,k);
+    };
+  }
+})();
 
 </script>
 </body>
