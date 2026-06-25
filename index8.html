@@ -8006,23 +8006,29 @@ function usePotion(){
   addLog(`물약 사용. HP ${heal} 회복.`);
   afterPlayerAction();
 }
-function canPierceWalls(skillKey){ return skillLv(skillKey)>=15; }
 function hasRangedPath(x1,y1,x2,y2,pierce=false){
   if(pierce) return true;
   if(x1!==x2 && y1!==y2) return false;
   return clearLine(x1,y1,x2,y2);
 }
 function rangedEnemy(maxRange, skillKey='smash', filterFn){
-  const p=S.player; const pierce=canPierceWalls(skillKey);
-  return S.enemies.filter(e=>e.hp>0&&dist(e,p)<=maxRange&&hasRangedPath(p.x,p.y,e.x,e.y,pierce)&&(!filterFn||filterFn(e))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
+  const p=S.player;
+  return S.enemies.filter(e=>e.hp>0&&dist(e,p)<=maxRange&&hasRangedPath(p.x,p.y,e.x,e.y,false)&&(!filterFn||filterFn(e))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
+}
+function hasLocalAoePath(x1,y1,x2,y2){
+  const dx=Math.abs(x2-x1), dy=Math.abs(y2-y1);
+  if(dx+dy>2) return false;
+  if(dx===0 && dy===0) return true;
+  if(dx===0 || dy===0) return clearLine(x1,y1,x2,y2);
+  return (passable(x2,y1) || passable(x1,y2));
 }
 function lineEnemy(maxRange, skillKey='smash'){
   return rangedEnemy(maxRange, skillKey);
 }
 function basicRangedRange(){
   if(!S) return 0;
-  if(S.player.classId==='mage') return 4;
-  if(S.player.classId==='hunter') return 6;
+  if(S.player.classId==='mage') return 3;
+  if(S.player.classId==='hunter') return 4;
   return 0;
 }
 function basicRangedEnemy(){
@@ -8078,33 +8084,33 @@ function skillWarrior1(){
   p.cd.smash=Math.max(5,10-skillCdBonus('smash')); playerAttack(e,true,{bonusBase:2+skillPowerBonus('smash')}); afterPlayerAction();
 }
 function skillWarrior2(){ const p=S.player; p.cd.dash=Math.max(6,11 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='warriorCharge'; showAimHint('방패돌진 방향을 선택.'); renderAll(); saveRun(); }
-function skillWarrior3(){ const p=S.player; const st=calcStats(); if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); p.effects.fury=3+Math.floor(skillLv('heal')/5); p.hp=clamp(p.hp + Math.floor(st.maxHp*.16)+8+skillPowerBonus('heal')*2,1,st.maxHp); addFx({kind:'ring', x:p.x, y:p.y, color:'#f59e0b', dur:360}); addFx({kind:'heal', x:p.x, y:p.y, color:'#fb923c', dur:360}); addLog('전투함성! HP를 회복하고 공격력이 상승했다.'); afterPlayerAction(); }
+function skillWarrior3(){ const p=S.player; const st=calcStats(); if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); p.effects.fury=4+Math.floor(skillLv('heal')/5); p.hp=clamp(p.hp + Math.floor(st.maxHp*.16)+8+skillPowerBonus('heal')*2,1,st.maxHp); addFx({kind:'ring', x:p.x, y:p.y, color:'#f59e0b', dur:360}); addFx({kind:'heal', x:p.x, y:p.y, color:'#fb923c', dur:360}); addLog('전투함성! HP를 회복하고 공격력이 상승했다.'); afterPlayerAction(); }
 function skillRogue1(){ const p=S.player; const e = S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0]; if(!e){toast('인접한 적이 없다.'); return;} addFx({kind:'slash', x:e.x, y:e.y, color:'#c084fc', dur:220, angle:.7}); p.cd.smash=Math.max(5,9-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:4+skillPowerBonus('smash'),critBonus:20+Math.floor(skillLv('smash')/2),ignoreDef:.45,critMult:2.05}); afterPlayerAction(); }
 function skillRogue2(){ const p=S.player; p.cd.dash=Math.max(6,10 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='rogueStep'; showAimHint('그림자 도약 방향을 선택.'); renderAll(); saveRun(); }
-function skillRogue3(){ const p=S.player; if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); p.effects.smoke=3+Math.floor(skillLv('heal')/5); addFx({kind:'smoke', x:p.x, y:p.y, color:'#cbd5e1', dur:430}); addLog('연막을 펼쳤다. 회피율이 크게 상승한다.'); afterPlayerAction(); }
-function skillMage1(){ const p=S.player; if(p.mp<5){toast('MP가 부족하다.'); return;} const e=rangedEnemy(3+skillRangeBonus('smash'),'smash'); if(!e){toast('사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a78bfa', dur:210}); addFx({kind:'burst', x:e.x, y:e.y, color:'#8b5cf6', spark:'#ddd6fe', dur:260}); p.mp-=5; p.cd.smash=Math.max(5,8-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),ignoreDef:.6,ranged:true}); addLog('마력탄이 적중했다.'); afterPlayerAction(); }
-function skillMage2(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=2&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash'))); if(!targets.length){toast('주변 2칸 안에 적이 없다.'); return;} addFx({kind:'ring', x:p.x, y:p.y, color:'#f97316', dur:300}); targets.forEach(e=>addFx({kind:'burst', x:e.x, y:e.y, color:'#f97316', spark:'#fdba74', dur:320})); p.mp-=10; p.cd.dash=Math.max(7,11-skillCdBonus('dash')); targets.forEach(e=>playerAttack(e,false,{bonusBase:3+skillPowerBonus('dash'),ignoreDef:.35,burnTurns:2,ranged:true})); addLog('화염폭발이 주변을 휩쓸었다.'); afterPlayerAction(); }
+function skillRogue3(){ const p=S.player; if(p.mp<8){toast('MP가 부족하다.'); return;} p.mp-=8; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); p.effects.smoke=4+Math.floor(skillLv('heal')/5); addFx({kind:'smoke', x:p.x, y:p.y, color:'#cbd5e1', dur:430}); addLog('연막을 펼쳤다. 회피율이 크게 상승한다.'); afterPlayerAction(); }
+function skillMage1(){ const p=S.player; if(p.mp<5){toast('MP가 부족하다.'); return;} const e=rangedEnemy(4+skillRangeBonus('smash'),'smash'); if(!e){toast('사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a78bfa', dur:210}); addFx({kind:'burst', x:e.x, y:e.y, color:'#8b5cf6', spark:'#ddd6fe', dur:260}); p.mp-=5; p.cd.smash=Math.max(5,8-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),ignoreDef:.6,ranged:true}); addLog('마력탄이 적중했다.'); afterPlayerAction(); }
+function skillMage2(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=2&&hasLocalAoePath(p.x,p.y,e.x,e.y)); if(!targets.length){toast('주변 2칸 안에 적이 없다.'); return;} addFx({kind:'ring', x:p.x, y:p.y, color:'#f97316', dur:300}); targets.forEach(e=>addFx({kind:'burst', x:e.x, y:e.y, color:'#f97316', spark:'#fdba74', dur:320})); p.mp-=10; p.cd.dash=Math.max(7,11-skillCdBonus('dash')); targets.forEach(e=>playerAttack(e,false,{bonusBase:3+skillPowerBonus('dash'),ignoreDef:.35,burnTurns:2,ranged:true})); addLog('화염폭발이 주변을 휩쓸었다.'); afterPlayerAction(); }
 function skillMage3(){ const p=S.player; const st=calcStats(); if(p.mp<12){toast('MP가 부족하다.'); return;} p.mp-=12; p.cd.heal=Math.max(7,13-skillCdBonus('heal')); const heal=Math.floor(st.maxHp*.42)+10+skillPowerBonus('heal')*2; p.hp=clamp(p.hp+heal,1,st.maxHp); addFx({kind:'heal', x:p.x, y:p.y, color:'#34d399', dur:420}); addFx({kind:'ring', x:p.x, y:p.y, color:'#6ee7b7', dur:420}); addLog(`재생술로 HP ${heal} 회복.`); afterPlayerAction(); }
-function skillHunter1(){ const p=S.player; const e=lineEnemy(4+skillRangeBonus('smash'),'smash'); if(!e){toast('직선 사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190}); addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220}); p.cd.smash=Math.max(5,9-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true}); addLog('정밀사격!'); afterPlayerAction(); }
+function skillHunter1(){ const p=S.player; const e=lineEnemy(5+skillRangeBonus('smash'),'smash'); if(!e){toast('직선 사거리 안에 적이 없다.'); return;} addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190}); addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220}); p.cd.smash=Math.max(5,9-skillCdBonus('smash')); playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true}); addLog('정밀사격!'); afterPlayerAction(); }
 function skillHunter2(){ const p=S.player; p.cd.dash=Math.max(6,10 + (calcStats().dashCd||0)-skillCdBonus('dash')); p.awaitAim='hunterRoll'; showAimHint('구르기 방향을 선택.'); renderAll(); saveRun(); }
-function skillHunter3(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=3+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('heal'))).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp).slice(0,3+Math.floor(skillLv('heal')/7)); if(!targets.length){toast('사거리 안에 적이 없다.'); return;} targets.forEach(e=>{ addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a3e635', dur:180}); addFx({kind:'burst', x:e.x, y:e.y, color:'#84cc16', spark:'#ecfccb', dur:220}); }); p.mp-=10; p.cd.heal=Math.max(7,12-skillCdBonus('heal')); targets.forEach(e=>playerAttack(e,false,{bonusBase:2+skillPowerBonus('heal'),critBonus:8+Math.floor(skillLv('heal')/2),ranged:true})); addLog('다발 사격으로 여러 적을 노렸다.'); afterPlayerAction(); }
+function skillHunter3(){ const p=S.player; if(p.mp<10){toast('MP가 부족하다.'); return;} const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=3+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,false)).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp).slice(0,3+Math.floor(skillLv('heal')/7)); if(!targets.length){toast('사거리 안에 적이 없다.'); return;} targets.forEach(e=>{ addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a3e635', dur:180}); addFx({kind:'burst', x:e.x, y:e.y, color:'#84cc16', spark:'#ecfccb', dur:220}); }); p.mp-=10; p.cd.heal=Math.max(7,12-skillCdBonus('heal')); targets.forEach(e=>playerAttack(e,false,{bonusBase:2+skillPowerBonus('heal'),critBonus:8+Math.floor(skillLv('heal')/2),ranged:true})); addLog('다발 사격으로 여러 적을 노렸다.'); afterPlayerAction(); }
 function resolveAimedSkill(dx,dy){
   const p=S.player; const type=p.awaitAim; if(!type) return; p.awaitAim='';
   if(type==='warriorCharge'){
     const sx=p.x, sy=p.y;
     let steps=0, hit=false;
     setPlayerDirByDelta(dx,dy); for(let i=0;i<2;i++){ const nx=p.x+dx, ny=p.y+dy; const e=enemyAt(nx,ny); if(e){ playerAttack(e,true,{bonusBase:2}); hit=true; break; } if(!passable(nx,ny)) break; p.x=nx; p.y=ny; steps++; }
-    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#60a5fa', dur:260}); if(hit) addFx({kind:'burst', x:p.x+dx, y:p.y+dy, color:'#93c5fd', spark:'#ffffff', dur:240}); p.effects.guard=2; addLog(hit?'방패돌진으로 적을 밀어붙였다.':steps?`방패돌진 ${steps}칸 이동.`:'방패돌진이 막혔다.'); pickupCheck(); afterPlayerAction(); return;
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#60a5fa', dur:260}); if(hit) addFx({kind:'burst', x:p.x+dx, y:p.y+dy, color:'#93c5fd', spark:'#ffffff', dur:240}); p.effects.guard=3; addLog(hit?'방패돌진으로 적을 밀어붙였다.':steps?`방패돌진 ${steps}칸 이동.`:'방패돌진이 막혔다.'); pickupCheck(); afterPlayerAction(); return;
   }
   if(type==='rogueStep'){
     const sx=p.x, sy=p.y;
     setPlayerDirByDelta(dx,dy); let moved=0; for(let i=0;i<2;i++){ const nx=p.x+dx, ny=p.y+dy; if(!passable(nx,ny) || enemyAt(nx,ny)) break; p.x=nx; p.y=ny; moved++; }
-    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#c084fc', dur:280}); p.effects.shadow=3; addLog(moved?`그림자 도약 ${moved}칸 이동. 다음 공격이 강화된다.`:'도약할 공간이 없다.'); pickupCheck(); afterPlayerAction(); return;
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#c084fc', dur:280}); p.effects.shadow=4; addLog(moved?`그림자 도약 ${moved}칸 이동. 다음 공격이 강화된다.`:'도약할 공간이 없다.'); pickupCheck(); afterPlayerAction(); return;
   }
   if(type==='hunterRoll'){
     const sx=p.x, sy=p.y;
     setPlayerDirByDelta(dx,dy); let moved=0; for(let i=0;i<2;i++){ const nx=p.x+dx, ny=p.y+dy; if(!passable(nx,ny) || enemyAt(nx,ny)) break; p.x=nx; p.y=ny; moved++; }
-    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#84cc16', dur:260}); p.effects.focus=3; addLog(moved?`구르기 ${moved}칸 이동. 다음 원거리 공격이 강화된다.`:'구를 공간이 없다.'); pickupCheck(); afterPlayerAction(); return;
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#84cc16', dur:260}); p.effects.focus=4; addLog(moved?`구르기 ${moved}칸 이동. 다음 원거리 공격이 강화된다.`:'구를 공간이 없다.'); pickupCheck(); afterPlayerAction(); return;
   }
 }
 function showAimHint(msg){toast(msg); setSkillRangePreview('dash', 2400);}
@@ -8431,8 +8437,8 @@ function showSkillMenu(){
   const p=S.player; const map={
     warrior:[['강타','인접 적에게 큰 피해를 준다.'],['방패돌진','방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],['전투함성','HP를 회복하고 잠시 공격력이 증가한다.']],
     rogue:[['급소찌르기','근접 단일 대상 치명 강화 공격.'],['그림자도약','방향을 정해 이동하고 다음 공격이 강화된다.'],['연막','연막을 펼쳐 회피율이 크게 오른다.']],
-    mage:[['마력탄','사거리 5칸 원거리 마법탄.'],['화염폭발','주변 2칸 적들을 불태우는 광역 기술.'],['재생술','HP를 많이 회복한다.']],
-    hunter:[['정밀사격','직선상의 적에게 강한 사격.'],['구르기','빠르게 이동하고 다음 원거리 공격이 강화된다.'],['다발 사격','여러 적에게 동시에 사격한다.']]
+    mage:[['마력탄','사거리 4칸 원거리 마법탄.'],['화염폭발','주변 2칸 전체 광역 공격. 벽 뒤 적은 제외.'],['재생술','HP를 많이 회복한다.']],
+    hunter:[['정밀사격','직선 5칸 강한 사격.'],['구르기','빠르게 이동하고 다음 원거리 공격이 강화된다.'],['다발 사격','여러 적에게 동시에 사격한다.']]
   };
   const skillKeys=['smash','dash','heal'];
   const skills=map[p.classId]||[];
@@ -8532,7 +8538,15 @@ function skillNameByKey(k){
 function skillEnhanceDesc(k){
   const lv=skillLv(k); const info=skillCostInfo(lv);
   if(lv>=20) return 'MAX 강화 완료';
-  return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · ${lv>=15?'벽 관통 활성':' +15 벽 관통'}`;
+  const cls=S?.player?.classId||'adventurer';
+  const effect={
+    warrior:{smash:'피해 증가 · 쿨타임 감소',dash:'피해 증가 · 쿨타임 감소',heal:'회복량 증가 · 지속턴 증가 · 쿨타임 감소'},
+    rogue:{smash:'피해 증가 · 치명 보정 증가 · 쿨타임 감소',dash:'기습 강화 · 지속턴 증가 · 쿨타임 감소',heal:'연막 지속턴 증가 · 쿨타임 감소'},
+    mage:{smash:'피해 증가 · +15부터 사거리 +1 · 쿨타임 감소',dash:'광역 피해 증가 · 쿨타임 감소',heal:'회복량 증가 · 쿨타임 감소'},
+    hunter:{smash:'피해 증가 · +15부터 사거리 +1 · 쿨타임 감소',dash:'집중 지속턴 증가 · 쿨타임 감소',heal:'피해 증가 · 대상 수 증가 · +15부터 사거리 +1 · 쿨타임 감소'}
+  };
+  const txt=(effect[cls]&&effect[cls][k]) || '피해/효과 증가 · 쿨타임 감소';
+  return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · ${txt}`;
 }
 function enhanceSkill(k){
   ensureRunFields(); const p=S.player; const lv=skillLv(k);
@@ -8797,7 +8811,7 @@ function addPreviewCell(cells,x,y,kind='range'){
 function previewHasPath(x,y,key){
   try{
     if(x===S.player.x && y===S.player.y) return true;
-    if(typeof hasRangedPath === 'function') return hasRangedPath(S.player.x,S.player.y,x,y, typeof canPierceWalls === 'function' ? canPierceWalls(key) : false);
+    if(typeof hasRangedPath === 'function') return hasRangedPath(S.player.x,S.player.y,x,y,false);
   }catch(e){}
   return true;
 }
@@ -8824,6 +8838,18 @@ function radiusPreviewCells(range,key,includeSelf=false){
   }
   return cells;
 }
+function localAoePreviewCells(range=2){
+  const p=S.player, cells=[];
+  for(let y=p.y-range;y<=p.y+range;y++){
+    for(let x=p.x-range;x<=p.x+range;x++){
+      if(!inMap(x,y) || S.map[y][x]==='#') continue;
+      const d=Math.abs(x-p.x)+Math.abs(y-p.y);
+      if(d>range || d===0) continue;
+      if(typeof hasLocalAoePath !== 'function' || hasLocalAoePath(p.x,p.y,x,y)) cells.push({x,y,kind:'range'});
+    }
+  }
+  return cells;
+}
 function adjacentPreviewCells(){
   const p=S.player, cells=[];
   [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx,dy])=>addPreviewCell(cells,p.x+dx,p.y+dy,'melee'));
@@ -8846,11 +8872,11 @@ function skillPreviewCells(key){
   const p=S.player, cls=p.classId;
   if(key==='smash'){
     if(cls==='warrior' || cls==='rogue') return adjacentPreviewCells();
-    if(cls==='mage') return radiusPreviewCells(3+skillRangeBonus('smash'),'smash');
-    if(cls==='hunter') return linePreviewCells(4+skillRangeBonus('smash'));
+    if(cls==='mage') return radiusPreviewCells(4+skillRangeBonus('smash'),'smash');
+    if(cls==='hunter') return linePreviewCells(5+skillRangeBonus('smash'));
   }
   if(key==='dash'){
-    if(cls==='mage') return radiusPreviewCells(2,'dash');
+    if(cls==='mage') return localAoePreviewCells(2);
     return dashPreviewCells();
   }
   if(key==='heal'){
@@ -9192,8 +9218,8 @@ function updateSkillButtons(){
   const skillMap={
     warrior:[['강타','인접 적 큰 피해'],['방패돌진','방향 지정 돌진'],['전투함성','회복+공격 강화']],
     rogue:[['급소찌르기','치명 강화 근접기'],['그림자도약','방향 지정 이동'],['연막','회피 대폭 상승']],
-    mage:[['마력탄','5칸 원거리 공격'],['화염폭발','주변 2칸 광역 공격'],['재생술','대량 회복']],
-    hunter:[['정밀사격','직선 원거리'],['구르기','방향 지정 이동'],['다발 사격','여러 적 공격']]
+    mage:[['마력탄','4칸 원거리 공격'],['화염폭발','주변 2칸 전체 광역'],['재생술','대량 회복']],
+    hunter:[['정밀사격','직선 5칸'],['구르기','방향 지정 이동'],['다발 사격','여러 적 공격']]
   };
   const defs=skillMap[S.player.classId];
   [['skill1',0],['skill2',1],['skill3',2]].forEach(([id,idx])=>{ const el=$(id); if(!el) return; el.querySelector('b').textContent=defs[idx][0]; el.querySelector('small').textContent=defs[idx][1]; });
@@ -9464,19 +9490,19 @@ function tryAutoSkillPriority(opts={}){
   // 1번 공격 스킬: 쿨타임이 없고 타깃이 있으면 기본공격보다 먼저 사용한다.
   if(p.cd.smash<=0){
     if((p.classId==='warrior'||p.classId==='rogue') && enemies.some(e=>dist(e,p)<=1)){ skillSmash(); return true; }
-    if(p.classId==='mage' && p.mp>=5 && rangedEnemy(3+skillRangeBonus('smash'),'smash')){ skillMage1(); return true; }
-    if(p.classId==='hunter' && lineEnemy(4+skillRangeBonus('smash'),'smash')){ skillHunter1(); return true; }
+    if(p.classId==='mage' && p.mp>=5 && rangedEnemy(4+skillRangeBonus('smash'),'smash')){ skillMage1(); return true; }
+    if(p.classId==='hunter' && lineEnemy(5+skillRangeBonus('smash'),'smash')){ skillHunter1(); return true; }
   }
 
   // 2번 스킬: 공격/접근 가능한 상황이면 기본공격보다 먼저 사용한다.
   if(p.cd.dash<=0){
-    if(p.classId==='mage' && p.mp>=10 && enemies.some(e=>dist(e,p)<=2&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('dash')))){ skillMage2(); return true; }
+    if(p.classId==='mage' && p.mp>=10 && enemies.some(e=>dist(e,p)<=2&&hasLocalAoePath(p.x,p.y,e.x,e.y))){ skillMage2(); return true; }
     if(allowGapClose && nearestDist>1 && nearestDist<=3 && (p.classId==='warrior'||p.classId==='rogue')){ skillDash(); return true; }
   }
 
   // 3번 스킬: 공격형은 우선 사용하고, 회복/버프형은 전투 중 필요한 경우에만 사용한다.
   if(p.cd.heal<=0){
-    if(p.classId==='hunter' && p.mp>=10 && enemies.some(e=>dist(e,p)<=3+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,canPierceWalls('heal')))){ skillHunter3(); return true; }
+    if(p.classId==='hunter' && p.mp>=10 && enemies.some(e=>dist(e,p)<=3+skillRangeBonus('heal')&&hasRangedPath(p.x,p.y,e.x,e.y,false))){ skillHunter3(); return true; }
     if(p.classId==='warrior' && p.mp>=8 && danger>=1 && ((!p.effects.fury || p.effects.fury<=0) || lowHp)){ skillWarrior3(); return true; }
     if(p.classId==='rogue' && p.mp>=8 && danger>=1 && (!p.effects.smoke || p.effects.smoke<=0)){ skillRogue3(); return true; }
     if(p.classId==='mage' && p.mp>=12 && p.hp<=st.maxHp*.72){ skillMage3(); return true; }
@@ -14516,7 +14542,7 @@ function jobSkillCards(){
   const p=S.player; const map={
     warrior:[['강타','인접 적에게 큰 피해를 준다.'],['방패돌진','방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],['전투함성','HP를 회복하고 잠시 공격력이 증가한다.']],
     rogue:[['급소찌르기','근접 단일 대상 치명 강화 공격.'],['그림자도약','방향을 정해 이동하고 다음 공격이 강화된다.'],['연막','연막을 펼쳐 회피율이 크게 오른다.']],
-    mage:[['마력탄','사거리 5칸 원거리 마법탄.'],['화염폭발','주변 2칸 적들을 불태우는 광역 기술.'],['재생술','HP를 많이 회복한다.']],
+    mage:[['마력탄','사거리 4칸 원거리 마법탄.'],['화염폭발','주변 2칸 전체 광역 공격. 벽 뒤 적은 제외.'],['재생술','HP를 많이 회복한다.']],
     hunter:[['정밀사격','직선상의 적에게 강한 사격.'],['구르기','방향 지정 이동'],['다발 사격','여러 적에게 동시에 사격한다.']]
   };
   const skillKeys=['smash','dash','heal'];
@@ -14908,7 +14934,7 @@ function jobSkillCardsQuickslot(){
   const p=S.player; const map={
     warrior:[['강타','인접 적에게 큰 피해를 준다.'],['방패돌진','방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],['전투함성','HP를 회복하고 잠시 공격력이 증가한다.']],
     rogue:[['급소찌르기','근접 단일 대상 치명 강화 공격.'],['그림자도약','방향을 정해 이동하고 다음 공격이 강화된다.'],['연막','연막을 펼쳐 회피율이 크게 오른다.']],
-    mage:[['마력탄','사거리 5칸 원거리 마법탄.'],['화염폭발','주변 2칸 적들을 불태우는 광역 기술.'],['재생술','HP를 많이 회복한다.']],
+    mage:[['마력탄','사거리 4칸 원거리 마법탄.'],['화염폭발','주변 2칸 전체 광역 공격. 벽 뒤 적은 제외.'],['재생술','HP를 많이 회복한다.']],
     hunter:[['정밀사격','직선상의 적에게 강한 사격.'],['구르기','방향 지정 이동'],['다발 사격','여러 적에게 동시에 사격한다.']]
   };
   const skillKeys=['smash','dash','heal'];
@@ -15789,8 +15815,7 @@ function fullAutoLockedCell(x,y){
 function fullAutoPassableNoEnemy(x,y){
   return inMap(x,y) && S.map[y][x] !== '#' && !fullAutoLockedCell(x,y) && !enemyAt(x,y);
 }
-function fullAutoLineClear(x1,y1,x2,y2,pierce=false){
-  if(pierce) return true;
+function fullAutoLineClear(x1,y1,x2,y2){
   if(x1!==x2 && y1!==y2) return false;
   const dx=Math.sign(x2-x1), dy=Math.sign(y2-y1);
   let x=x1+dx, y=y1+dy;
@@ -15811,22 +15836,22 @@ function fullAutoCanBasicAttackFrom(x,y,e){
   const range=fullAutoBasicAttackRangeForClass();
   const d=Math.abs(x-e.x)+Math.abs(y-e.y);
   if(range<=1) return d===1;
-  return d>0 && d<=range && fullAutoLineClear(x,y,e.x,e.y,false);
+  return d>0 && d<=range && fullAutoLineClear(x,y,e.x,e.y);
 }
 function fullAutoCanSkillAttackFromCurrent(e){
   if(!S || !S.player || !e || e.hp<=0) return false;
   const p=S.player;
   if(p.cd.smash<=0){
     if((p.classId==='warrior'||p.classId==='rogue') && dist(e,p)<=1) return true;
-    if(p.classId==='mage' && p.mp>=5 && dist(e,p)<=3+skillRangeBonus('smash') && fullAutoLineClear(p.x,p.y,e.x,e.y,canPierceWalls('smash'))) return true;
-    if(p.classId==='hunter' && dist(e,p)<=4+skillRangeBonus('smash') && fullAutoLineClear(p.x,p.y,e.x,e.y,canPierceWalls('smash'))) return true;
+    if(p.classId==='mage' && p.mp>=5 && dist(e,p)<=4+skillRangeBonus('smash') && fullAutoLineClear(p.x,p.y,e.x,e.y)) return true;
+    if(p.classId==='hunter' && dist(e,p)<=5+skillRangeBonus('smash') && fullAutoLineClear(p.x,p.y,e.x,e.y)) return true;
   }
   if(p.cd.dash<=0){
-    if(p.classId==='mage' && p.mp>=10 && dist(e,p)<=2 && fullAutoLineClear(p.x,p.y,e.x,e.y,canPierceWalls('dash'))) return true;
+    if(p.classId==='mage' && p.mp>=10 && dist(e,p)<=2 && hasLocalAoePath(p.x,p.y,e.x,e.y)) return true;
     if((p.classId==='warrior'||p.classId==='rogue') && dist(e,p)>1 && dist(e,p)<=3) return true;
   }
   if(p.cd.heal<=0){
-    if(p.classId==='hunter' && p.mp>=10 && dist(e,p)<=3+skillRangeBonus('heal') && fullAutoLineClear(p.x,p.y,e.x,e.y,canPierceWalls('heal'))) return true;
+    if(p.classId==='hunter' && p.mp>=10 && dist(e,p)<=3+skillRangeBonus('heal') && fullAutoLineClear(p.x,p.y,e.x,e.y)) return true;
   }
   return false;
 }
@@ -17132,6 +17157,898 @@ useQuickSlotSkill = function(slotIndex){
   const key = quickSlotSkillKey(slotIndex);
   setSkillRangePreview(key, 1200);
   skillFunctionByKey(key)();
+};
+
+
+/* REQUEST ONLY: warrior skill balance pass and shield charge master */
+function warriorSkillLevel(k){ return clamp(Number(skillLv(k)||0),0,20); }
+function warriorChargeGuardTurns(){ return 3 + Math.floor(warriorSkillLevel('dash')/10); }
+function warriorBattleCryTurns(){ return 4 + Math.floor(warriorSkillLevel('heal')/5); }
+function warriorBattleCryAtkBonus(){ return 3 + Math.floor(warriorSkillLevel('heal')/10); }
+function warriorChargeGuardDefBonus(){ return 2 + Math.floor(warriorSkillLevel('dash')/10); }
+function isWarriorSkillMaster(k){ return warriorSkillLevel(k) >= 20; }
+
+const calcStatsBeforeWarriorSkillBalance = calcStats;
+calcStats = function(){
+  const st = calcStatsBeforeWarriorSkillBalance();
+  const p = S && S.player;
+  if(p && p.classId === 'warrior' && p.effects){
+    if(p.effects.guard > 0) st.def += Math.max(0, warriorChargeGuardDefBonus() - 2);
+    if(p.effects.fury > 0) st.atk += Math.max(0, warriorBattleCryAtkBonus() - 3);
+  }
+  return st;
+};
+
+function shieldChargeReachableEnemies(cx, cy, sourceEnemy){
+  if(!S || !S.map) return [];
+  const q=[{x:cx,y:cy,d:0}], seen=new Set([cx+','+cy]), result=[];
+  for(let qi=0; qi<q.length; qi++){
+    const cur=q[qi];
+    if(cur.d >= 4) continue;
+    for(const [dx,dy] of DIRS){
+      const nx=cur.x+dx, ny=cur.y+dy, key=nx+','+ny;
+      if(seen.has(key) || !inMap(nx,ny)) continue;
+      if(S.map[ny][nx] === '#' || lockedDoorAt(nx,ny,false) || lockedRoomCellAt(nx,ny)) continue;
+      seen.add(key);
+      const nd=cur.d+1;
+      const e=enemyAt(nx,ny);
+      if(e && e !== sourceEnemy && e.hp > 0 && nd >= 1 && nd <= 4) result.push(e);
+      q.push({x:nx,y:ny,d:nd});
+    }
+  }
+  return Array.from(new Set(result));
+}
+function applyShieldChargeMasterReflect(sourceEnemy, baseDamage, impactX, impactY){
+  if(!isWarriorSkillMaster('dash')) return;
+  const dmg=Math.max(3, Math.floor((Number(baseDamage)||0)*0.35));
+  const victims=shieldChargeReachableEnemies(impactX, impactY, sourceEnemy).slice(0,6);
+  if(!victims.length) return;
+  victims.forEach(e=>{
+    e.hp -= dmg;
+    addFx({kind:'burst', x:e.x, y:e.y, color:'#93c5fd', spark:'#dbeafe', dur:220});
+    addMonsterHitFx(e, false);
+    addLog(`방패 반사 충격이 ${e.name}에게 <b>${dmg}</b> 피해.`);
+    if(e.hp <= 0) killEnemy(e);
+  });
+}
+
+skillWarrior1 = function(){
+  const p=S.player;
+  const e=S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0];
+  if(!e){ toast('인접한 적이 없다.'); return; }
+  p.cd.smash=Math.max(5,10-skillCdBonus('smash'));
+  playerAttack(e,true,{bonusBase:2+skillPowerBonus('smash')});
+  afterPlayerAction();
+};
+
+skillWarrior2 = function(){
+  const p=S.player;
+  p.cd.dash=Math.max(6,11+(calcStats().dashCd||0)-skillCdBonus('dash'));
+  p.awaitAim='warriorCharge';
+  showAimHint('방패돌진 방향을 선택.');
+  renderAll();
+  saveRun();
+};
+
+skillWarrior3 = function(){
+  const p=S.player, st=calcStats();
+  if(p.mp < 8){ toast('MP가 부족하다.'); return; }
+  p.mp -= 8;
+  p.cd.heal=Math.max(7,13-skillCdBonus('heal'));
+  p.effects.fury=warriorBattleCryTurns();
+  const heal=Math.floor(st.maxHp*.16)+8+skillPowerBonus('heal')*2;
+  p.hp=clamp(p.hp+heal,1,st.maxHp);
+  addFx({kind:'ring', x:p.x, y:p.y, color:'#f59e0b', dur:360});
+  addFx({kind:'heal', x:p.x, y:p.y, color:'#fb923c', dur:360});
+  addLog(`전투함성! HP ${heal} 회복, 공격 +${warriorBattleCryAtkBonus()} 효과.`);
+  afterPlayerAction();
+};
+
+const resolveAimedSkillBeforeWarriorSkillBalance = resolveAimedSkill;
+resolveAimedSkill = function(dx,dy){
+  const p=S.player;
+  if(!p || p.awaitAim !== 'warriorCharge') return resolveAimedSkillBeforeWarriorSkillBalance(dx,dy);
+  p.awaitAim='';
+  const sx=p.x, sy=p.y;
+  let steps=0, hit=false, impactX=p.x, impactY=p.y, chargeDmg=0, target=null;
+  setPlayerDirByDelta(dx,dy);
+  for(let i=0;i<2;i++){
+    const nx=p.x+dx, ny=p.y+dy;
+    const e=enemyAt(nx,ny);
+    if(e){
+      target=e; impactX=e.x; impactY=e.y;
+      chargeDmg=playerAttack(e,true,{bonusBase:2+skillPowerBonus('dash')});
+      hit=true;
+      break;
+    }
+    if(!passable(nx,ny)) break;
+    p.x=nx; p.y=ny; steps++;
+  }
+  addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#60a5fa', dur:260});
+  if(hit){
+    addFx({kind:'burst', x:impactX, y:impactY, color:'#93c5fd', spark:'#ffffff', dur:240});
+    applyShieldChargeMasterReflect(target, chargeDmg, impactX, impactY);
+  }
+  p.effects.guard=warriorChargeGuardTurns();
+  addLog(hit ? `방패돌진 성공. 방어 태세 ${warriorChargeGuardTurns()}턴.` : (steps ? `방패돌진 ${steps}칸 이동. 방어 태세 ${warriorChargeGuardTurns()}턴.` : '방패돌진이 막혔다.'));
+  pickupCheck();
+  afterPlayerAction();
+};
+
+const skillEnhanceDescBeforeWarriorSkillBalance = skillEnhanceDesc;
+skillEnhanceDesc = function(k){
+  const p=S && S.player;
+  if(p && p.classId === 'warrior' && (k==='smash'||k==='dash'||k==='heal')){
+    const lv=skillLv(k), info=skillCostInfo(lv);
+    const cost = lv>=20 ? 'MAX 강화 완료' : `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
+    if(k==='smash') return `${cost} · 추가 피해 +${skillPowerBonus('smash')} · 쿨타임 ${Math.max(5,10-skillCdBonus('smash'))}턴`;
+    if(k==='dash'){
+      const master = lv>=20 ? ' · 마스터: 돌진 성공 시 충격 지점 1~4칸 적에게 반사 피해' : '';
+      return `${cost} · 충돌 피해 +${skillPowerBonus('dash')} · 방어 태세 ${warriorChargeGuardTurns()}턴 / 방어 +${warriorChargeGuardDefBonus()} · 쿨타임 ${Math.max(6,11-skillCdBonus('dash'))}턴${master}`;
+    }
+    if(k==='heal') return `${cost} · 회복량 +${skillPowerBonus('heal')*2} · 공격 +${warriorBattleCryAtkBonus()} · 지속 ${warriorBattleCryTurns()}턴 · 쿨타임 ${Math.max(7,13-skillCdBonus('heal'))}턴`;
+  }
+  return skillEnhanceDescBeforeWarriorSkillBalance(k);
+};
+
+
+/* REQUEST ONLY: warrior master skill names */
+const WARRIOR_MASTER_SKILL_NAMES = {
+  smash: '타이탄 브레이크',
+  dash: '이지스실드',
+  heal: '전장의 포효'
+};
+function warriorMasterSkillName(k){
+  return WARRIOR_MASTER_SKILL_NAMES[k] || '';
+}
+function isWarriorMasterSkillActive(k){
+  return !!(S && S.player && S.player.classId === 'warrior' && warriorSkillLevel(k) >= 20 && warriorMasterSkillName(k));
+}
+function warriorBaseSkillName(k){
+  return ({smash:'강타', dash:'방패돌진', heal:'전투함성'})[k] || k;
+}
+
+const skillNameByKeyBeforeWarriorMasterNames = skillNameByKey;
+skillNameByKey = function(k){
+  if(isWarriorMasterSkillActive(k)) return warriorMasterSkillName(k);
+  return skillNameByKeyBeforeWarriorMasterNames(k);
+};
+
+const skillEnhanceDescBeforeWarriorMasterNames = skillEnhanceDesc;
+skillEnhanceDesc = function(k){
+  const p = S && S.player;
+  if(p && p.classId === 'warrior' && (k==='smash' || k==='dash' || k==='heal')){
+    const base = skillEnhanceDescBeforeWarriorMasterNames(k);
+    const masterName = warriorMasterSkillName(k);
+    if(!masterName) return base;
+    if(warriorSkillLevel(k) >= 20) return `${base} · 마스터명: ${masterName}`;
+    return `${base} · +20 마스터명: ${masterName}`;
+  }
+  return skillEnhanceDescBeforeWarriorMasterNames(k);
+};
+
+const jobSkillCardsQuickslotBeforeWarriorMasterNames = jobSkillCardsQuickslot;
+jobSkillCardsQuickslot = function(){
+  const p = S && S.player;
+  if(!p || p.classId !== 'warrior') return jobSkillCardsQuickslotBeforeWarriorMasterNames();
+  const data = [
+    ['smash', '강타', '인접 적에게 큰 피해를 준다.'],
+    ['dash', '방패돌진', '방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],
+    ['heal', '전투함성', 'HP를 회복하고 잠시 공격력이 증가한다.']
+  ];
+  return data.map((s,i)=>{
+    const k=s[0], baseName=s[1], desc=s[2], lv=skillLv(k), masterName=warriorMasterSkillName(k);
+    const shownName = lv>=20 ? masterName : baseName;
+    const masterLine = lv>=20
+      ? `<p class="goodtxt">${escapeText(baseName)} 마스터: ${escapeText(masterName)}</p>`
+      : `<p class="muted">+20 마스터명: ${escapeText(masterName)}</p>`;
+    return `<div class="choice skillChoice"><h4>${i+1}. ${escapeText(shownName)} <span class="legend">+${lv}</span></h4><p>${escapeText(desc)}</p>${masterLine}<p class="muted">${skillEnhanceDesc(k)}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton(k)}</div>`;
+  }).join('');
+};
+
+const skillWarrior1BeforeMasterNameLog = skillWarrior1;
+skillWarrior1 = function(){
+  if(isWarriorMasterSkillActive('smash')) addLog(`<span class="legend">${warriorMasterSkillName('smash')}</span> 발동.`);
+  return skillWarrior1BeforeMasterNameLog();
+};
+
+const skillWarrior3BeforeMasterNameLog = skillWarrior3;
+skillWarrior3 = function(){
+  if(isWarriorMasterSkillActive('heal')){
+    const p=S.player, st=calcStats();
+    if(p.mp < 8){ toast('MP가 부족하다.'); return; }
+    p.mp -= 8;
+    p.cd.heal=Math.max(7,13-skillCdBonus('heal'));
+    p.effects.fury=warriorBattleCryTurns();
+    const heal=Math.floor(st.maxHp*.16)+8+skillPowerBonus('heal')*2;
+    p.hp=clamp(p.hp+heal,1,st.maxHp);
+    addFx({kind:'ring', x:p.x, y:p.y, color:'#f59e0b', dur:360});
+    addFx({kind:'heal', x:p.x, y:p.y, color:'#fb923c', dur:360});
+    addLog(`<span class="legend">${warriorMasterSkillName('heal')}</span>! HP ${heal} 회복, 공격 +${warriorBattleCryAtkBonus()} 효과.`);
+    afterPlayerAction();
+    return;
+  }
+  return skillWarrior3BeforeMasterNameLog();
+};
+
+const resolveAimedSkillBeforeWarriorMasterNames = resolveAimedSkill;
+resolveAimedSkill = function(dx,dy){
+  const p=S && S.player;
+  if(!p || p.awaitAim !== 'warriorCharge' || !isWarriorMasterSkillActive('dash')) return resolveAimedSkillBeforeWarriorMasterNames(dx,dy);
+  p.awaitAim='';
+  const sx=p.x, sy=p.y;
+  let steps=0, hit=false, impactX=p.x, impactY=p.y, chargeDmg=0, target=null;
+  setPlayerDirByDelta(dx,dy);
+  for(let i=0;i<2;i++){
+    const nx=p.x+dx, ny=p.y+dy;
+    const e=enemyAt(nx,ny);
+    if(e){
+      target=e; impactX=e.x; impactY=e.y;
+      chargeDmg=playerAttack(e,true,{bonusBase:2+skillPowerBonus('dash')});
+      hit=true;
+      break;
+    }
+    if(!passable(nx,ny)) break;
+    p.x=nx; p.y=ny; steps++;
+  }
+  addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#60a5fa', dur:260});
+  if(hit){
+    addFx({kind:'burst', x:impactX, y:impactY, color:'#93c5fd', spark:'#ffffff', dur:240});
+    applyShieldChargeMasterReflect(target, chargeDmg, impactX, impactY);
+  }
+  p.effects.guard=warriorChargeGuardTurns();
+  addLog(hit ? `<span class="legend">${warriorMasterSkillName('dash')}</span> 성공. 방어 태세 ${warriorChargeGuardTurns()}턴.` : (steps ? `${warriorMasterSkillName('dash')} ${steps}칸 이동. 방어 태세 ${warriorChargeGuardTurns()}턴.` : `${warriorMasterSkillName('dash')}가 막혔다.`));
+  pickupCheck();
+  afterPlayerAction();
+};
+
+
+/* REQUEST: skill menu tap opens range / master-chain popup */
+(function(){
+  function skillPopupEsc(v){
+    if(typeof escapeText === 'function') return escapeText(v);
+    if(typeof escHtml === 'function') return escHtml(v);
+    return String(v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function playerClassIdSafe(){ return S && S.player ? S.player.classId : 'warrior'; }
+  function masterNameForSkill(cls,k){
+    if(cls === 'warrior' && typeof warriorMasterSkillName === 'function') return warriorMasterSkillName(k) || '';
+    return '';
+  }
+  function baseSkillNameFor(cls,k){
+    const names={
+      warrior:{smash:'강타',dash:'방패돌진',heal:'전투함성'},
+      rogue:{smash:'급소찌르기',dash:'그림자도약',heal:'연막'},
+      mage:{smash:'마력탄',dash:'화염폭발',heal:'재생술'},
+      hunter:{smash:'정밀사격',dash:'구르기',heal:'다발 사격'},
+      common:{openDoor:'문열기'}
+    };
+    return (names[cls] && names[cls][k]) || (typeof skillNameByKey === 'function' ? skillNameByKey(k) : k);
+  }
+  function skillBaseDescFor(cls,k){
+    const desc={
+      warrior:{smash:'인접 적에게 큰 피해를 준다.',dash:'방향을 정해 돌진하고 적과 충돌하면 피해를 준다.',heal:'HP를 회복하고 잠시 공격력이 증가한다.'},
+      rogue:{smash:'인접 적에게 방어 무시 치명 공격을 한다.',dash:'방향을 정해 이동하고 다음 공격을 강화한다.',heal:'연막을 펼쳐 회피율이 오른다.'},
+      mage:{smash:'사거리 4칸 원거리 마법탄.',dash:'주변 2칸 전체 광역 공격. 벽 뒤 적은 제외.',heal:'자신의 HP를 크게 회복한다.'},
+      hunter:{smash:'직선 사거리 5칸의 강한 사격.',dash:'방향 지정 이동 후 다음 원거리 공격을 강화한다.',heal:'사거리 안의 여러 적에게 동시에 사격한다.'},
+      common:{openDoor:'인접 1칸 안의 잠긴 문을 연다.'}
+    };
+    return (desc[cls] && desc[cls][k]) || '';
+  }
+  function skillCooldownText(cls,k){
+    if(!S || !S.player) return '-';
+    if(cls==='warrior'){
+      if(k==='smash') return `${Math.max(5,10-skillCdBonus('smash'))}턴`;
+      if(k==='dash') return `${Math.max(6,11+(calcStats().dashCd||0)-skillCdBonus('dash'))}턴`;
+      if(k==='heal') return `${Math.max(7,13-skillCdBonus('heal'))}턴`;
+    }
+    if(cls==='rogue'){
+      if(k==='smash') return `${Math.max(5,9-skillCdBonus('smash'))}턴`;
+      if(k==='dash') return `${Math.max(6,10+(calcStats().dashCd||0)-skillCdBonus('dash'))}턴`;
+      if(k==='heal') return `${Math.max(7,13-skillCdBonus('heal'))}턴`;
+    }
+    if(cls==='mage'){
+      if(k==='smash') return `${Math.max(5,8-skillCdBonus('smash'))}턴`;
+      if(k==='dash') return `${Math.max(7,11-skillCdBonus('dash'))}턴`;
+      if(k==='heal') return `${Math.max(7,13-skillCdBonus('heal'))}턴`;
+    }
+    if(cls==='hunter'){
+      if(k==='smash') return `${Math.max(5,9-skillCdBonus('smash'))}턴`;
+      if(k==='dash') return `${Math.max(6,10+(calcStats().dashCd||0)-skillCdBonus('dash'))}턴`;
+      if(k==='heal') return `${Math.max(7,12-skillCdBonus('heal'))}턴`;
+    }
+    if(cls==='common' && k==='openDoor' && typeof openDoorCooldownTurns === 'function') return `${openDoorCooldownTurns()}턴`;
+    return '-';
+  }
+  function skillMpText(cls,k){
+    const mp={
+      warrior:{smash:'0',dash:'0',heal:'8'},
+      rogue:{smash:'0',dash:'0',heal:'8'},
+      mage:{smash:'5',dash:'10',heal:'12'},
+      hunter:{smash:'0',dash:'0',heal:'10'},
+      common:{openDoor:'0'}
+    };
+    return (mp[cls] && mp[cls][k]) || '0';
+  }
+  function skillRangeInfo(cls,k){
+    if(cls==='warrior'){
+      if(k==='smash') return {shape:'melee', range:1, title:'인접 1칸', detail:'상하좌우 1칸의 적 1명'};
+      if(k==='dash') return {shape:'line', range:2, title:'직선 2칸', detail:'선택 방향으로 최대 2칸 돌진. 충돌한 적에게 피해'};
+      if(k==='heal') return {shape:'self', range:0, title:'자기 자신', detail:'자신 회복 + 공격 버프'};
+    }
+    if(cls==='rogue'){
+      if(k==='smash') return {shape:'melee', range:1, title:'인접 1칸', detail:'상하좌우 1칸의 적 1명'};
+      if(k==='dash') return {shape:'line', range:2, title:'직선 2칸', detail:'선택 방향으로 최대 2칸 이동'};
+      if(k==='heal') return {shape:'self', range:0, title:'자기 자신', detail:'자신에게 연막 회피 버프'};
+    }
+    if(cls==='mage'){
+      if(k==='smash') return {shape:'radius', range:4+skillRangeBonus('smash'), title:`사거리 ${4+skillRangeBonus('smash')}칸`, detail:'시야가 막히지 않은 적 1명'};
+      if(k==='dash') return {shape:'radius', range:2, title:'주변 2칸 전체', detail:'자신 중심 2칸. 벽 뒤 적 제외'};
+      if(k==='heal') return {shape:'self', range:0, title:'자기 자신', detail:'자신 HP 회복'};
+    }
+    if(cls==='hunter'){
+      if(k==='smash') return {shape:'line', range:5+skillRangeBonus('smash'), title:`직선 ${5+skillRangeBonus('smash')}칸`, detail:'상하좌우 직선상 적 1명'};
+      if(k==='dash') return {shape:'line', range:2, title:'직선 2칸', detail:'선택 방향으로 최대 2칸 이동'};
+      if(k==='heal') return {shape:'radius', range:3+skillRangeBonus('heal'), title:`사거리 ${3+skillRangeBonus('heal')}칸`, detail:`범위 안 적 최대 ${3+Math.floor(skillLv('heal')/7)}명`};
+    }
+    if(cls==='common' && k==='openDoor') return {shape:'melee', range:1, title:'인접 1칸', detail:'상하좌우 1칸 안의 잠긴 문'};
+    return {shape:'self', range:0, title:'자기 자신', detail:'범위 정보 없음'};
+  }
+  function skillMasterChainInfo(cls,k,lv){
+    if(cls==='warrior'){
+      if(k==='smash') return {name:'타이탄 브레이크', trigger:'강타 명중 후 연계', range:'대상 1명', effect:'현재는 마스터명/로그 연계 표시'};
+      if(k==='dash') return {name:'이지스실드', trigger:'방패돌진 충돌 성공 후 연계', range:'충격 지점 기준 1~4칸', effect:'다른 적 최대 6명에게 반사 피해'};
+      if(k==='heal') return {name:'전장의 포효', trigger:'전투함성 사용 후 연계', range:'자기 자신', effect:'현재는 마스터명/로그 연계 표시'};
+    }
+    return null;
+  }
+  function skillRangeGridHtml(info, chainInfo){
+    const r=Math.max(2, Math.min(5, Number(info.range)||0, chainInfo && chainInfo.range && /1~4/.test(chainInfo.range) ? 4 : 5));
+    const size=r*2+1;
+    let cells='';
+    for(let y=-r;y<=r;y++){
+      for(let x=-r;x<=r;x++){
+        const d=Math.abs(x)+Math.abs(y);
+        let cls='';
+        let txt='';
+        if(x===0 && y===0){ cls='me'; txt='나'; }
+        else if(info.shape==='melee' && d===1) cls='range';
+        else if(info.shape==='line' && ((x===0 || y===0) && d>0 && d<=Math.min(info.range,r))) cls='range';
+        else if(info.shape==='radius' && d>0 && d<=Math.min(info.range,r)) cls='range';
+        else if(info.shape==='self') cls='';
+        if(chainInfo && /1~4/.test(chainInfo.range) && d>=1 && d<=4) cls = cls ? cls+' chain' : 'chain';
+        cells += `<span class="skillRangeCell ${cls}">${txt}</span>`;
+      }
+    }
+    return `<div class="skillRangeGrid" style="--skill-range-grid-size:${size}">${cells}</div>`;
+  }
+  function skillPopupRows(rows){
+    return `<div class="stats skillRangeRows" style="margin-top:10px">${rows.map(([a,b])=>`<div>${skillPopupEsc(a)} <b>${skillPopupEsc(b)}</b></div>`).join('')}</div>`;
+  }
+  function showSkillRangePopup(skillKey, clsArg){
+    if(!S || !S.player) return;
+    const cls = clsArg || (skillKey==='openDoor' ? 'common' : playerClassIdSafe());
+    const lv = skillLv(skillKey);
+    const baseName = baseSkillNameFor(cls, skillKey);
+    const masterName = masterNameForSkill(cls, skillKey);
+    const titleName = lv>=20 && masterName ? `${baseName} + ${masterName}` : baseName;
+    const info = skillRangeInfo(cls, skillKey);
+    const chain = skillMasterChainInfo(cls, skillKey, lv);
+    const chainBlock = chain ? `<div class="choice skillRangeChainBox">
+      <h4>마스터 연계: ${skillPopupEsc(chain.name)} <span class="legend">${lv>=20?'활성':'20강 해금'}</span></h4>
+      ${skillPopupRows([['발동', chain.trigger], ['연계 범위', chain.range], ['효과', chain.effect]])}
+    </div>` : `<div class="choice skillRangeChainBox"><h4>마스터 연계</h4><p class="muted">아직 설정된 연계 효과 없음</p></div>`;
+    showModal(`<h2>${skillPopupEsc(titleName)} <span class="legend">+${lv}</span></h2>
+      <p class="muted">${skillPopupEsc(skillBaseDescFor(cls, skillKey))}</p>
+      <div class="choice skillRangePopupBox">
+        <h4>스킬 범위</h4>
+        ${skillRangeGridHtml(info, chain)}
+        ${skillPopupRows([['범위', info.title], ['판정', info.detail], ['MP', skillMpText(cls, skillKey)], ['쿨타임', skillCooldownText(cls, skillKey)]])}
+      </div>
+      ${chainBlock}
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn" id="skillRangeBackBtn">스킬창</button>
+        <button class="btn bad" id="skillRangeCloseBtn">닫기</button>
+      </div>`, false);
+    const back=$('skillRangeBackBtn'); if(back) back.onclick=()=>showSkillMenu(activeSkillPageTab);
+    const close=$('skillRangeCloseBtn'); if(close) close.onclick=()=>hideModal();
+  }
+  window.showSkillRangePopup = showSkillRangePopup;
+
+  const jobSkillCardsBeforeRangePopup = jobSkillCardsQuickslot;
+  jobSkillCardsQuickslot = function(){
+    const p = S && S.player;
+    if(!p) return jobSkillCardsBeforeRangePopup();
+    const dataMap={
+      warrior:[['smash','강타','인접 적에게 큰 피해를 준다.'],['dash','방패돌진','방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],['heal','전투함성','HP를 회복하고 잠시 공격력이 증가한다.']],
+      rogue:[['smash','급소찌르기','근접 단일 대상 치명 강화 공격.'],['dash','그림자도약','방향을 정해 이동하고 다음 공격이 강화된다.'],['heal','연막','연막을 펼쳐 회피율이 크게 오른다.']],
+      mage:[['smash','마력탄','사거리 4칸 원거리 마법탄.'],['dash','화염폭발','주변 2칸 전체 광역 공격. 벽 뒤 적은 제외.'],['heal','재생술','HP를 많이 회복한다.']],
+      hunter:[['smash','정밀사격','직선상의 적에게 강한 사격.'],['dash','구르기','방향 지정 이동.'],['heal','다발 사격','여러 적에게 동시에 사격한다.']]
+    };
+    const arr=dataMap[p.classId]||[];
+    return arr.map((s,i)=>{
+      const k=s[0], lv=skillLv(k), masterName=masterNameForSkill(p.classId,k), shownName=(lv>=20&&masterName)?masterName:s[1];
+      const masterLine = masterName ? (lv>=20 ? `<p class="goodtxt">${skillPopupEsc(s[1])} 마스터: ${skillPopupEsc(masterName)}</p>` : `<p class="muted">+20 마스터명: ${skillPopupEsc(masterName)}</p>`) : '';
+      return `<div class="choice skillChoice skillInfoChoice" data-skill-info="${skillPopupEsc(k)}" data-skill-class="${skillPopupEsc(p.classId)}"><h4>${i+1}. ${skillPopupEsc(shownName)} <span class="legend">+${lv}</span></h4><p>${skillPopupEsc(s[2])}</p>${masterLine}<p class="muted">${skillEnhanceDesc(k)}</p><p class="muted skillTapHint">카드 터치: 범위/연계 보기</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton(k)}</div>`;
+    }).join('');
+  };
+  commonSkillCardsQuickslot = function(){
+    const lv=skillLv('openDoor');
+    return `<div class="choice skillChoice skillInfoChoice" data-skill-info="openDoor" data-skill-class="common">
+      <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
+      <p>인접 1칸 안의 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
+      <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+      <p class="muted skillTapHint">카드 터치: 범위 보기</p>
+      <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton('openDoor')}
+    </div>
+    <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
+    <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
+  };
+  function bindSkillInfoCards(){
+    if(!modalCard) return;
+    modalCard.querySelectorAll('[data-skill-info]').forEach(card=>{
+      card.onclick=(ev)=>{
+        if(ev.target && ev.target.closest('button')) return;
+        showSkillRangePopup(card.dataset.skillInfo, card.dataset.skillClass);
+      };
+    });
+  }
+  const showSkillMenuBeforeRangePopup = showSkillMenu;
+  showSkillMenu = function(tab='job'){
+    showSkillMenuBeforeRangePopup(tab);
+    bindSkillInfoCards();
+  };
+  const style=document.createElement('style');
+  style.id='skillRangePopupStyle';
+  style.textContent=`
+    .skillInfoChoice{cursor:pointer}
+    .skillTapHint{font-size:11px;margin-top:4px;color:#93c5fd!important}
+    .skillRangePopupBox,.skillRangeChainBox{margin-top:10px}
+    .skillRangeGrid{display:grid;grid-template-columns:repeat(var(--skill-range-grid-size),12px);gap:3px;justify-content:center;margin:8px auto 10px;max-width:100%}
+    .skillRangeCell{width:12px;height:12px;border-radius:3px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.18);font-size:8px;line-height:12px;text-align:center;color:#fff;box-sizing:border-box}
+    .skillRangeCell.me{background:rgba(59,130,246,.95);border-color:rgba(191,219,254,.95);font-size:7px;font-weight:900}
+    .skillRangeCell.range{background:rgba(250,204,21,.42);border-color:rgba(250,204,21,.90)}
+    .skillRangeCell.chain{box-shadow:0 0 0 2px rgba(96,165,250,.55) inset;background:rgba(96,165,250,.28);border-color:rgba(147,197,253,.9)}
+    .skillRangeCell.range.chain{background:linear-gradient(135deg,rgba(250,204,21,.48),rgba(96,165,250,.34))}
+    .skillRangeRows{grid-template-columns:1fr 1fr}
+  `;
+  if(!document.getElementById(style.id)) document.head.appendChild(style);
+})();
+
+
+/* REQUEST: all class +20 master chain skills */
+const ALL_MASTER_SKILLS = {
+  warrior: {
+    smash:{name:'타이탄 브레이크', chance:35, base:'강타', trigger:'강타 명중 후 확률 연계', range:'대상 1명', effect:'추가 충격 피해, 정예/보스 추가 보정'},
+    dash:{name:'이지스실드', chance:30, base:'방패돌진', trigger:'방패돌진 충돌 성공 후 확률 연계', range:'충격 지점 기준 1~4칸', effect:'다른 적 최대 6명에게 반사 피해'},
+    heal:{name:'전장의 포효', chance:45, base:'전투함성', trigger:'전투함성 사용 후 확률 연계', range:'자기 자신', effect:'1턴 피해 감소와 전투 안정성 증가'}
+  },
+  rogue: {
+    smash:{name:'사신의 낙인', chance:35, base:'급소찌르기', trigger:'급소찌르기 명중 후 확률 연계', range:'대상 1명', effect:'추가 피해, 낮은 HP 적에게 추가 보정'},
+    dash:{name:'암영살', chance:40, base:'그림자도약', trigger:'그림자도약 성공 후 확률 연계', range:'자기 자신', effect:'다음 공격 피해와 치명 보정 증가'},
+    heal:{name:'흑무장막', chance:45, base:'연막', trigger:'연막 사용 후 확률 연계', range:'자기 자신', effect:'회피 증가와 첫 피격 피해 감소'}
+  },
+  mage: {
+    smash:{name:'아케인 파열', chance:35, base:'마력탄', trigger:'마력탄 명중 후 확률 연계', range:'대상 주변 1칸', effect:'주변 적에게 확산 피해, MP 1 회복'},
+    dash:{name:'지옥불 잔영', chance:30, base:'화염폭발', trigger:'화염폭발 명중 후 확률 연계', range:'화염폭발 명중 대상', effect:'화상 지속시간 증가'},
+    heal:{name:'생명의 문장', chance:45, base:'재생술', trigger:'재생술 사용 후 확률 연계', range:'자기 자신', effect:'2턴 추가 회복, 저HP 보호 효과'}
+  },
+  hunter: {
+    smash:{name:'매의 심판', chance:35, base:'정밀사격', trigger:'정밀사격 명중 후 확률 연계', range:'대상 1명', effect:'장거리 추가 피해, MP 2 회복'},
+    dash:{name:'야수의 반사신경', chance:45, base:'구르기', trigger:'구르기 성공 후 확률 연계', range:'자기 자신', effect:'회피 증가, 다음 원거리 공격 강화'},
+    heal:{name:'폭풍 화살', chance:30, base:'다발 사격', trigger:'2명 이상 명중 후 확률 연계', range:'사거리 내 추가 대상', effect:'추가 대상 1명 공격, 기존 대상 추가 피해'}
+  }
+};
+function masterSkillInfo(cls,k){ return ALL_MASTER_SKILLS?.[cls]?.[k] || null; }
+function masterSkillNameAny(cls,k){ const info=masterSkillInfo(cls,k); return info ? info.name : ''; }
+function isMasterReady(cls,k){ return !!(S && S.player && S.player.classId===cls && skillLv(k)>=20 && masterSkillInfo(cls,k)); }
+function tryMasterChain(cls,k){ const info=masterSkillInfo(cls,k); return !!(info && skillLv(k)>=20 && chance((info.chance||0)/100)); }
+function showMasterChainBanner(cls,k){ const info=masterSkillInfo(cls,k); if(!info) return; toast(`${info.name} 연계!`); addLog(`<span class="legend">${info.name}</span> 연계!`); }
+function dealMasterDamage(e,dmg,label,color='#facc15'){
+  if(!e || e.hp<=0 || dmg<=0) return 0;
+  const n=Math.max(1,Math.floor(dmg));
+  e.hp-=n;
+  addFx({kind:'burst', x:e.x, y:e.y, color, spark:'#ffffff', dur:250});
+  addMonsterHitFx(e,false);
+  addLog(`${label} ${e.name}에게 <b>${n}</b> 피해.`);
+  if(e.hp<=0) killEnemy(e);
+  return n;
+}
+function liveEnemiesInRange(cx,cy,r,exclude){
+  return S.enemies.filter(e=>e && e.hp>0 && e!==exclude && dist({x:cx,y:cy},e)<=r);
+}
+
+const calcStatsBeforeAllMasterChains = calcStats;
+calcStats = function(){
+  const st = calcStatsBeforeAllMasterChains();
+  const p = S && S.player;
+  if(!p || !p.effects) return st;
+  if(p.effects.masterRoar>0) st.flatReduce += Math.max(3, Math.floor((st.def||0)*0.25));
+  if(p.effects.masterSmoke>0) st.eva += 10;
+  if(p.effects.masterSmokeBlock>0) st.flatReduce += Math.max(2, Math.floor((st.def||0)*0.20));
+  if(p.effects.hunterReflex>0) st.eva += 15;
+  if(p.effects.lifeGlyph>0) st.flatReduce += Math.max(2, Math.floor((st.def||0)*0.15));
+  return st;
+};
+
+const playerAttackBeforeAllMasterChains = playerAttack;
+playerAttack = function(e,strong,opts={}){
+  const p=S && S.player;
+  if(p && p.effects && p.effects.shadowMaster>0){
+    opts = Object.assign({}, opts, {critBonus:(opts.critBonus||0)+25, mult:(opts.mult||1)*1.20});
+    p.effects.shadowMaster=0;
+    addLog('암영살의 그림자가 다음 공격에 실렸다.');
+  }
+  if(p && p.effects && p.effects.hunterMasterFocus>0 && opts && opts.ranged){
+    opts = Object.assign({}, opts, {critBonus:(opts.critBonus||0)+10, mult:(opts.mult||1)*1.15});
+    p.effects.hunterMasterFocus=0;
+    addLog('야수의 반사신경으로 원거리 공격이 강화되었다.');
+  }
+  return playerAttackBeforeAllMasterChains(e,strong,opts);
+};
+
+const enemyAttackBeforeAllMasterChains = enemyAttack;
+enemyAttack = function(e,st){
+  const p=S && S.player;
+  if(p && p.effects && p.effects.masterSmokeBlock>0){
+    const oldAtk=e.atk;
+    e.atk=Math.max(1,Math.floor(oldAtk*0.5));
+    p.effects.masterSmokeBlock=0;
+    addLog('흑무장막이 첫 공격 피해를 줄였다.');
+    const ret=enemyAttackBeforeAllMasterChains(e,st);
+    e.atk=oldAtk;
+    return ret;
+  }
+  return enemyAttackBeforeAllMasterChains(e,st);
+};
+
+const tickEffectsBeforeAllMasterChains = tickEffects;
+tickEffects = function(){
+  const p=S && S.player;
+  if(p && p.effects && p.effects.lifeGlyph>0 && !S.dead){
+    const st=calcStats();
+    const h=Math.max(1,Math.floor(st.maxHp*0.05));
+    p.hp=clamp(p.hp+h,1,st.maxHp);
+    addFx({kind:'heal', x:p.x, y:p.y, color:'#86efac', dur:260});
+    addLog(`생명의 문장 추가 회복 ${h}.`);
+  }
+  tickEffectsBeforeAllMasterChains();
+};
+
+skillWarrior1 = function(){
+  const p=S.player;
+  const e=S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0];
+  if(!e){ toast('인접한 적이 없다.'); return; }
+  p.cd.smash=Math.max(5,10-skillCdBonus('smash'));
+  const dmg=playerAttack(e,true,{bonusBase:2+skillPowerBonus('smash')});
+  if(e.hp>0 && tryMasterChain('warrior','smash')){
+    showMasterChainBanner('warrior','smash');
+    let extra=Math.floor(dmg*0.35)+skillPowerBonus('smash');
+    if(e.elite||e.boss) extra=Math.floor(extra*1.25);
+    dealMasterDamage(e,extra,'타이탄 브레이크가','#60a5fa');
+  }
+  afterPlayerAction();
+};
+
+skillWarrior3 = function(){
+  const p=S.player, st=calcStats();
+  if(p.mp<8){ toast('MP가 부족하다.'); return; }
+  p.mp-=8;
+  p.cd.heal=Math.max(7,13-skillCdBonus('heal'));
+  p.effects.fury=warriorBattleCryTurns();
+  const heal=Math.floor(st.maxHp*.16)+8+skillPowerBonus('heal')*2;
+  p.hp=clamp(p.hp+heal,1,st.maxHp);
+  addFx({kind:'ring', x:p.x, y:p.y, color:'#f59e0b', dur:360});
+  addFx({kind:'heal', x:p.x, y:p.y, color:'#fb923c', dur:360});
+  addLog(`전투함성! HP ${heal} 회복, 공격 +${warriorBattleCryAtkBonus()} 효과.`);
+  if(tryMasterChain('warrior','heal')){
+    showMasterChainBanner('warrior','heal');
+    p.effects.masterRoar=2;
+    p.effects.guard=Math.max(p.effects.guard||0,1);
+    addFx({kind:'ring', x:p.x, y:p.y, color:'#fbbf24', dur:420});
+  }
+  afterPlayerAction();
+};
+
+skillRogue1 = function(){
+  const p=S.player;
+  const e=S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0];
+  if(!e){ toast('인접한 적이 없다.'); return; }
+  addFx({kind:'slash', x:e.x, y:e.y, color:'#c084fc', dur:220, angle:.7});
+  p.cd.smash=Math.max(5,9-skillCdBonus('smash'));
+  const dmg=playerAttack(e,false,{bonusBase:4+skillPowerBonus('smash'),critBonus:20+Math.floor(skillLv('smash')/2),ignoreDef:.45,critMult:2.05});
+  if(e.hp>0 && tryMasterChain('rogue','smash')){
+    showMasterChainBanner('rogue','smash');
+    let extra=Math.floor(dmg*0.35)+skillPowerBonus('smash');
+    if(e.hp <= e.maxHp*0.35) extra=Math.floor(extra*1.35);
+    if(e.elite||e.boss) extra=Math.floor(extra*0.75);
+    dealMasterDamage(e,extra,'사신의 낙인이','#c084fc');
+  }
+  afterPlayerAction();
+};
+
+skillRogue3 = function(){
+  const p=S.player;
+  if(p.mp<8){ toast('MP가 부족하다.'); return; }
+  p.mp-=8;
+  p.cd.heal=Math.max(7,13-skillCdBonus('heal'));
+  p.effects.smoke=4+Math.floor(skillLv('heal')/5);
+  addFx({kind:'smoke', x:p.x, y:p.y, color:'#cbd5e1', dur:430});
+  addLog('연막을 펼쳤다. 회피율이 크게 상승한다.');
+  if(tryMasterChain('rogue','heal')){
+    showMasterChainBanner('rogue','heal');
+    p.effects.smoke+=1;
+    p.effects.masterSmoke=2;
+    p.effects.masterSmokeBlock=2;
+  }
+  afterPlayerAction();
+};
+
+skillMage1 = function(){
+  const p=S.player;
+  if(p.mp<5){ toast('MP가 부족하다.'); return; }
+  const e=rangedEnemy(4+skillRangeBonus('smash'),'smash');
+  if(!e){ toast('사거리 안에 적이 없다.'); return; }
+  addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a78bfa', dur:210});
+  addFx({kind:'burst', x:e.x, y:e.y, color:'#8b5cf6', spark:'#ddd6fe', dur:260});
+  p.mp-=5;
+  p.cd.smash=Math.max(5,8-skillCdBonus('smash'));
+  const dmg=playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),ignoreDef:.6,ranged:true});
+  if(tryMasterChain('mage','smash')){
+    showMasterChainBanner('mage','smash');
+    p.mp=clamp(p.mp+1,0,calcStats().maxMp);
+    liveEnemiesInRange(e.x,e.y,1,e).slice(0,4).forEach(v=>dealMasterDamage(v,Math.floor(dmg*0.45),'아케인 파열이','#a78bfa'));
+  }
+  afterPlayerAction();
+};
+
+skillMage2 = function(){
+  const p=S.player;
+  if(p.mp<10){ toast('MP가 부족하다.'); return; }
+  const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=2&&hasLocalAoePath(p.x,p.y,e.x,e.y));
+  if(!targets.length){ toast('주변 2칸 안에 적이 없다.'); return; }
+  addFx({kind:'ring', x:p.x, y:p.y, color:'#f97316', dur:300});
+  targets.forEach(e=>addFx({kind:'burst', x:e.x, y:e.y, color:'#f97316', spark:'#fdba74', dur:320}));
+  p.mp-=10;
+  p.cd.dash=Math.max(7,11-skillCdBonus('dash'));
+  targets.forEach(e=>playerAttack(e,false,{bonusBase:3+skillPowerBonus('dash'),ignoreDef:.35,burnTurns:2,ranged:true}));
+  addLog('화염폭발이 주변을 휩쓸었다.');
+  if(tryMasterChain('mage','dash')){
+    showMasterChainBanner('mage','dash');
+    targets.forEach(e=>{ if(e.hp>0) e.burn=Math.max(e.burn||0,4); });
+  }
+  afterPlayerAction();
+};
+
+skillMage3 = function(){
+  const p=S.player, st=calcStats();
+  if(p.mp<12){ toast('MP가 부족하다.'); return; }
+  p.mp-=12;
+  p.cd.heal=Math.max(7,13-skillCdBonus('heal'));
+  const heal=Math.floor(st.maxHp*.42)+10+skillPowerBonus('heal')*2;
+  p.hp=clamp(p.hp+heal,1,st.maxHp);
+  addFx({kind:'heal', x:p.x, y:p.y, color:'#34d399', dur:420});
+  addFx({kind:'ring', x:p.x, y:p.y, color:'#6ee7b7', dur:420});
+  addLog(`재생술로 HP ${heal} 회복.`);
+  if(tryMasterChain('mage','heal')){
+    showMasterChainBanner('mage','heal');
+    p.effects.lifeGlyph=2;
+    if(p.hp <= st.maxHp*0.30) p.effects.lifeGlyph=3;
+  }
+  afterPlayerAction();
+};
+
+skillHunter1 = function(){
+  const p=S.player;
+  const e=lineEnemy(5+skillRangeBonus('smash'),'smash');
+  if(!e){ toast('직선 사거리 안에 적이 없다.'); return; }
+  const d=dist(e,p);
+  addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190});
+  addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220});
+  p.cd.smash=Math.max(5,9-skillCdBonus('smash'));
+  const dmg=playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true});
+  addLog('정밀사격!');
+  if(e.hp>0 && tryMasterChain('hunter','smash')){
+    showMasterChainBanner('hunter','smash');
+    const extra=Math.floor(dmg*(d>=4?0.35:0.22))+skillPowerBonus('smash');
+    dealMasterDamage(e,extra,'매의 심판이','#84cc16');
+    p.mp=clamp(p.mp+2,0,calcStats().maxMp);
+  }
+  afterPlayerAction();
+};
+
+skillHunter3 = function(){
+  const p=S.player;
+  if(p.mp<10){ toast('MP가 부족하다.'); return; }
+  const maxTargets=3+Math.floor(skillLv('heal')/7);
+  const range=3+skillRangeBonus('heal');
+  const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=range&&hasRangedPath(p.x,p.y,e.x,e.y,false)).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp).slice(0,maxTargets);
+  if(!targets.length){ toast('사거리 안에 적이 없다.'); return; }
+  targets.forEach(e=>{ addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a3e635', dur:180}); addFx({kind:'burst', x:e.x, y:e.y, color:'#84cc16', spark:'#ecfccb', dur:220}); });
+  p.mp-=10;
+  p.cd.heal=Math.max(7,12-skillCdBonus('heal'));
+  targets.forEach(e=>playerAttack(e,false,{bonusBase:2+skillPowerBonus('heal'),critBonus:8+Math.floor(skillLv('heal')/2),ranged:true}));
+  addLog('다발 사격으로 여러 적을 노렸다.');
+  if(targets.length>=2 && tryMasterChain('hunter','heal')){
+    showMasterChainBanner('hunter','heal');
+    const set=new Set(targets);
+    targets.forEach(e=>{ if(e.hp>0) dealMasterDamage(e,Math.max(2,Math.floor((2+skillPowerBonus('heal'))*0.75)),'폭풍 화살이','#a3e635'); });
+    const extra=S.enemies.filter(e=>e.hp>0&&!set.has(e)&&dist(e,p)<=range&&hasRangedPath(p.x,p.y,e.x,e.y,false)).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
+    if(extra) playerAttack(extra,false,{bonusBase:2+Math.floor(skillPowerBonus('heal')*.5),critBonus:8,ranged:true,mult:.75});
+  }
+  afterPlayerAction();
+};
+
+const resolveAimedSkillBeforeAllMasterChains = resolveAimedSkill;
+resolveAimedSkill = function(dx,dy){
+  const p=S && S.player;
+  if(!p || !p.awaitAim) return resolveAimedSkillBeforeAllMasterChains(dx,dy);
+  const type=p.awaitAim;
+  if(type==='warriorCharge'){
+    p.awaitAim='';
+    const sx=p.x, sy=p.y;
+    let steps=0, hit=false, impactX=p.x, impactY=p.y, chargeDmg=0, target=null;
+    setPlayerDirByDelta(dx,dy);
+    for(let i=0;i<2;i++){
+      const nx=p.x+dx, ny=p.y+dy;
+      const e=enemyAt(nx,ny);
+      if(e){ target=e; impactX=e.x; impactY=e.y; chargeDmg=playerAttack(e,true,{bonusBase:2+skillPowerBonus('dash')}); hit=true; break; }
+      if(!passable(nx,ny)) break;
+      p.x=nx; p.y=ny; steps++;
+    }
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#60a5fa', dur:260});
+    if(hit){
+      addFx({kind:'burst', x:impactX, y:impactY, color:'#93c5fd', spark:'#ffffff', dur:240});
+      if(tryMasterChain('warrior','dash')){ showMasterChainBanner('warrior','dash'); applyShieldChargeMasterReflect(target, chargeDmg, impactX, impactY); }
+    }
+    p.effects.guard=warriorChargeGuardTurns();
+    addLog(hit ? `방패돌진 성공. 방어 태세 ${warriorChargeGuardTurns()}턴.` : (steps ? `방패돌진 ${steps}칸 이동. 방어 태세 ${warriorChargeGuardTurns()}턴.` : '방패돌진이 막혔다.'));
+    pickupCheck();
+    afterPlayerAction();
+    return;
+  }
+  if(type==='rogueStep'){
+    p.awaitAim='';
+    const sx=p.x, sy=p.y;
+    setPlayerDirByDelta(dx,dy);
+    let moved=0;
+    for(let i=0;i<2;i++){ const nx=p.x+dx, ny=p.y+dy; if(!passable(nx,ny)||enemyAt(nx,ny)) break; p.x=nx; p.y=ny; moved++; }
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#c084fc', dur:280});
+    p.effects.shadow=4;
+    addLog(moved?`그림자 도약 ${moved}칸 이동. 다음 공격이 강화된다.`:'도약할 공간이 없다.');
+    if(moved && tryMasterChain('rogue','dash')){ showMasterChainBanner('rogue','dash'); p.effects.shadowMaster=2; p.effects.smoke=Math.max(p.effects.smoke||0,1); }
+    pickupCheck();
+    afterPlayerAction();
+    return;
+  }
+  if(type==='hunterRoll'){
+    p.awaitAim='';
+    const sx=p.x, sy=p.y;
+    const beforeNearest=S.enemies.filter(e=>e.hp>0).map(e=>dist(e,p)).sort((a,b)=>a-b)[0] || 99;
+    setPlayerDirByDelta(dx,dy);
+    let moved=0;
+    for(let i=0;i<2;i++){ const nx=p.x+dx, ny=p.y+dy; if(!passable(nx,ny)||enemyAt(nx,ny)) break; p.x=nx; p.y=ny; moved++; }
+    const afterNearest=S.enemies.filter(e=>e.hp>0).map(e=>dist(e,p)).sort((a,b)=>a-b)[0] || 99;
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#84cc16', dur:260});
+    p.effects.focus=4;
+    addLog(moved?`구르기 ${moved}칸 이동. 다음 원거리 공격이 강화된다.`:'구를 공간이 없다.');
+    if(moved && tryMasterChain('hunter','dash')){
+      showMasterChainBanner('hunter','dash');
+      p.effects.hunterReflex=2;
+      p.effects.hunterMasterFocus=2;
+      if(afterNearest>beforeNearest) p.cd.smash=Math.max(0,(p.cd.smash||0)-1);
+    }
+    pickupCheck();
+    afterPlayerAction();
+    return;
+  }
+  return resolveAimedSkillBeforeAllMasterChains(dx,dy);
+};
+
+const skillNameByKeyBeforeAllMasterChains = skillNameByKey;
+skillNameByKey = function(k){
+  const p=S && S.player;
+  if(p){
+    const info=masterSkillInfo(p.classId,k);
+    if(info){
+      const base=info.base || skillNameByKeyBeforeAllMasterChains(k);
+      return skillLv(k)>=20 ? `${base}★` : base;
+    }
+  }
+  return skillNameByKeyBeforeAllMasterChains(k);
+};
+
+const skillEnhanceDescBeforeAllMasterChains = skillEnhanceDesc;
+skillEnhanceDesc = function(k){
+  const p=S && S.player;
+  const base=skillEnhanceDescBeforeAllMasterChains(k);
+  const info=p ? masterSkillInfo(p.classId,k) : null;
+  if(!info) return base;
+  return skillLv(k)>=20 ? `${base} · 마스터 연계: ${info.name} ${info.chance}%` : `${base} · +20 마스터 연계: ${info.name} ${info.chance}%`;
+};
+
+jobSkillCardsQuickslot = function(){
+  const p=S && S.player;
+  if(!p) return '';
+  const arr=[
+    masterSkillInfo(p.classId,'smash'),
+    masterSkillInfo(p.classId,'dash'),
+    masterSkillInfo(p.classId,'heal')
+  ].filter(Boolean);
+  return arr.map((info,i)=>{
+    const k=['smash','dash','heal'][i], lv=skillLv(k);
+    const masterLine = lv>=20 ? `<p class="goodtxt">마스터 연계: ${escapeText(info.name)} · 발동률 ${info.chance}%</p>` : `<p class="muted">+20 마스터 연계: ${escapeText(info.name)} · 발동률 ${info.chance}%</p>`;
+    return `<div class="choice skillChoice skillInfoChoice" data-skill-info="${escapeText(k)}" data-skill-class="${escapeText(p.classId)}"><h4>${i+1}. ${escapeText(info.base)} <span class="legend">+${lv}</span></h4><p>${escapeText(skillBaseDescForMaster(p.classId,k))}</p>${masterLine}<p class="muted">${skillEnhanceDesc(k)}</p><p class="muted skillTapHint">카드 터치: 범위/연계 보기</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton(k)}</div>`;
+  }).join('');
+};
+function skillBaseDescForMaster(cls,k){
+  const d={
+    warrior:{smash:'인접 적에게 큰 피해를 준다.',dash:'방향을 정해 돌진하고 적과 충돌하면 피해를 준다.',heal:'HP를 회복하고 잠시 공격력이 증가한다.'},
+    rogue:{smash:'인접 적에게 방어 무시 치명 공격을 한다.',dash:'방향을 정해 이동하고 다음 공격을 강화한다.',heal:'연막을 펼쳐 회피율이 오른다.'},
+    mage:{smash:'사거리 4칸 원거리 마법탄.',dash:'주변 2칸 전체 광역 공격. 벽 뒤 적은 제외.',heal:'자신의 HP를 크게 회복한다.'},
+    hunter:{smash:'직선 사거리 5칸의 강한 사격.',dash:'방향 지정 이동 후 다음 원거리 공격을 강화한다.',heal:'사거리 안의 여러 적에게 동시에 사격한다.'}
+  };
+  return d?.[cls]?.[k] || '';
+}
+function skillRangeInfoMaster(cls,k){
+  if(cls==='warrior'){
+    if(k==='smash') return {shape:'melee', range:1, title:'인접 1칸', detail:'상하좌우 1칸의 적 1명'};
+    if(k==='dash') return {shape:'line', range:2, title:'직선 2칸', detail:'선택 방향으로 최대 2칸 돌진'};
+    if(k==='heal') return {shape:'self', range:0, title:'자기 자신', detail:'자신 회복 + 공격 버프'};
+  }
+  if(cls==='rogue'){
+    if(k==='smash') return {shape:'melee', range:1, title:'인접 1칸', detail:'상하좌우 1칸의 적 1명'};
+    if(k==='dash') return {shape:'line', range:2, title:'직선 2칸', detail:'선택 방향으로 최대 2칸 이동'};
+    if(k==='heal') return {shape:'self', range:0, title:'자기 자신', detail:'연막 회피 버프'};
+  }
+  if(cls==='mage'){
+    if(k==='smash') return {shape:'radius', range:4+skillRangeBonus('smash'), title:`사거리 ${4+skillRangeBonus('smash')}칸`, detail:'시야가 막히지 않은 적 1명'};
+    if(k==='dash') return {shape:'radius', range:2, title:'주변 2칸 전체', detail:'자신 중심 2칸. 벽 뒤 적 제외'};
+    if(k==='heal') return {shape:'self', range:0, title:'자기 자신', detail:'자신 HP 회복'};
+  }
+  if(cls==='hunter'){
+    if(k==='smash') return {shape:'line', range:5+skillRangeBonus('smash'), title:`직선 ${5+skillRangeBonus('smash')}칸`, detail:'상하좌우 직선상 적 1명'};
+    if(k==='dash') return {shape:'line', range:2, title:'직선 2칸', detail:'선택 방향으로 최대 2칸 이동'};
+    if(k==='heal') return {shape:'radius', range:3+skillRangeBonus('heal'), title:`사거리 ${3+skillRangeBonus('heal')}칸`, detail:`범위 안 적 최대 ${3+Math.floor(skillLv('heal')/7)}명`};
+  }
+  return {shape:'self', range:0, title:'자기 자신', detail:'범위 정보 없음'};
+}
+function skillRangeGridMaster(info, chainRange){
+  const r=Math.max(2, Math.min(5, Number(info.range)||0, /1~4/.test(chainRange||'') ? 4 : 5));
+  const size=r*2+1;
+  let cells='';
+  for(let y=-r;y<=r;y++) for(let x=-r;x<=r;x++){
+    const d=Math.abs(x)+Math.abs(y); let cls='', txt='';
+    if(x===0&&y===0){ cls='me'; txt='나'; }
+    else if(info.shape==='melee'&&d===1) cls='range';
+    else if(info.shape==='line'&&((x===0||y===0)&&d>0&&d<=Math.min(info.range,r))) cls='range';
+    else if(info.shape==='radius'&&d>0&&d<=Math.min(info.range,r)) cls='range';
+    if(/1~4/.test(chainRange||'')&&d>=1&&d<=4) cls=cls?cls+' chain':'chain';
+    cells+=`<span class="skillRangeCell ${cls}">${txt}</span>`;
+  }
+  return `<div class="skillRangeGrid" style="--skill-range-grid-size:${size}">${cells}</div>`;
+}
+function showSkillRangePopupMaster(skillKey,clsArg){
+  if(!S || !S.player) return;
+  const cls=clsArg || S.player.classId;
+  const lv=skillLv(skillKey), info=masterSkillInfo(cls,skillKey);
+  if(!info){ if(window.showSkillRangePopup) return window.showSkillRangePopup(skillKey,clsArg); return; }
+  const range=skillRangeInfoMaster(cls,skillKey);
+  const chain=`<div class="choice skillRangeChainBox"><h4>마스터 연계: ${escapeText(info.name)} <span class="legend">${lv>=20?'활성':'20강 해금'}</span></h4><div class="stats skillRangeRows" style="margin-top:10px"><div>발동 <b>${escapeText(info.trigger)}</b></div><div>확률 <b>${info.chance}%</b></div><div>연계 범위 <b>${escapeText(info.range)}</b></div><div>효과 <b>${escapeText(info.effect)}</b></div></div></div>`;
+  showModal(`<h2>${escapeText(info.base)} <span class="legend">+${lv}</span></h2><p class="muted">${escapeText(skillBaseDescForMaster(cls,skillKey))}</p><div class="choice skillRangePopupBox"><h4>스킬 범위</h4>${skillRangeGridMaster(range,info.range)}<div class="stats skillRangeRows" style="margin-top:10px"><div>범위 <b>${escapeText(range.title)}</b></div><div>판정 <b>${escapeText(range.detail)}</b></div><div>마스터 <b>${escapeText(info.name)}</b></div><div>확률 <b>${info.chance}%</b></div></div></div>${chain}<div class="grid2" style="margin-top:10px"><button class="btn" id="skillRangeBackBtn">스킬창</button><button class="btn bad" id="skillRangeCloseBtn">닫기</button></div>`,false);
+  const back=$('skillRangeBackBtn'); if(back) back.onclick=()=>showSkillMenu(activeSkillPageTab);
+  const close=$('skillRangeCloseBtn'); if(close) close.onclick=()=>hideModal();
+}
+const showSkillMenuBeforeAllMasterChains = showSkillMenu;
+showSkillMenu = function(tab='job'){
+  showSkillMenuBeforeAllMasterChains(tab);
+  if(!modalCard) return;
+  modalCard.querySelectorAll('[data-skill-info]').forEach(card=>{
+    card.onclick=(ev)=>{
+      if(ev.target.closest('button')) return;
+      showSkillRangePopupMaster(card.getAttribute('data-skill-info'),card.getAttribute('data-skill-class'));
+    };
+  });
 };
 
 initStartPage();
