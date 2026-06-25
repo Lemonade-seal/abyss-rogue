@@ -18352,7 +18352,130 @@ resolveAimedSkill = function(dx,dy){
   }
 };
 
+
+/* FINAL PATCH: restore skill cooldown gates and cooldown display in skill range popup */
+function skillCooldownGateForFinalPatch(cdKey, label){
+  const p=S&&S.player;
+  if(!p) return false;
+  p.cd=Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0}, p.cd||{});
+  const left=Math.max(0, Math.floor(Number(p.cd[cdKey])||0));
+  if(left>0){
+    toast(`${label||'기술'} 재사용 ${left}턴`);
+    return false;
+  }
+  return true;
+}
+const skillWarrior1BeforeCooldownGateFinal = skillWarrior1;
+skillWarrior1 = function(){ if(!skillCooldownGateForFinalPatch('smash','강타')) return; return skillWarrior1BeforeCooldownGateFinal(); };
+const skillWarrior2BeforeCooldownGateFinal = skillWarrior2;
+skillWarrior2 = function(){ if(!skillCooldownGateForFinalPatch('dash','방패돌진')) return; return skillWarrior2BeforeCooldownGateFinal(); };
+const skillWarrior3BeforeCooldownGateFinal = skillWarrior3;
+skillWarrior3 = function(){ if(!skillCooldownGateForFinalPatch('heal','전투함성')) return; return skillWarrior3BeforeCooldownGateFinal(); };
+const skillRogue1BeforeCooldownGateFinal = skillRogue1;
+skillRogue1 = function(){ if(!skillCooldownGateForFinalPatch('smash','급소찌르기')) return; return skillRogue1BeforeCooldownGateFinal(); };
+const skillRogue2BeforeCooldownGateFinal = skillRogue2;
+skillRogue2 = function(){ if(!skillCooldownGateForFinalPatch('dash','그림자도약')) return; return skillRogue2BeforeCooldownGateFinal(); };
+const skillRogue3BeforeCooldownGateFinal = skillRogue3;
+skillRogue3 = function(){ if(!skillCooldownGateForFinalPatch('heal','연막')) return; return skillRogue3BeforeCooldownGateFinal(); };
+const skillMage1BeforeCooldownGateFinal = skillMage1;
+skillMage1 = function(){ if(!skillCooldownGateForFinalPatch('smash','마력탄')) return; return skillMage1BeforeCooldownGateFinal(); };
+const skillMage2BeforeCooldownGateFinal = skillMage2;
+skillMage2 = function(){ if(!skillCooldownGateForFinalPatch('dash','화염폭발')) return; return skillMage2BeforeCooldownGateFinal(); };
+const skillMage3BeforeCooldownGateFinal = skillMage3;
+skillMage3 = function(){ if(!skillCooldownGateForFinalPatch('heal','재생술')) return; return skillMage3BeforeCooldownGateFinal(); };
+const skillHunter1BeforeCooldownGateFinal = skillHunter1;
+skillHunter1 = function(){ if(!skillCooldownGateForFinalPatch('smash','정밀사격')) return; return skillHunter1BeforeCooldownGateFinal(); };
+const skillHunter2BeforeCooldownGateFinal = skillHunter2;
+skillHunter2 = function(){ if(!skillCooldownGateForFinalPatch('dash','구르기')) return; return skillHunter2BeforeCooldownGateFinal(); };
+const skillHunter3BeforeCooldownGateFinal = skillHunter3;
+skillHunter3 = function(){ if(!skillCooldownGateForFinalPatch('heal','다발 사격')) return; return skillHunter3BeforeCooldownGateFinal(); };
+
+function showSkillRangePopupWithCooldownFinal(skillKey, clsArg){
+  if(!S || !S.player) return;
+  const cls=clsArg || S.player.classId;
+  const lv=skillLv(skillKey), info=masterSkillInfo(cls,skillKey);
+  if(!info){ if(window.showSkillRangePopup) return window.showSkillRangePopup(skillKey,clsArg); return; }
+  const range=skillRangeInfoMaster(cls,skillKey);
+  const mpText=typeof skillMpText==='function' ? skillMpText(cls,skillKey) : '0';
+  const cdText=typeof skillCooldownText==='function' ? skillCooldownText(cls,skillKey) : '-';
+  const chain=`<div class="choice skillRangeChainBox"><h4>마스터 연계: ${escapeText(info.name)} <span class="legend">${lv>=20?'활성':'20강 해금'}</span></h4><div class="stats skillRangeRows" style="margin-top:10px"><div>발동 <b>${escapeText(info.trigger)}</b></div><div>확률 <b>${info.chance}%</b></div><div>연계 범위 <b>${escapeText(info.range)}</b></div><div>효과 <b>${escapeText(info.effect)}</b></div></div></div>`;
+  showModal(`<h2>${escapeText(info.base)} <span class="legend">+${lv}</span></h2><p class="muted">${escapeText(skillBaseDescForMaster(cls,skillKey))}</p><div class="choice skillRangePopupBox"><h4>스킬 범위</h4>${skillRangeGridMaster(range,info.range)}<div class="stats skillRangeRows" style="margin-top:10px"><div>범위 <b>${escapeText(range.title)}</b></div><div>판정 <b>${escapeText(range.detail)}</b></div><div>MP <b>${escapeText(mpText)}</b></div><div>쿨타임 <b>${escapeText(cdText)}</b></div><div>마스터 <b>${escapeText(info.name)}</b></div><div>확률 <b>${info.chance}%</b></div></div></div>${chain}<div class="grid2" style="margin-top:10px"><button class="btn" id="skillRangeBackBtn">스킬창</button><button class="btn bad" id="skillRangeCloseBtn">닫기</button></div>`,false);
+  const back=$('skillRangeBackBtn'); if(back) back.onclick=()=>showSkillMenu(activeSkillPageTab);
+  const close=$('skillRangeCloseBtn'); if(close) close.onclick=()=>hideModal();
+}
+showSkillRangePopupMaster = showSkillRangePopupWithCooldownFinal;
+
 })();
+
+
+/* FINAL PATCH: class skill cooldown balance */
+const CLASS_SKILL_COOLDOWN_BALANCE = {
+  warrior:{smash:{base:10,min:7,label:'강타'},dash:{base:12,min:9,label:'방패돌진'},heal:{base:14,min:11,label:'전투함성'}},
+  rogue:{smash:{base:8,min:6,label:'급소찌르기'},dash:{base:9,min:7,label:'그림자도약'},heal:{base:13,min:10,label:'연막'}},
+  mage:{smash:{base:7,min:5,label:'마력탄'},dash:{base:12,min:9,label:'화염폭발'},heal:{base:14,min:11,label:'재생술'}},
+  hunter:{smash:{base:8,min:6,label:'정밀사격'},dash:{base:9,min:7,label:'구르기'},heal:{base:12,min:9,label:'다발 사격'}}
+};
+function classSkillCooldownClass(cls){
+  cls=cls || (S&&S.player&&S.player.classId) || 'warrior';
+  return CLASS_SKILL_COOLDOWN_BALANCE[cls] ? cls : 'warrior';
+}
+function classSkillCooldownValue(cls,k){
+  cls=classSkillCooldownClass(cls);
+  const info=(CLASS_SKILL_COOLDOWN_BALANCE[cls]||{})[k];
+  if(!info) return 0;
+  let v=info.base - skillCdBonus(k);
+  if(k==='dash') v += Number((typeof calcStats==='function' && calcStats().dashCd) || 0);
+  return Math.max(info.min, Math.floor(v));
+}
+function applyClassSkillCooldownAfterUse(cls,k,beforeCd,beforeAwait){
+  const p=S&&S.player;
+  if(!p || !p.cd || !CLASS_SKILL_COOLDOWN_BALANCE[classSkillCooldownClass(cls)]?.[k]) return;
+  const changedCd = Math.max(0, Number(p.cd[k]||0)) > 0 && Math.max(0, Number(beforeCd||0)) <= 0;
+  const changedAim = k==='dash' && beforeAwait !== p.awaitAim && !!p.awaitAim;
+  if(changedCd || changedAim) p.cd[k]=classSkillCooldownValue(cls,k);
+}
+function wrapClassSkillCooldownBalance(fnName,cls,k){
+  const old=window[fnName];
+  if(typeof old!=='function') return;
+  window[fnName]=function(){
+    const p=S&&S.player;
+    const beforeCd=p&&p.cd ? Number(p.cd[k]||0) : 0;
+    const beforeAwait=p ? p.awaitAim : null;
+    const ret=old.apply(this,arguments);
+    applyClassSkillCooldownAfterUse(cls,k,beforeCd,beforeAwait);
+    return ret;
+  };
+}
+wrapClassSkillCooldownBalance('skillWarrior1','warrior','smash');
+wrapClassSkillCooldownBalance('skillWarrior2','warrior','dash');
+wrapClassSkillCooldownBalance('skillWarrior3','warrior','heal');
+wrapClassSkillCooldownBalance('skillRogue1','rogue','smash');
+wrapClassSkillCooldownBalance('skillRogue2','rogue','dash');
+wrapClassSkillCooldownBalance('skillRogue3','rogue','heal');
+wrapClassSkillCooldownBalance('skillMage1','mage','smash');
+wrapClassSkillCooldownBalance('skillMage2','mage','dash');
+wrapClassSkillCooldownBalance('skillMage3','mage','heal');
+wrapClassSkillCooldownBalance('skillHunter1','hunter','smash');
+wrapClassSkillCooldownBalance('skillHunter2','hunter','dash');
+wrapClassSkillCooldownBalance('skillHunter3','hunter','heal');
+
+const skillCooldownTextBeforeClassBalance = typeof skillCooldownText === 'function' ? skillCooldownText : null;
+skillCooldownText = function(cls,k){
+  if(CLASS_SKILL_COOLDOWN_BALANCE[classSkillCooldownClass(cls)]?.[k]) return `${classSkillCooldownValue(cls,k)}턴`;
+  return skillCooldownTextBeforeClassBalance ? skillCooldownTextBeforeClassBalance(cls,k) : '-';
+};
+const skillEnhanceDescBeforeClassCooldownBalance = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
+skillEnhanceDesc = function(k){
+  let txt = skillEnhanceDescBeforeClassCooldownBalance ? String(skillEnhanceDescBeforeClassCooldownBalance(k)) : '';
+  const cls=(S&&S.player&&S.player.classId)||'warrior';
+  if(CLASS_SKILL_COOLDOWN_BALANCE[classSkillCooldownClass(cls)]?.[k]){
+    const cd=`쿨타임 ${classSkillCooldownValue(cls,k)}턴`;
+    txt = txt ? (txt.replace(/쿨타임\s*\d+턴/g,cd)) : cd;
+    if(!/쿨타임\s*\d+턴/.test(txt)) txt += ` · ${cd}`;
+  }
+  return txt;
+};
+
 </script>
 </body>
 </html>
