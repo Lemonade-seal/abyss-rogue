@@ -18555,6 +18555,195 @@ skillEnhanceDesc = function(k){
   }
 })();
 
+
+
+/* FINAL FIX: skill cooldown + skill range popup must survive later patches */
+(function(){
+  const FINAL_SKILL_COOLDOWNS = {
+    warrior:{smash:{base:10,min:8,label:'강타'},dash:{base:12,min:10,label:'방패돌진'},heal:{base:14,min:12,label:'전투함성'}},
+    rogue:{smash:{base:8,min:6,label:'급소찌르기'},dash:{base:9,min:7,label:'그림자도약'},heal:{base:13,min:11,label:'연막'}},
+    mage:{smash:{base:7,min:5,label:'마력탄'},dash:{base:12,min:10,label:'화염폭발'},heal:{base:14,min:12,label:'재생술'}},
+    hunter:{smash:{base:8,min:6,label:'정밀사격'},dash:{base:9,min:7,label:'구르기'},heal:{base:12,min:10,label:'다발 사격'}}
+  };
+  window.FINAL_SKILL_COOLDOWNS = FINAL_SKILL_COOLDOWNS;
+
+  function finalSkillClass(cls){
+    cls = cls || (S && S.player && S.player.classId) || 'warrior';
+    return FINAL_SKILL_COOLDOWNS[cls] ? cls : 'warrior';
+  }
+  function finalEnsureCd(){
+    if(!S || !S.player) return null;
+    S.player.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0}, S.player.cd || {});
+    return S.player.cd;
+  }
+  function finalSkillCd(cls,k){
+    cls = finalSkillClass(cls);
+    const row = FINAL_SKILL_COOLDOWNS[cls] && FINAL_SKILL_COOLDOWNS[cls][k];
+    if(!row) return 0;
+    let cd = row.base - (typeof skillCdBonus === 'function' ? skillCdBonus(k) : 0);
+    if(k === 'dash'){
+      try{ cd += Number((typeof calcStats === 'function' && calcStats().dashCd) || 0); }catch(e){}
+    }
+    return Math.max(row.min, Math.floor(cd));
+  }
+  function finalSkillLabel(cls,k){
+    cls = finalSkillClass(cls);
+    return FINAL_SKILL_COOLDOWNS[cls]?.[k]?.label || '기술';
+  }
+  function finalGateSkill(cls,k){
+    const cd = finalEnsureCd();
+    if(!cd) return false;
+    const left = Math.max(0, Math.floor(Number(cd[k]) || 0));
+    if(left > 0){
+      toast(`${finalSkillLabel(cls,k)} 재사용 ${left}턴`);
+      return false;
+    }
+    return true;
+  }
+  function finalApplyCd(cls,k){
+    const cd = finalEnsureCd();
+    if(!cd) return;
+    cd[k] = finalSkillCd(cls,k);
+    if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots();
+    else if(typeof updateSkillButtons === 'function') updateSkillButtons();
+  }
+  function finalPostRenderSave(){
+    try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
+    try{ if(typeof saveRun === 'function') saveRun(); }catch(e){}
+  }
+  function finalWrapClassSkill(fn, cls, k){
+    if(typeof fn !== 'function') return fn;
+    return function(){
+      if(!finalGateSkill(cls,k)) return;
+      const p = S && S.player;
+      const beforeTurn = p ? Number(p.turn || 0) : 0;
+      const beforeAim = p ? p.awaitAim : null;
+      const ret = fn.apply(this, arguments);
+      const after = S && S.player;
+      if(!after) return ret;
+      const usedTurn = Number(after.turn || 0) > beforeTurn;
+      const selectedAim = !!after.awaitAim && after.awaitAim !== beforeAim;
+      if(usedTurn || selectedAim){
+        finalApplyCd(cls,k);
+        finalPostRenderSave();
+      }
+      return ret;
+    };
+  }
+
+  if(typeof skillWarrior1 === 'function') skillWarrior1 = finalWrapClassSkill(skillWarrior1,'warrior','smash');
+  if(typeof skillWarrior2 === 'function') skillWarrior2 = finalWrapClassSkill(skillWarrior2,'warrior','dash');
+  if(typeof skillWarrior3 === 'function') skillWarrior3 = finalWrapClassSkill(skillWarrior3,'warrior','heal');
+  if(typeof skillRogue1 === 'function') skillRogue1 = finalWrapClassSkill(skillRogue1,'rogue','smash');
+  if(typeof skillRogue2 === 'function') skillRogue2 = finalWrapClassSkill(skillRogue2,'rogue','dash');
+  if(typeof skillRogue3 === 'function') skillRogue3 = finalWrapClassSkill(skillRogue3,'rogue','heal');
+  if(typeof skillMage1 === 'function') skillMage1 = finalWrapClassSkill(skillMage1,'mage','smash');
+  if(typeof skillMage2 === 'function') skillMage2 = finalWrapClassSkill(skillMage2,'mage','dash');
+  if(typeof skillMage3 === 'function') skillMage3 = finalWrapClassSkill(skillMage3,'mage','heal');
+  if(typeof skillHunter1 === 'function') skillHunter1 = finalWrapClassSkill(skillHunter1,'hunter','smash');
+  if(typeof skillHunter2 === 'function') skillHunter2 = finalWrapClassSkill(skillHunter2,'hunter','dash');
+  if(typeof skillHunter3 === 'function') skillHunter3 = finalWrapClassSkill(skillHunter3,'hunter','heal');
+
+  skillSmash = function(){
+    if(!canAct()) return;
+    const cls = finalSkillClass(S && S.player && S.player.classId);
+    if(!finalGateSkill(cls,'smash')) return;
+    if(cls === 'warrior') return skillWarrior1();
+    if(cls === 'rogue') return skillRogue1();
+    if(cls === 'mage') return skillMage1();
+    if(cls === 'hunter') return skillHunter1();
+  };
+  skillDash = function(){
+    if(!canAct()) return;
+    const cls = finalSkillClass(S && S.player && S.player.classId);
+    if(!finalGateSkill(cls,'dash')) return;
+    if(cls === 'warrior') return skillWarrior2();
+    if(cls === 'rogue') return skillRogue2();
+    if(cls === 'mage') return skillMage2();
+    if(cls === 'hunter') return skillHunter2();
+  };
+  skillHeal = function(){
+    if(!canAct()) return;
+    const cls = finalSkillClass(S && S.player && S.player.classId);
+    if(!finalGateSkill(cls,'heal')) return;
+    if(cls === 'warrior') return skillWarrior3();
+    if(cls === 'rogue') return skillRogue3();
+    if(cls === 'mage') return skillMage3();
+    if(cls === 'hunter') return skillHunter3();
+  };
+
+  const oldCooldownText = typeof skillCooldownText === 'function' ? skillCooldownText : null;
+  skillCooldownText = function(cls,k){
+    if(FINAL_SKILL_COOLDOWNS[finalSkillClass(cls)]?.[k]) return `${finalSkillCd(cls,k)}턴`;
+    return oldCooldownText ? oldCooldownText(cls,k) : '-';
+  };
+
+  const oldEnhanceDesc = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
+  skillEnhanceDesc = function(k){
+    let txt = oldEnhanceDesc ? String(oldEnhanceDesc(k) || '') : '';
+    const cls = finalSkillClass(S && S.player && S.player.classId);
+    if(FINAL_SKILL_COOLDOWNS[cls]?.[k]){
+      const cdText = `쿨타임 ${finalSkillCd(cls,k)}턴`;
+      if(/쿨타임\s*\d+턴/.test(txt)) txt = txt.replace(/쿨타임\s*\d+턴/g, cdText);
+      else txt = txt ? `${txt} · ${cdText}` : cdText;
+    }
+    return txt;
+  };
+
+  const oldSkillCooldownByKey = typeof skillCooldownByKey === 'function' ? skillCooldownByKey : null;
+  skillCooldownByKey = function(k){
+    const cd = finalEnsureCd();
+    if(cd && (k === 'smash' || k === 'dash' || k === 'heal')) return Math.max(0, Number(cd[k] || 0));
+    return oldSkillCooldownByKey ? oldSkillCooldownByKey(k) : 0;
+  };
+
+  const previousShowSkillRangePopup = typeof showSkillRangePopup === 'function' ? showSkillRangePopup : null;
+  showSkillRangePopup = function(skillKey, clsArg){
+    if(typeof showSkillRangePopupMaster === 'function') return showSkillRangePopupMaster(skillKey, clsArg);
+    if(previousShowSkillRangePopup) return previousShowSkillRangePopup(skillKey, clsArg);
+  };
+  window.showSkillRangePopup = showSkillRangePopup;
+
+  function finalBindSkillRangeCards(){
+    if(!modalCard) return;
+    modalCard.querySelectorAll('[data-skill-info]').forEach(card=>{
+      if(card.dataset.finalRangePopupBound === '1') return;
+      card.dataset.finalRangePopupBound = '1';
+      card.addEventListener('click', ev=>{
+        if(ev.target && ev.target.closest('button')) return;
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        showSkillRangePopup(card.getAttribute('data-skill-info'), card.getAttribute('data-skill-class'));
+      });
+    });
+  }
+  const oldShowSkillMenuFinalRange = typeof showSkillMenu === 'function' ? showSkillMenu : null;
+  if(oldShowSkillMenuFinalRange){
+    showSkillMenu = function(tab='job'){
+      const ret = oldShowSkillMenuFinalRange.apply(this, arguments);
+      finalBindSkillRangeCards();
+      setTimeout(finalBindSkillRangeCards, 0);
+      return ret;
+    };
+  }
+  document.addEventListener('click', ev=>{
+    const card = ev.target && ev.target.closest && ev.target.closest('[data-skill-info]');
+    if(!card || !modalCard || !modalCard.contains(card)) return;
+    if(ev.target.closest('button')) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    showSkillRangePopup(card.getAttribute('data-skill-info'), card.getAttribute('data-skill-class'));
+  }, true);
+
+  const oldUpdateSkillButtonsFinal = typeof updateSkillButtonsFromQuickSlots === 'function' ? updateSkillButtonsFromQuickSlots : null;
+  if(oldUpdateSkillButtonsFinal){
+    updateSkillButtonsFromQuickSlots = function(){
+      finalEnsureCd();
+      return oldUpdateSkillButtonsFinal.apply(this, arguments);
+    };
+  }
+})();
+
 </script>
 </body>
 </html>
