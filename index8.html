@@ -111,7 +111,8 @@
   .miniMapGrid .miniCell{width:1px;height:1px;background:rgba(15,23,42,.68);border-radius:0}
   .miniMapGrid .miniCell.wall{background:rgba(71,85,105,.82)}
   .miniMapGrid .miniCell.floor{background:rgba(203,213,225,.62)}
-  .miniMapGrid .miniCell.player{background:#60a5fa;box-shadow:0 0 4px #60a5fa}
+   .miniMapGrid .miniCell.player{width:1px;height:1px;background:#00d9ff!important;box-shadow:0 0 2px #ffffff,0 0 5px #00d9ff,0 0 9px #38bdf8;transform:none;border-radius:0;animation:miniPlayerBlink .65s ease-in-out infinite alternate}
+  @keyframes miniPlayerBlink{0%{background:#008cff;box-shadow:0 0 1px #e0f2fe,0 0 3px #00b7ff,0 0 6px #0284c7;opacity:.72}100%{background:#7dd3fc;box-shadow:0 0 3px #ffffff,0 0 8px #22d3ee,0 0 14px #38bdf8;opacity:1}}
   .miniMapGrid .miniCell.enemy{background:#ef4444}
   .miniMapGrid .miniCell.item{background:#22c55e}
   .miniMapGrid .miniCell.merchant{background:#c084fc}
@@ -1524,6 +1525,8 @@
   .equipSideLabel{font-size:10px;color:#94a3b8;font-weight:900;letter-spacing:-.1px;margin-bottom:2px}
   .equipNameLine{font-size:12px;font-weight:900;line-height:1.2;word-break:keep-all;overflow-wrap:anywhere}
   .equipMetaLine,.equipStatLine{font-size:10.5px;line-height:1.25;color:#cbd5e1;overflow-wrap:anywhere}
+  .equipInlineCompare{font-size:10.5px;line-height:1.35;color:#cbd5e1;display:flex;flex-wrap:wrap;gap:3px 7px;margin-top:1px}
+  .equipInlineCompare span{white-space:nowrap}.equipInlineCompare .plus{color:#6ee7a8;font-weight:900}.equipInlineCompare .minus{color:#ff7070;font-weight:900}.equipInlineCompare .zero{color:#9ba9c5;font-weight:800}
   .equipEmpty{height:100%;min-height:74px;display:flex;align-items:center;justify-content:center;color:#94a3b8;border:1px dashed #475569;border-radius:10px;font-size:12px;font-weight:900;background:rgba(15,23,42,.38)}
   .equipSelectMark{position:absolute;right:9px;top:8px;font-size:10px;color:#facc15;font-weight:900;display:none}
   .equipChoiceCard.selected .equipSelectMark{display:block}
@@ -8287,29 +8290,40 @@ function equipChoiceHtml(it,i){
   return `<div class="equipChoiceCard" data-i="${i}">
     <span class="equipSelectMark">선택됨</span>
     <div class="equipComparePair">
-      ${equipSideHtml(old, '기존 장비')}
-      ${equipSideHtml(it, '새 장비', true)}
+      ${equipSideHtml(old, '기존 장비', false, null)}
+      ${equipSideHtml(it, '새 장비', true, old)}
     </div>
-    ${equipCompareHtml(old,it)}
   </div>`;
 }
-function equipSideHtml(it,label,isNew=false){
+function equipInlineCompareHtml(it, base=null){
+  if(!it) return '<div class="equipStatLine">옵션 없음</div>';
+  const defs=[['공격','atk',''],['방어','def',''],['HP','maxHp',''],['MP','maxMp',''],['치명','crit','%'],['회피','eva','%']];
+  const parts=defs.map(([name,k,suf])=>{
+    const v=it[k]||0;
+    const old=base?(base[k]||0):0;
+    if(!base && v===0) return '';
+    if(base && v===0 && old===0) return '';
+    if(!base) return `<span>${name} ${v}${suf}</span>`;
+    const d=v-old;
+    const cls=d>0?'plus':d<0?'minus':'zero';
+    const sign=d>0?'+':'';
+    return `<span>${name} ${v}${suf} <b class="${cls}">(${sign}${d}${suf})</b></span>`;
+  }).filter(Boolean).join('');
+  return parts ? `<div class="equipInlineCompare">${parts}</div>` : '<div class="equipStatLine">옵션 없음</div>';
+}
+function equipSideHtml(it,label,isNew=false,compareBase=null){
   if(!it){
     return `<div class="equipSideBox ${isNew?'newEquip':''}"><div class="equipSideLabel">${label}</div><div class="equipEmpty">장비 없음</div></div>`;
   }
   return `<div class="equipSideBox ${isNew?'newEquip':''}">
     <div class="equipSideLabel">${label}</div>
     <div class="equipNameLine">${SLOT_ICON[it.slot]||''} <span class="${RARITY_CLASS[it.rarity]||''}">${escHtml(it.name)}</span></div>
-    <div class="equipMetaLine">${SLOT_KO[it.slot]||''} · ${it.jobName||'직업 전용'} · ${RARITY[it.rarity]||'일반'} · 전투력 ${Math.round(itemScore(it))}</div>
-    <div class="equipStatLine">${escHtml(statLine(it))}</div>
+    <div class="equipMetaLine">${RARITY[it.rarity]||'일반'} · 전투력 ${Math.round(itemScore(it))}</div>
+    ${equipInlineCompareHtml(it, isNew ? compareBase : null)}
   </div>`;
 }
 function equipCompareHtml(old,it){
-  const rows=[['공격','atk',''],['방어','def',''],['HP','maxHp',''],['MP','maxMp',''],['치명','crit','%'],['회피','eva','%']]
-    .map(([name,k,suf])=>{ const a=old?(old[k]||0):0, b=it[k]||0; if(a===0 && b===0) return ''; const d=b-a; const cls=d>0?'plus':d<0?'minus':'zero'; const sign=d>0?'+':''; return `<tr><td>${name}</td><td>${old?`${a}${suf}`:'-'}</td><td>${b}${suf}</td><td class="${cls}">${sign}${d}${suf}</td></tr>`; })
-    .filter(Boolean).join('');
-  if(!rows) return '';
-  return `<table class="compareTable"><thead><tr><th>옵션</th><th>기존</th><th>신규</th><th>차이</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return '';
 }
 function classEquipPool(cls, slot){
   const pools={
@@ -8540,8 +8554,8 @@ function showSkillMenu(){
 
 function mapCellClass(x,y){
   const p=S?.player;
-  if(!S || !S.seen || !S.seen[y] || !S.seen[y][x]) return '';
   if(p && p.x===x && p.y===y) return 'player';
+  if(!S || !S.seen || !S.seen[y] || !S.seen[y][x]) return '';
   if(S.enemies && S.enemies.some(e=>e.hp>0&&e.x===x&&e.y===y)) return 'enemy';
   if(S.items && S.items.some(i=>i.x===x&&i.y===y&&i.type==='merchant')) return 'merchant';
   if(S.items && S.items.some(i=>i.x===x&&i.y===y)) return 'item';
@@ -14645,7 +14659,7 @@ function commonSkillCards(){
   return `<div class="choice skillChoice">
     <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
     <p>인접한 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
-    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
     <div class="grid2" style="margin-top:8px">
       <button class="btn warn smallbtn" id="useOpenDoorSkillBtn">사용</button>
       <button class="btn good smallbtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>
@@ -15040,7 +15054,7 @@ function commonSkillCardsQuickslot(){
   return `<div class="choice skillChoice">
     <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
     <p>인접한 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
-    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
     <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
   </div>
   <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
@@ -15189,7 +15203,7 @@ commonSkillCardsQuickslot = function(){
   return `<div class="choice skillChoice">
     <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
     <p>인접 1칸 안의 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
-    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
     <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
   </div>
   <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
@@ -15247,7 +15261,7 @@ commonSkillCardsQuickslot = function(){
     <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
     <p>인접 1칸 안의 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
     ${rogueText}
-    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
     <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
   </div>
   <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
@@ -17201,7 +17215,7 @@ commonSkillCardsQuickslot = function(){
     <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
     <p>인접 1칸 안의 잠긴 문을 엽니다.</p>
     ${rogueText}
-    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
     <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
   </div>
   <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
@@ -17656,7 +17670,7 @@ resolveAimedSkill = function(dx,dy){
     return arr.map((s,i)=>{
       const k=s[0], lv=skillLv(k), masterName=masterNameForSkill(p.classId,k), shownName=(lv>=20&&masterName)?masterName:s[1];
       const masterLine = masterName ? (lv>=20 ? `<p class="goodtxt">${skillPopupEsc(s[1])} 마스터: ${skillPopupEsc(masterName)}</p>` : `<p class="muted">+20 마스터명: ${skillPopupEsc(masterName)}</p>`) : '';
-      return `<div class="choice skillChoice skillInfoChoice" data-skill-info="${skillPopupEsc(k)}" data-skill-class="${skillPopupEsc(p.classId)}"><h4>${i+1}. ${skillPopupEsc(shownName)} <span class="legend">+${lv}</span></h4><p>${skillPopupEsc(s[2])}</p>${masterLine}<p class="muted">${skillEnhanceDesc(k)}</p><p class="muted skillTapHint">카드 터치: 범위/연계 보기</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton(k)}</div>`;
+      return `<div class="choice skillChoice skillInfoChoice" data-skill-info="${skillPopupEsc(k)}" data-skill-class="${skillPopupEsc(p.classId)}"><h4>${i+1}. ${skillPopupEsc(shownName)} <span class="legend">+${lv}</span></h4><p>${skillPopupEsc(s[2])}</p>${masterLine}<p class="muted">${cleanSkillMenuEnhanceDesc(k)}</p><p class="muted skillTapHint">카드 터치: 범위/연계 보기</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton(k)}</div>`;
     }).join('');
   };
   commonSkillCardsQuickslot = function(){
@@ -17664,7 +17678,7 @@ resolveAimedSkill = function(dx,dy){
     return `<div class="choice skillChoice skillInfoChoice" data-skill-info="openDoor" data-skill-class="common">
       <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
       <p>인접 1칸 안의 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
-      <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+      <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
       <p class="muted skillTapHint">카드 터치: 범위 보기</p>
       <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton('openDoor')}
     </div>
@@ -18052,6 +18066,25 @@ skillEnhanceDesc = function(k){
   return skillLv(k)>=20 ? `${base} · 마스터 연계: ${info.name} ${info.chance}%` : `${base} · +20 마스터 연계: ${info.name} ${info.chance}%`;
 };
 
+function cleanSkillMenuEnhanceDesc(k){
+  let txt = (typeof skillEnhanceDesc === 'function') ? String(skillEnhanceDesc(k) || '') : '';
+  // 스킬창 카드에는 마스터 연계 줄을 별도로 표시하므로, 강화 설명 안의 마스터 문구는 제거한다.
+  txt = txt
+    .replace(/\s*·\s*\+20\s*마스터\s*연계:[^·<]*/g, '')
+    .replace(/\s*·\s*마스터\s*연계:[^·<]*/g, '')
+    .replace(/\s*·\s*\+20\s*마스터명:[^·<]*/g, '')
+    .replace(/\s*·\s*마스터:[^·<]*/g, '');
+  // 쿨타임이 중복으로 붙은 경우 마지막 값 하나만 남긴다.
+  const cdMatches = txt.match(/쿨타임\s*\d+턴/g) || [];
+  if(cdMatches.length > 1){
+    const last = cdMatches[cdMatches.length - 1];
+    txt = txt.replace(/\s*·?\s*쿨타임\s*\d+턴/g, '');
+    txt = txt ? `${txt} · ${last}` : last;
+  }
+  txt = txt.replace(/\s*·\s*·\s*/g, ' · ').replace(/^\s*·\s*/, '').replace(/\s*·\s*$/, '').trim();
+  return txt;
+}
+
 jobSkillCardsQuickslot = function(){
   const p=S && S.player;
   if(!p) return '';
@@ -18063,7 +18096,7 @@ jobSkillCardsQuickslot = function(){
   return arr.map((info,i)=>{
     const k=['smash','dash','heal'][i], lv=skillLv(k);
     const masterLine = lv>=20 ? `<p class="goodtxt">마스터 연계: ${escapeText(info.name)} · 발동률 ${info.chance}%</p>` : `<p class="muted">+20 마스터 연계: ${escapeText(info.name)} · 발동률 ${info.chance}%</p>`;
-    return `<div class="choice skillChoice skillInfoChoice" data-skill-info="${escapeText(k)}" data-skill-class="${escapeText(p.classId)}"><h4>${i+1}. ${escapeText(info.base)} <span class="legend">+${lv}</span></h4><p>${escapeText(skillBaseDescForMaster(p.classId,k))}</p>${masterLine}<p class="muted">${skillEnhanceDesc(k)}</p><p class="muted skillTapHint">카드 터치: 범위/연계 보기</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton(k)}</div>`;
+    return `<div class="choice skillChoice skillInfoChoice" data-skill-info="${escapeText(k)}" data-skill-class="${escapeText(p.classId)}"><h4>${i+1}. ${escapeText(info.base)} <span class="legend">+${lv}</span></h4><p>${escapeText(skillBaseDescForMaster(p.classId,k))}</p>${masterLine}<p class="muted">${cleanSkillMenuEnhanceDesc(k)}</p><p class="muted skillTapHint">카드 터치: 범위/연계 보기</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton(k)}</div>`;
   }).join('');
 };
 function skillBaseDescForMaster(cls,k){
