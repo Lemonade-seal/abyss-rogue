@@ -7762,6 +7762,7 @@ function afterPlayerAction(wait=false){
   const p=S.player;
   p.turn++;
   advanceCooldownsAfterPlayerTurn(p);
+  clearSkillPreviewNow();
   if(!wait) regenTick(false);
   enemyTurn();
   cleanup();
@@ -8062,10 +8063,21 @@ function ensureSkillTurnCooldownState(){
   p.skillTurnLock = Object.assign({smash:0,dash:0,heal:0}, p.skillTurnLock || {});
   const turn = Math.floor(Number(p.turn)||0);
   SKILL_TURN_CD_KEYS.forEach(k=>{
-    const cdLeft = Math.max(0, Math.floor(Number(p.cd[k])||0));
     const lock = Math.max(0, Math.floor(Number(p.skillTurnLock[k])||0));
-    if(lock <= turn && cdLeft > 0) p.skillTurnLock[k] = turn + cdLeft;
-    if(p.skillTurnLock[k] <= turn) p.skillTurnLock[k] = 0;
+    if(lock > turn){
+      p.cd[k] = Math.max(0, lock - turn);
+    }else if(lock > 0){
+      p.skillTurnLock[k] = 0;
+      p.cd[k] = 0;
+    }else{
+      const cdLeft = Math.max(0, Math.floor(Number(p.cd[k])||0));
+      if(cdLeft > 0){
+        p.skillTurnLock[k] = turn + cdLeft;
+        p.cd[k] = cdLeft;
+      }else{
+        p.cd[k] = 0;
+      }
+    }
   });
   return p;
 }
@@ -8083,9 +8095,10 @@ function setSkillCooldownTurn(k, turns){
   const p = ensureSkillTurnCooldownState();
   if(!p) return;
   const cd = Math.max(0, Math.floor(Number(turns)||0));
-  // 스킬을 사용한 그 행동의 afterPlayerAction()에서 p.turn이 1 증가하므로 +1을 더해 사용 직후 cd가 그대로 보이게 한다.
+  // 이 함수는 스킬 본문에서 afterPlayerAction() 직전에 호출된다.
+  // 같은 행동으로 p.turn이 1 증가한 뒤에도 cd가 바로 1 줄지 않도록 +1을 더한다.
   p.skillTurnLock[k] = Math.floor(Number(p.turn)||0) + cd + 1;
-  p.cd[k] = cd + 1;
+  p.cd[k] = cd;
 }
 function reduceSkillCooldownTurn(k, amount=1){
   const p = ensureSkillTurnCooldownState();
@@ -8110,10 +8123,16 @@ function advanceCooldownsAfterPlayerTurn(p){
     if(p.cd[k] <= 0 && p.skillTurnLock) p.skillTurnLock[k] = 0;
   });
 }
+function clearSkillPreviewNow(){
+  if(S && S.player) S.player.skillPreview = null;
+  try{ if(typeof window !== 'undefined') window.skillRangePreview = null; }catch(e){}
+}
 function blockSkillCooldown(k,label){
   const left = skillCooldownLeft(k);
   if(left>0){
+    clearSkillPreviewNow();
     toast(`${label||'기술'} 재사용 ${left}턴`);
+    try{ renderAll(); }catch(e){}
     return true;
   }
   return false;
@@ -18666,7 +18685,13 @@ skillEnhanceDesc = function(k){
   function finalApplyCd(cls,k){
     const cd = finalEnsureCd();
     if(!cd) return;
-    cd[k] = finalSkillCd(cls,k);
+    const turns = finalSkillCd(cls,k);
+    cd[k] = turns;
+    if(S && S.player && (k === 'smash' || k === 'dash' || k === 'heal')){
+      S.player.skillTurnLock = Object.assign({smash:0,dash:0,heal:0}, S.player.skillTurnLock || {});
+      // finalApplyCd는 스킬 실행/방향선택 처리 뒤에 호출된다. 현재 턴 기준으로 남은 턴을 그대로 저장한다.
+      S.player.skillTurnLock[k] = Math.floor(Number(S.player.turn)||0) + turns;
+    }
     if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots();
     else if(typeof updateSkillButtons === 'function') updateSkillButtons();
   }
