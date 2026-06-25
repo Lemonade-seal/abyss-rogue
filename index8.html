@@ -7610,10 +7610,6 @@ function applyMapChatScrollState(state, forceBottom=false){
     el.scrollTop = Math.max(0, Math.min(state.top || 0, el.scrollHeight - el.clientHeight));
   }
 }
-function scrollMapChatToBottom(){
-  const el = document.querySelector('.mapChatMessages');
-  if(el) el.scrollTop = el.scrollHeight;
-}
 function scrollLogChatToBottom(){
   const sideLog = $('logBox');
   if(sideLog) sideLog.scrollTop = sideLog.scrollHeight;
@@ -17082,9 +17078,6 @@ function openDoorCooldownTurns(){
   const rogueBonus = S && S.player && S.player.classId === 'rogue' ? 5 : 0;
   return Math.max(5, 30 - lv - rogueBonus);
 }
-function openDoorCooldownSeconds(){
-  return openDoorCooldownTurns();
-}
 const skillCooldownByKeyBeforeOpenDoorCooldown = skillCooldownByKey;
 skillCooldownByKey = function(k){
   if(!S || !S.player) return 0;
@@ -17303,9 +17296,6 @@ function warriorMasterSkillName(k){
 }
 function isWarriorMasterSkillActive(k){
   return !!(S && S.player && S.player.classId === 'warrior' && warriorSkillLevel(k) >= 20 && warriorMasterSkillName(k));
-}
-function warriorBaseSkillName(k){
-  return ({smash:'강타', dash:'방패돌진', heal:'전투함성'})[k] || k;
 }
 
 const skillNameByKeyBeforeWarriorMasterNames = skillNameByKey;
@@ -17640,8 +17630,6 @@ const ALL_MASTER_SKILLS = {
   }
 };
 function masterSkillInfo(cls,k){ return ALL_MASTER_SKILLS?.[cls]?.[k] || null; }
-function masterSkillNameAny(cls,k){ const info=masterSkillInfo(cls,k); return info ? info.name : ''; }
-function isMasterReady(cls,k){ return !!(S && S.player && S.player.classId===cls && skillLv(k)>=20 && masterSkillInfo(cls,k)); }
 function tryMasterChain(cls,k){ const info=masterSkillInfo(cls,k); return !!(info && skillLv(k)>=20 && chance((info.chance||0)/100)); }
 function showMasterChainBanner(cls,k){ const info=masterSkillInfo(cls,k); if(!info) return; toast(`${info.name} 연계!`); addLog(`<span class="legend">${info.name}</span> 연계!`); }
 function dealMasterDamage(e,dmg,label,color='#facc15'){
@@ -18053,6 +18041,316 @@ showSkillMenu = function(tab='job'){
 
 initStartPage();
 render();
+
+
+/* FINAL PASS: skill notice / effect-turn stability / duplicate-safe skill overrides */
+function skillActionBanner(msg){ if(msg) toast(msg); }
+function grantFreshEffect(key, turns){
+  const p=S&&S.player; if(!p) return;
+  p.effects=p.effects||{};
+  const n=Math.max(0, Math.floor(Number(turns)||0));
+  if(n<=0) return;
+  p.effects[key]=Math.max(p.effects[key]||0, n);
+  p._freshEffects=p._freshEffects||{};
+  p._freshEffects[key]=true;
+}
+tickEffects = function(){
+  const p=S&&S.player; if(!p) return;
+  const ef=p.effects||{};
+  const fresh=p._freshEffects||{};
+  if(ef.lifeGlyph>0 && !fresh.lifeGlyph && !S.dead){
+    const st=calcStats();
+    const h=Math.max(1,Math.floor(st.maxHp*0.05));
+    p.hp=clamp(p.hp+h,1,st.maxHp);
+    addFx({kind:'heal', x:p.x, y:p.y, color:'#86efac', dur:260});
+    addLog(`생명의 문장 추가 회복 ${h}.`);
+  }
+  Object.keys(ef).forEach(k=>{
+    if(ef[k]>0 && !fresh[k]) ef[k]--;
+  });
+  p._freshEffects={};
+};
+
+skillWarrior1 = function(){
+  const p=S.player;
+  const e=S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0];
+  if(!e){ toast('인접한 적이 없다.'); return; }
+  skillActionBanner('강타 발동!');
+  p.cd.smash=Math.max(5,10-skillCdBonus('smash'));
+  const dmg=playerAttack(e,true,{bonusBase:2+skillPowerBonus('smash')});
+  if(e.hp>0 && tryMasterChain('warrior','smash')){
+    showMasterChainBanner('warrior','smash');
+    let extra=Math.floor(dmg*0.35)+skillPowerBonus('smash');
+    if(e.elite||e.boss) extra=Math.floor(extra*1.25);
+    dealMasterDamage(e,extra,'타이탄 브레이크가','#60a5fa');
+  }
+  afterPlayerAction();
+};
+
+skillWarrior2 = function(){
+  const p=S.player;
+  p.cd.dash=Math.max(6,11+(calcStats().dashCd||0)-skillCdBonus('dash'));
+  p.awaitAim='warriorCharge';
+  showAimHint('방패돌진 방향을 선택.');
+  renderAll();
+  saveRun();
+};
+
+skillWarrior3 = function(){
+  const p=S.player, st=calcStats();
+  if(p.mp<8){ toast('MP가 부족하다.'); return; }
+  skillActionBanner('전투함성 발동!');
+  p.mp-=8;
+  p.cd.heal=Math.max(7,13-skillCdBonus('heal'));
+  grantFreshEffect('fury', warriorBattleCryTurns());
+  const heal=Math.floor(st.maxHp*.16)+8+skillPowerBonus('heal')*2;
+  p.hp=clamp(p.hp+heal,1,st.maxHp);
+  addFx({kind:'ring', x:p.x, y:p.y, color:'#f59e0b', dur:360});
+  addFx({kind:'heal', x:p.x, y:p.y, color:'#fb923c', dur:360});
+  addLog(`전투함성! HP ${heal} 회복, 공격 +${warriorBattleCryAtkBonus()} 효과.`);
+  if(tryMasterChain('warrior','heal')){
+    showMasterChainBanner('warrior','heal');
+    grantFreshEffect('masterRoar',2);
+    grantFreshEffect('guard',1);
+    addFx({kind:'ring', x:p.x, y:p.y, color:'#fbbf24', dur:420});
+  }
+  afterPlayerAction();
+};
+
+skillRogue1 = function(){
+  const p=S.player;
+  const e=S.enemies.filter(e=>e.hp>0&&dist(e,p)===1).sort((a,b)=>a.hp-b.hp)[0];
+  if(!e){ toast('인접한 적이 없다.'); return; }
+  skillActionBanner('급소찌르기 발동!');
+  addFx({kind:'slash', x:e.x, y:e.y, color:'#c084fc', dur:220, angle:.7});
+  p.cd.smash=Math.max(5,9-skillCdBonus('smash'));
+  const dmg=playerAttack(e,false,{bonusBase:4+skillPowerBonus('smash'),critBonus:20+Math.floor(skillLv('smash')/2),ignoreDef:.45,critMult:2.05});
+  if(e.hp>0 && tryMasterChain('rogue','smash')){
+    showMasterChainBanner('rogue','smash');
+    let extra=Math.floor(dmg*0.35)+skillPowerBonus('smash');
+    if(e.hp <= e.maxHp*0.35) extra=Math.floor(extra*1.35);
+    if(e.elite||e.boss) extra=Math.floor(extra*0.75);
+    dealMasterDamage(e,extra,'사신의 낙인이','#c084fc');
+  }
+  afterPlayerAction();
+};
+
+skillRogue2 = function(){
+  const p=S.player;
+  p.cd.dash=Math.max(6,10+(calcStats().dashCd||0)-skillCdBonus('dash'));
+  p.awaitAim='rogueStep';
+  showAimHint('그림자 도약 방향을 선택.');
+  renderAll();
+  saveRun();
+};
+
+skillRogue3 = function(){
+  const p=S.player;
+  if(p.mp<8){ toast('MP가 부족하다.'); return; }
+  skillActionBanner('연막 발동!');
+  p.mp-=8;
+  p.cd.heal=Math.max(7,13-skillCdBonus('heal'));
+  grantFreshEffect('smoke',4+Math.floor(skillLv('heal')/5));
+  addFx({kind:'smoke', x:p.x, y:p.y, color:'#cbd5e1', dur:430});
+  addLog('연막을 펼쳤다. 회피율이 크게 상승한다.');
+  if(tryMasterChain('rogue','heal')){
+    showMasterChainBanner('rogue','heal');
+    grantFreshEffect('smoke',(p.effects.smoke||0)+1);
+    grantFreshEffect('masterSmoke',2);
+    grantFreshEffect('masterSmokeBlock',2);
+  }
+  afterPlayerAction();
+};
+
+skillMage1 = function(){
+  const p=S.player;
+  if(p.mp<5){ toast('MP가 부족하다.'); return; }
+  const e=rangedEnemy(4+skillRangeBonus('smash'),'smash');
+  if(!e){ toast('사거리 안에 적이 없다.'); return; }
+  skillActionBanner('마력탄 발동!');
+  addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a78bfa', dur:210});
+  addFx({kind:'burst', x:e.x, y:e.y, color:'#8b5cf6', spark:'#ddd6fe', dur:260});
+  p.mp-=5;
+  p.cd.smash=Math.max(5,8-skillCdBonus('smash'));
+  const dmg=playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),ignoreDef:.6,ranged:true});
+  addLog('마력탄이 적중했다.');
+  if(tryMasterChain('mage','smash')){
+    showMasterChainBanner('mage','smash');
+    p.mp=clamp(p.mp+1,0,calcStats().maxMp);
+    liveEnemiesInRange(e.x,e.y,1,e).slice(0,4).forEach(v=>dealMasterDamage(v,Math.floor(dmg*0.45),'아케인 파열이','#a78bfa'));
+  }
+  afterPlayerAction();
+};
+
+skillMage2 = function(){
+  const p=S.player;
+  if(p.mp<10){ toast('MP가 부족하다.'); return; }
+  const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=2&&hasLocalAoePath(p.x,p.y,e.x,e.y));
+  if(!targets.length){ toast('주변 2칸 안에 적이 없다.'); return; }
+  skillActionBanner('화염폭발 발동!');
+  addFx({kind:'ring', x:p.x, y:p.y, color:'#f97316', dur:300});
+  targets.forEach(e=>addFx({kind:'burst', x:e.x, y:e.y, color:'#f97316', spark:'#fdba74', dur:320}));
+  p.mp-=10;
+  p.cd.dash=Math.max(7,11-skillCdBonus('dash'));
+  targets.forEach(e=>playerAttack(e,false,{bonusBase:3+skillPowerBonus('dash'),ignoreDef:.35,burnTurns:2,ranged:true}));
+  addLog('화염폭발이 주변을 휩쓸었다.');
+  if(tryMasterChain('mage','dash')){
+    showMasterChainBanner('mage','dash');
+    targets.forEach(e=>{ if(e.hp>0) e.burn=Math.max(e.burn||0,4); });
+  }
+  afterPlayerAction();
+};
+
+skillMage3 = function(){
+  const p=S.player, st=calcStats();
+  if(p.mp<12){ toast('MP가 부족하다.'); return; }
+  skillActionBanner('재생술 발동!');
+  p.mp-=12;
+  p.cd.heal=Math.max(7,13-skillCdBonus('heal'));
+  const heal=Math.floor(st.maxHp*.42)+10+skillPowerBonus('heal')*2;
+  p.hp=clamp(p.hp+heal,1,st.maxHp);
+  addFx({kind:'heal', x:p.x, y:p.y, color:'#34d399', dur:420});
+  addFx({kind:'ring', x:p.x, y:p.y, color:'#6ee7b7', dur:420});
+  addLog(`재생술로 HP ${heal} 회복.`);
+  if(tryMasterChain('mage','heal')){
+    showMasterChainBanner('mage','heal');
+    grantFreshEffect('lifeGlyph', p.hp <= st.maxHp*0.30 ? 3 : 2);
+  }
+  afterPlayerAction();
+};
+
+skillHunter1 = function(){
+  const p=S.player;
+  const e=lineEnemy(5+skillRangeBonus('smash'),'smash');
+  if(!e){ toast('직선 사거리 안에 적이 없다.'); return; }
+  skillActionBanner('정밀사격 발동!');
+  const d=dist(e,p);
+  addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#84cc16', dur:190});
+  addFx({kind:'burst', x:e.x, y:e.y, color:'#bef264', spark:'#ecfccb', dur:220});
+  p.cd.smash=Math.max(5,9-skillCdBonus('smash'));
+  const dmg=playerAttack(e,false,{bonusBase:5+skillPowerBonus('smash'),critBonus:10+Math.floor(skillLv('smash')/2),ignoreDef:.4,ranged:true});
+  addLog('정밀사격!');
+  if(e.hp>0 && tryMasterChain('hunter','smash')){
+    showMasterChainBanner('hunter','smash');
+    const extra=Math.floor(dmg*(d>=4?0.35:0.22))+skillPowerBonus('smash');
+    dealMasterDamage(e,extra,'매의 심판이','#84cc16');
+    p.mp=clamp(p.mp+2,0,calcStats().maxMp);
+  }
+  afterPlayerAction();
+};
+
+skillHunter2 = function(){
+  const p=S.player;
+  p.cd.dash=Math.max(6,10+(calcStats().dashCd||0)-skillCdBonus('dash'));
+  p.awaitAim='hunterRoll';
+  showAimHint('구르기 방향을 선택.');
+  renderAll();
+  saveRun();
+};
+
+skillHunter3 = function(){
+  const p=S.player;
+  if(p.mp<10){ toast('MP가 부족하다.'); return; }
+  const maxTargets=3+Math.floor(skillLv('heal')/7);
+  const range=3+skillRangeBonus('heal');
+  const targets=S.enemies.filter(e=>e.hp>0&&dist(e,p)<=range&&hasRangedPath(p.x,p.y,e.x,e.y,false)).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp).slice(0,maxTargets);
+  if(!targets.length){ toast('사거리 안에 적이 없다.'); return; }
+  skillActionBanner('다발 사격 발동!');
+  targets.forEach(e=>{ addFx({kind:'line', x1:p.x, y1:p.y, x2:e.x, y2:e.y, color:'#a3e635', dur:180}); addFx({kind:'burst', x:e.x, y:e.y, color:'#84cc16', spark:'#ecfccb', dur:220}); });
+  p.mp-=10;
+  p.cd.heal=Math.max(7,12-skillCdBonus('heal'));
+  targets.forEach(e=>playerAttack(e,false,{bonusBase:2+skillPowerBonus('heal'),critBonus:8+Math.floor(skillLv('heal')/2),ranged:true}));
+  addLog('다발 사격으로 여러 적을 노렸다.');
+  if(targets.length>=2 && tryMasterChain('hunter','heal')){
+    showMasterChainBanner('hunter','heal');
+    const set=new Set(targets);
+    targets.forEach(e=>{ if(e.hp>0) dealMasterDamage(e,Math.max(2,Math.floor((2+skillPowerBonus('heal'))*0.75)),'폭풍 화살이','#a3e635'); });
+    const extra=S.enemies.filter(e=>e.hp>0&&!set.has(e)&&dist(e,p)<=range&&hasRangedPath(p.x,p.y,e.x,e.y,false)).sort((a,b)=>dist(a,p)-dist(b,p)||a.hp-b.hp)[0];
+    if(extra) playerAttack(extra,false,{bonusBase:2+Math.floor(skillPowerBonus('heal')*.5),critBonus:8,ranged:true,mult:.75});
+  }
+  afterPlayerAction();
+};
+
+resolveAimedSkill = function(dx,dy){
+  const p=S&&S.player;
+  if(!p || !p.awaitAim) return;
+  const type=p.awaitAim;
+  if(type==='warriorCharge'){
+    p.awaitAim='';
+    const sx=p.x, sy=p.y;
+    let steps=0, hit=false, impactX=p.x, impactY=p.y, chargeDmg=0, target=null;
+    setPlayerDirByDelta(dx,dy);
+    for(let i=0;i<2;i++){
+      const nx=p.x+dx, ny=p.y+dy;
+      const e=enemyAt(nx,ny);
+      if(e){ target=e; impactX=e.x; impactY=e.y; chargeDmg=playerAttack(e,true,{bonusBase:2+skillPowerBonus('dash')}); hit=true; break; }
+      if(!passable(nx,ny)) break;
+      p.x=nx; p.y=ny; steps++;
+    }
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#60a5fa', dur:260});
+    if(hit){
+      skillActionBanner('방패돌진 성공!');
+      addFx({kind:'burst', x:impactX, y:impactY, color:'#93c5fd', spark:'#ffffff', dur:240});
+      if(tryMasterChain('warrior','dash')){ showMasterChainBanner('warrior','dash'); applyShieldChargeMasterReflect(target, chargeDmg, impactX, impactY); }
+    }else if(steps){
+      skillActionBanner(`방패돌진 ${steps}칸 이동!`);
+    }else{
+      toast('방패돌진이 막혔다.');
+    }
+    grantFreshEffect('guard',warriorChargeGuardTurns());
+    addLog(hit ? `방패돌진 성공. 방어 태세 ${warriorChargeGuardTurns()}턴.` : (steps ? `방패돌진 ${steps}칸 이동. 방어 태세 ${warriorChargeGuardTurns()}턴.` : '방패돌진이 막혔다.'));
+    pickupCheck();
+    afterPlayerAction();
+    return;
+  }
+  if(type==='rogueStep'){
+    p.awaitAim='';
+    const sx=p.x, sy=p.y;
+    setPlayerDirByDelta(dx,dy);
+    let moved=0;
+    for(let i=0;i<2;i++){ const nx=p.x+dx, ny=p.y+dy; if(!passable(nx,ny)||enemyAt(nx,ny)) break; p.x=nx; p.y=ny; moved++; }
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#c084fc', dur:280});
+    if(moved){
+      skillActionBanner(`그림자 도약 ${moved}칸 이동!`);
+      grantFreshEffect('shadow',4);
+      addLog(`그림자 도약 ${moved}칸 이동. 다음 공격이 강화된다.`);
+      if(tryMasterChain('rogue','dash')){ showMasterChainBanner('rogue','dash'); grantFreshEffect('shadowMaster',2); grantFreshEffect('smoke',1); }
+    }else{
+      toast('도약할 공간이 없다.');
+      addLog('도약할 공간이 없다.');
+    }
+    pickupCheck();
+    afterPlayerAction();
+    return;
+  }
+  if(type==='hunterRoll'){
+    p.awaitAim='';
+    const sx=p.x, sy=p.y;
+    const beforeNearest=S.enemies.filter(e=>e.hp>0).map(e=>dist(e,p)).sort((a,b)=>a-b)[0] || 99;
+    setPlayerDirByDelta(dx,dy);
+    let moved=0;
+    for(let i=0;i<2;i++){ const nx=p.x+dx, ny=p.y+dy; if(!passable(nx,ny)||enemyAt(nx,ny)) break; p.x=nx; p.y=ny; moved++; }
+    const afterNearest=S.enemies.filter(e=>e.hp>0).map(e=>dist(e,p)).sort((a,b)=>a-b)[0] || 99;
+    addFx({kind:'trail', x1:sx, y1:sy, x2:p.x, y2:p.y, color:'#84cc16', dur:260});
+    if(moved){
+      skillActionBanner(`구르기 ${moved}칸 이동!`);
+      grantFreshEffect('focus',4);
+      addLog(`구르기 ${moved}칸 이동. 다음 원거리 공격이 강화된다.`);
+      if(tryMasterChain('hunter','dash')){
+        showMasterChainBanner('hunter','dash');
+        grantFreshEffect('hunterReflex',2);
+        grantFreshEffect('hunterMasterFocus',2);
+        if(afterNearest>beforeNearest) p.cd.smash=Math.max(0,(p.cd.smash||0)-1);
+      }
+    }else{
+      toast('구를 공간이 없다.');
+      addLog('구를 공간이 없다.');
+    }
+    pickupCheck();
+    afterPlayerAction();
+    return;
+  }
+};
 
 })();
 </script>
