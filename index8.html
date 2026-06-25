@@ -6410,6 +6410,26 @@ const classes = {
   hunter:{name:'야수 사냥꾼', desc:'기동성과 사격을 살린 안정형.', hp:33, mp:22, atk:6, def:2, crit:10, eva:4, potion:2, skill:'정밀사격 / 구르기 / 다발 사격'}
 };
 
+const CLASS_LEVEL_GROWTH = {
+  warrior:{maxHp:3.6, maxMp:.5, atk:.34, def:.16, crit:.05, eva:0, mpRegenLv:0},
+  rogue:{maxHp:2.3, maxMp:.7, atk:.42, def:.06, crit:.25, eva:.14, mpRegenLv:0},
+  mage:{maxHp:2.0, maxMp:2.0, atk:.46, def:.05, crit:.12, eva:.05, mpRegenLv:18},
+  hunter:{maxHp:2.7, maxMp:.9, atk:.38, def:.09, crit:.18, eva:.10, mpRegenLv:25}
+};
+function classLevelBonus(p){
+  const lv = Math.max(0, Math.floor(Number(p?.level)||1)-1);
+  const g = CLASS_LEVEL_GROWTH[p?.classId] || CLASS_LEVEL_GROWTH.warrior;
+  return {
+    maxHp:Math.floor(lv*g.maxHp),
+    maxMp:Math.floor(lv*g.maxMp),
+    atk:Math.floor(lv*g.atk),
+    def:Math.floor(lv*g.def),
+    crit:Math.floor(lv*g.crit),
+    eva:Math.floor(lv*g.eva),
+    mpRegen:g.mpRegenLv ? Math.floor(lv/g.mpRegenLv) : 0
+  };
+}
+
 const relicPool = [
   {id:'bloodfang', name:'피의 송곳니', desc:'적 처치 시 최대 HP의 8% 회복.', apply:'killHeal'},
   {id:'storm', name:'폭풍 핵', desc:'공격 시 18% 확률로 주변 적에게 연쇄 피해.', apply:'chain'},
@@ -6938,6 +6958,12 @@ function normalizeEquipSlots(equip, clsId='warrior'){
 function isMaxLevel(p){
   return !!p && Number(p.level || 1) >= MAX_LEVEL;
 }
+function expectedNextXpForLevel(level){
+  const lv = clamp(Math.floor(Number(level) || 1), 1, MAX_LEVEL);
+  if(lv >= MAX_LEVEL) return 0;
+  const n = Math.max(0, lv - 1);
+  return Math.floor(20 + n * 120 + n * n * 25);
+}
 function normalizeLevelCap(p){
   if(!p) return p;
   p.level = clamp(Math.floor(Number(p.level) || 1), 1, MAX_LEVEL);
@@ -6947,7 +6973,9 @@ function normalizeLevelCap(p){
     p.nextXp = 0;
   }else{
     p.xp = Math.max(0, Math.floor(Number(p.xp) || 0));
-    p.nextXp = Math.max(1, Math.floor(Number(p.nextXp) || 20));
+    const expected = expectedNextXpForLevel(p.level);
+    const current = Math.max(1, Math.floor(Number(p.nextXp) || expected));
+    p.nextXp = (current > Math.floor(expected * 1.35) || current < Math.floor(expected * 0.45)) ? expected : current;
   }
   return p;
 }
@@ -7342,7 +7370,7 @@ function createPlayer(clsId){
     baseDef:c.def + meta.upgrades.def,
     crit:c.crit + meta.upgrades.crit*2,
     eva:c.eva,
-    level:1, xp:0, nextXp:20, gold:0, potions:Math.max(1,c.potion-1),
+    level:1, xp:0, nextXp:expectedNextXpForLevel(1), gold:0, potions:Math.max(1,c.potion-1),
     floor:1, turn:0, kills:0, opened:0, soulsRun:0,
     mpRegen:1, hitHeal:0, critDmg:1.8, lootLuck:0, potionCdBonus:0,
     equip:Object.fromEntries(EQUIP_SLOTS.map(slot=>[slot, starterEquip(slot, clsId)])),
@@ -7431,6 +7459,10 @@ function spawnContent(floor){
   if(chance(.15) || S.floorMod?.id==='treasure') placeItem('vault', {});
   if(chance(.13)) placeItem('oracle', {});
   if(chance(.18)) placeItem('skillgem', {});
+  if(floor>=35 && floor<=55){
+    if(chance(.70)) placeItem('skillgem', {});
+    if(chance(.65)) placeItem('chest', {source:'elite'});
+  }
   if(chance(.22) || S.floorMod?.id==='curse') placeItem('soul', {amount:1+Math.floor(floor/6)});
   if(S.floorMod?.extraGold) for(let i=0;i<S.floorMod.extraGold;i++) placeItem('gold',{amount:Math.floor((12+rand(22)+floor*3)*goldRate())});
   if(S.floorMod?.extraChest) for(let i=0;i<S.floorMod.extraChest;i++) placeItem('chest',{});
@@ -7464,12 +7496,15 @@ function makeEnemy(x,y,floor,boss){
     const candidates = MONSTER_POOL.filter(m=>m.tier>=Math.max(1,tier-2) && m.tier<=Math.min(18,tier+1));
     t = deepClone(one(candidates.length ? candidates : MONSTER_POOL));
   }
-  const scale = t.boss ? (1 + floor*0.10) : (1 + floor*0.06);
+  const scale = t.boss ? (1 + floor*0.10) : (1 + floor*0.055);
   const mod=S?.floorMod||{};
+  const midGrowthBridge = !t.boss && floor>=35 && floor<=55;
   const bossHpMul = t.boss ? 2.15 : 1.05;
-  // 중간 층수 체력 보정: 높은 층에서 일반/정예 몬스터 체감 난이도를 더 확실히 올림
-  const normalFloorHpMul = t.boss ? 1 : (1 + Math.min(0.90, floor * 0.018));
-  const enemyMaxHp = Math.floor(t.hp*scale*bossHpMul*normalFloorHpMul*(mod.enemyHp||1));
+  const normalFloorHpMul = t.boss ? 1 : (1 + Math.min(0.48, floor * 0.010));
+  const bridgeHpRelief = midGrowthBridge ? 0.90 : 1;
+  const bridgeAtkRelief = midGrowthBridge ? 0.94 : 1;
+  const bridgeXpBonus = midGrowthBridge ? 1.25 : 1;
+  const enemyMaxHp = Math.floor(t.hp*scale*bossHpMul*normalFloorHpMul*bridgeHpRelief*(mod.enemyHp||1));
   const e = {
     x,y,
     id:t.id,
@@ -7477,9 +7512,9 @@ function makeEnemy(x,y,floor,boss){
     sprite:t.sprite,
     maxHp:enemyMaxHp,
     hp:enemyMaxHp,
-    atk:Math.floor(t.atk*scale*1.08*(mod.enemyAtk||1)),
+    atk:Math.floor(t.atk*scale*1.08*bridgeAtkRelief*(mod.enemyAtk||1)),
     def:Math.floor(t.def + floor/5 + (mod.enemyDef||0)),
-    xp:Math.floor(t.xp*scale*(mod.xp||1)),
+    xp:Math.floor(t.xp*scale*bridgeXpBonus*(mod.xp||1)),
     gold:Math.floor(t.gold*scale*(mod.gold||1)),
     fast:!!t.fast,
     ranged:!!t.ranged,
@@ -7492,8 +7527,9 @@ function makeEnemy(x,y,floor,boss){
   if(t.boss){
     e.maxHp = Math.floor(e.maxHp*1.18); e.hp=e.maxHp; e.atk=Math.floor(e.atk*1.14); e.def+=3; e.xp=Math.floor(e.xp*1.35); e.gold=Math.floor(e.gold*1.45);
   } else if(chance(.15 + floor*.006 + (mod.eliteBonus||0))){
-    const eliteFloorHpMul = 1 + Math.min(0.75, floor * 0.012);
-    e.name = '정예 ' + e.name; e.sprite='elite_' + e.sprite; e.maxHp=Math.floor(e.maxHp*2.05*eliteFloorHpMul); e.hp=e.maxHp; e.atk=Math.floor(e.atk*1.5); e.def+=3; e.xp*=2; e.gold*=3; e.elite=true;
+    const eliteFloorHpMul = 1 + Math.min(0.38, floor * 0.007);
+    const eliteBridgeRelief = midGrowthBridge ? 0.92 : 1;
+    e.name = '정예 ' + e.name; e.sprite='elite_' + e.sprite; e.maxHp=Math.floor(e.maxHp*2.0*eliteFloorHpMul*eliteBridgeRelief); e.hp=e.maxHp; e.atk=Math.floor(e.atk*1.42*bridgeAtkRelief); e.def+=3; e.xp=Math.floor(e.xp*2.15); e.gold*=3; e.elite=true;
   }
   if(S) S.discovered = Object.assign(S.discovered||{}, {[t.id]:true});
   return e;
@@ -7507,7 +7543,17 @@ function passable(x,y){return inMap(x,y) && S.map[y][x] !== '#';}
 
 function calcStats(){
   const p = S.player;
-  let st = {maxHp:p.maxHpBase, maxMp:p.maxMpBase, atk:p.baseAtk, def:p.baseDef, crit:p.crit, eva:p.eva, taken:0, flatReduce:0, goldRate:0, xpRate:0, potionPower:0, potionCap:0, dashCd:0};
+  const classBonus = classLevelBonus(p);
+  let st = {
+    maxHp:p.maxHpBase + classBonus.maxHp,
+    maxMp:p.maxMpBase + classBonus.maxMp,
+    atk:p.baseAtk + classBonus.atk,
+    def:p.baseDef + classBonus.def,
+    crit:p.crit + classBonus.crit,
+    eva:p.eva + classBonus.eva,
+    taken:0, flatReduce:0, goldRate:0, xpRate:0, potionPower:0, potionCap:0, dashCd:0,
+    mpRegenBonus:classBonus.mpRegen
+  };
   Object.values(p.equip).forEach(it=>{
     if(!it) return; ['maxHp','maxMp','atk','def','crit','eva'].forEach(k=>st[k]=(st[k]||0)+(it[k]||0));
   });
@@ -7725,7 +7771,8 @@ function afterPlayerAction(wait=false){
 }
 function regenTick(wait){
   const p=S.player; const st=calcStats();
-  const mpGain = wait ? p.mpRegen : Math.max(0,p.mpRegen-1);
+  const regenBase = Math.max(0, (p.mpRegen||0) + (st.mpRegenBonus||0));
+  const mpGain = wait ? regenBase : Math.max(0, regenBase-1);
   p.mp = clamp(p.mp + mpGain, 0, st.maxMp);
   if(wait && chance(.45)) p.hp = clamp(p.hp+1, 1, st.maxHp);
 }
@@ -7938,7 +7985,7 @@ function checkLevelUp(){
       p.nextXp = 0;
       addLog('<span class="warntxt">최대 레벨 100에 도달했다.</span>');
     }else{
-      p.nextXp = Math.floor(p.nextXp*1.28 + 14);
+      p.nextXp = expectedNextXpForLevel(p.level);
     }
     p.hp=st.maxHp; p.mp=st.maxMp;
     meta.bestLevel = Math.min(MAX_LEVEL, Math.max(meta.bestLevel, p.level)); saveMeta();
@@ -16993,6 +17040,99 @@ function autoFullExplore(){
     };
   }catch(e){}
 })();
+
+
+/* REQUEST ONLY: Open Door cooldown by turns: 30 -> 10 at +20, rogue -5 */
+function ensureOpenDoorCooldownField(){
+  if(!S || !S.player) return;
+  S.player.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0}, S.player.cd || {});
+}
+const ensureRunFieldsBeforeOpenDoorCooldown = ensureRunFields;
+ensureRunFields = function(){
+  ensureRunFieldsBeforeOpenDoorCooldown();
+  ensureOpenDoorCooldownField();
+};
+function openDoorCooldownTurns(){
+  const lv = clamp(Number(skillLv('openDoor') || 0), 0, 20);
+  const rogueBonus = S && S.player && S.player.classId === 'rogue' ? 5 : 0;
+  return Math.max(5, 30 - lv - rogueBonus);
+}
+function openDoorCooldownSeconds(){
+  return openDoorCooldownTurns();
+}
+const skillCooldownByKeyBeforeOpenDoorCooldown = skillCooldownByKey;
+skillCooldownByKey = function(k){
+  if(!S || !S.player) return 0;
+  ensureOpenDoorCooldownField();
+  if(k === 'openDoor') return Math.max(0, Number(S.player.cd && S.player.cd.openDoor || 0));
+  return skillCooldownByKeyBeforeOpenDoorCooldown(k);
+};
+const skillEnhanceDescBeforeOpenDoorCooldown = skillEnhanceDesc;
+skillEnhanceDesc = function(k){
+  if(k === 'openDoor'){
+    const lv = skillLv('openDoor');
+    const info = skillCostInfo(lv);
+    const rogueText = S && S.player && S.player.classId === 'rogue' ? ' · 도적 쿨타임 -5턴' : '';
+    const cdText = `쿨타임 ${openDoorCooldownTurns()}턴`;
+    if(lv >= 20) return `MAX 강화 완료 · 문 열기 확률 ${openDoorChance()}% · 사거리 1칸 · ${cdText}${rogueText}`;
+    return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · 현재 문 열기 확률 ${openDoorChance()}% · 사거리 1칸 · ${cdText}${rogueText}`;
+  }
+  return skillEnhanceDescBeforeOpenDoorCooldown(k);
+};
+const commonSkillCardsQuickslotBeforeOpenDoorCooldown = commonSkillCardsQuickslot;
+commonSkillCardsQuickslot = function(){
+  const lv = skillLv('openDoor');
+  const rogueText = S && S.player && S.player.classId === 'rogue' ? '<p class="goodtxt">도적 보너스: 문열기 쿨타임 -5턴</p>' : '';
+  return `<div class="choice skillChoice">
+    <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
+    <p>인접 1칸 안의 잠긴 문을 엽니다.</p>
+    ${rogueText}
+    <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+    <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
+  </div>
+  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
+  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
+};
+useOpenDoorSkill = function(){
+  if(!S || !S.player) return;
+  if(!canAct()) return;
+  ensureOpenDoorCooldownField();
+  const p = S.player;
+  if(p.cd.openDoor > 0){
+    toast(`문열기 재사용 ${p.cd.openDoor}턴`);
+    return;
+  }
+  const room = adjacentLockedDoor();
+  if(!room){
+    toast('사거리 1칸 안에 잠긴 문이 없습니다.');
+    return;
+  }
+  const doorDistance = Math.abs(p.x - room.door.x) + Math.abs(p.y - room.door.y);
+  if(doorDistance !== 1){
+    toast('문열기 사거리는 1칸입니다.');
+    return;
+  }
+  hideModal();
+  const pct = openDoorChance();
+  const ok = rand(100) < pct;
+  if(ok){
+    revealLockedRoom(room);
+    addFx({kind:'ring', x:room.door.x, y:room.door.y, color:'#facc15', dur:380});
+    addLog(`<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. (${pct}%)`);
+  }else{
+    addFx({kind:'hit', x:room.door.x, y:room.door.y, color:'#64748b', spark:'#cbd5e1', dur:220});
+    addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
+  }
+  p.cd.openDoor = openDoorCooldownTurns() + 1;
+  afterPlayerAction();
+};
+const useQuickSlotSkillBeforeOpenDoorCooldown = useQuickSlotSkill;
+useQuickSlotSkill = function(slotIndex){
+  if(!S || !S.player) return;
+  const key = quickSlotSkillKey(slotIndex);
+  setSkillRangePreview(key, 1200);
+  skillFunctionByKey(key)();
+};
 
 initStartPage();
 render();
