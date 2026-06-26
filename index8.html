@@ -7786,6 +7786,11 @@ function playerMove(dx,dy){
     renderAll();
     return;
   }
+  if(typeof lockedDoorAt === 'function' && lockedDoorAt(nx,ny,false)){
+    addLog('문이 잠겨있다.');
+    renderAll();
+    return;
+  }
   if(!passable(nx,ny)){addLog('벽에 막혔다.'); renderAll(); return;}
   p.x=nx; p.y=ny;
   if(S.map[ny][nx]==='>'){
@@ -19180,6 +19185,142 @@ skillCooldownText = function(cls,k){
     }
   };
   if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+})();
+
+
+
+
+(function installNoBlockedNormalRoomsFinal(){
+  function roomContainsCellNoBlocked(room,x,y){
+    return !!(room && Number.isFinite(room.x) && Number.isFinite(room.y) && Number.isFinite(room.w) && Number.isFinite(room.h)
+      && x>=room.x && x<room.x+room.w && y>=room.y && y<room.y+room.h);
+  }
+
+  function lockedRoomAreaNoBlocked(x,y){
+    try{
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,true)) return true;
+      if(typeof lockedRoomAtRect === 'function' && lockedRoomAtRect(x,y,true)) return true;
+    }catch(e){}
+    return false;
+  }
+
+  function normalRoomCellNoBlocked(x,y){
+    if(!S || !Array.isArray(S.rooms) || !inMap(x,y)) return false;
+    if(lockedRoomAreaNoBlocked(x,y)) return false;
+    return S.rooms.some(r=>roomContainsCellNoBlocked(r,x,y));
+  }
+
+  function carveNormalFloorNoBlocked(x,y){
+    if(!S || !S.map || !inMap(x,y)) return;
+    if(lockedRoomAreaNoBlocked(x,y)) return;
+    S.map[y][x]='.';
+  }
+
+  function carveWideLineNoBlocked(x1,y1,x2,y2){
+    let x=x1, y=y1;
+    const carve3=(cx,cy)=>{
+      for(let yy=cy-1; yy<=cy+1; yy++){
+        for(let xx=cx-1; xx<=cx+1; xx++){
+          carveNormalFloorNoBlocked(xx,yy);
+        }
+      }
+    };
+
+    carve3(x,y);
+    while(x!==x2){
+      x += x<x2 ? 1 : -1;
+      carve3(x,y);
+    }
+    while(y!==y2){
+      y += y<y2 ? 1 : -1;
+      carve3(x,y);
+    }
+  }
+
+  function normalizeNormalRoomsNoBlocked(){
+    if(!S || !Array.isArray(S.rooms) || !S.map) return;
+
+    // 일반 방은 문방이 아니면 내부에 벽이 남지 않게 전부 바닥으로 보정한다.
+    S.rooms.forEach(r=>{
+      if(!r) return;
+      for(let y=r.y; y<r.y+r.h; y++){
+        for(let x=r.x; x<r.x+r.w; x++){
+          carveNormalFloorNoBlocked(x,y);
+        }
+      }
+    });
+
+    // 일반 방끼리 연결되는 길도 넓게 다시 보정한다.
+    for(let i=1; i<S.rooms.length; i++){
+      const a=S.rooms[i-1], b=S.rooms[i];
+      if(!a || !b) continue;
+      carveWideLineNoBlocked(a.cx,a.cy,b.cx,a.cy);
+      carveWideLineNoBlocked(b.cx,a.cy,b.cx,b.cy);
+    }
+
+    if(S.exit && inMap(S.exit.x,S.exit.y) && !lockedRoomAreaNoBlocked(S.exit.x,S.exit.y)){
+      S.map[S.exit.y][S.exit.x]='>';
+    }
+
+    if(typeof normalizeLockedRoomsSolid === 'function') normalizeLockedRoomsSolid();
+  }
+
+  const generateFloorBeforeNoBlockedNormalRooms = typeof generateFloor === 'function' ? generateFloor : null;
+  if(generateFloorBeforeNoBlockedNormalRooms){
+    generateFloor = function(floor, first=false){
+      const ret = generateFloorBeforeNoBlockedNormalRooms.apply(this, arguments);
+      normalizeNormalRoomsNoBlocked();
+      if(typeof reveal === 'function') reveal();
+      return ret;
+    };
+  }
+
+  const renderBeforeNoBlockedNormalRooms = typeof render === 'function' ? render : null;
+  if(renderBeforeNoBlockedNormalRooms){
+    render = function(){
+      normalizeNormalRoomsNoBlocked();
+      return renderBeforeNoBlockedNormalRooms.apply(this, arguments);
+    };
+  }
+
+  const renderAllBeforeNoBlockedNormalRooms = typeof renderAll === 'function' ? renderAll : null;
+  if(renderAllBeforeNoBlockedNormalRooms){
+    renderAll = function(){
+      normalizeNormalRoomsNoBlocked();
+      return renderAllBeforeNoBlockedNormalRooms.apply(this, arguments);
+    };
+  }
+
+  const passableBeforeNoBlockedNormalRooms = typeof passable === 'function' ? passable : null;
+  if(passableBeforeNoBlockedNormalRooms){
+    passable = function(x,y){
+      if(normalRoomCellNoBlocked(x,y)) return true;
+      return passableBeforeNoBlockedNormalRooms.apply(this, arguments);
+    };
+  }
+
+  const blockedBeforeNoBlockedNormalRooms = typeof blocked === 'function' ? blocked : null;
+  if(blockedBeforeNoBlockedNormalRooms){
+    blocked = function(x,y){
+      if(normalRoomCellNoBlocked(x,y)){
+        return !inMap(x,y) || enemyAt(x,y) || (S.player && S.player.x===x && S.player.y===y);
+      }
+      return blockedBeforeNoBlockedNormalRooms.apply(this, arguments);
+    };
+  }
+
+  const mapCellClassBeforeNoBlockedNormalRooms = typeof mapCellClass === 'function' ? mapCellClass : null;
+  if(mapCellClassBeforeNoBlockedNormalRooms){
+    mapCellClass = function(x,y){
+      if(normalRoomCellNoBlocked(x,y)) return 'floor';
+      return mapCellClassBeforeNoBlockedNormalRooms.apply(this, arguments);
+    };
+  }
+
+  // 현재 저장된 층도 즉시 보정한다.
+  try{
+    normalizeNormalRoomsNoBlocked();
+  }catch(e){}
 })();
 
 </script>
