@@ -18711,7 +18711,7 @@ function finalNormalizeClosedRoomsToWalls73(){
   });
 }
 const FINAL_DOOR_ASSET_83 = new Image();
-FINAL_DOOR_ASSET_83.src = './assets/icons/object/dungeon_door_asset_bottom_left.png';
+FINAL_DOOR_ASSET_83.src = './assets/icons/object/door.png';
 function finalDrawDoorImageFallback82(px,py){
   ctx.save();
   ctx.fillStyle = '#28333f';
@@ -19269,7 +19269,7 @@ generateFloor = function(){
 
 
 (function installFinalLockedDoorRoomFix91(){
-  const FINAL_LOCKED_DOOR_DATA_91 = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'><rect width='32' height='32' fill='#121820'/><rect x='1' y='1' width='30' height='30' fill='#53635b'/><rect x='3' y='4' width='26' height='25' fill='#26331f'/><rect x='5' y='5' width='22' height='22' fill='#37452c'/><rect x='7' y='6' width='18' height='20' fill='#4b3325'/><rect x='9' y='7' width='14' height='18' fill='#6a4931'/><rect x='11' y='7' width='2' height='18' fill='#8a6343'/><rect x='17' y='7' width='2' height='18' fill='#8a6343'/><rect x='8' y='11' width='16' height='2' fill='#211711'/><rect x='8' y='20' width='16' height='2' fill='#211711'/><rect x='22' y='17' width='3' height='3' fill='#0b0b0c'/><rect x='6' y='4' width='20' height='2' fill='#98a88c'/><rect x='4' y='4' width='2' height='24' fill='#1b2417'/><rect x='26' y='4' width='2' height='24' fill='#1b2417'/><rect x='3' y='28' width='26' height='2' fill='#111827'/></svg>`);
+  const FINAL_LOCKED_DOOR_DATA_91 = './assets/icons/object/door.png';
 
   function setDoorAsset91(){
     try{
