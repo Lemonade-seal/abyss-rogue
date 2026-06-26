@@ -7805,7 +7805,6 @@ function regenTick(wait){
   const regenBase = Math.max(0, (p.mpRegen||0) + (st.mpRegenBonus||0));
   const mpGain = wait ? regenBase : Math.max(0, regenBase-1);
   p.mp = clamp(p.mp + mpGain, 0, st.maxMp);
-  if(wait && chance(.45)) p.hp = clamp(p.hp+1, 1, st.maxHp);
 }
 function canAct(){return S && !S.dead && !modalOpen;}
 
@@ -14855,28 +14854,33 @@ generateFloor = function(floor, first=false){
   installLockedRoomsForFloor(floor);
 };
 
-function drawLockedDoorSprite(px,py){
+var LOCKED_DOOR_ASSET_PATH = './assets/icons/object/door.png';
+var LOCKED_DOOR_ASSET_IMAGE = new Image();
+LOCKED_DOOR_ASSET_IMAGE.src = LOCKED_DOOR_ASSET_PATH;
+LOCKED_DOOR_ASSET_IMAGE.onload = function(){ try{ renderAll(); }catch(e){} };
+
+function drawLockedDoorAssetImage(px,py){
+  const img = LOCKED_DOOR_ASSET_IMAGE;
+  if(img && img.complete && img.naturalWidth){
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, px, py, TILE, TILE);
+    ctx.restore();
+    return true;
+  }
+
+  // 에셋 로딩 전 임시 표시. 노란 테두리/손그림 문은 더 이상 그리지 않는다.
   ctx.save();
-  // 잠긴 방 입구: 자물쇠 문자가 아니라 픽셀 문 그림으로 표시
-  ctx.fillStyle='#1f1208';
-  ctx.fillRect(px+6,py+3,TILE-12,TILE-5);
-  ctx.fillStyle='#5b3419';
-  ctx.fillRect(px+8,py+5,TILE-16,TILE-8);
-  ctx.fillStyle='#7c4a22';
-  ctx.fillRect(px+10,py+7,TILE-20,TILE-12);
-  ctx.strokeStyle='#2b1608';
-  ctx.lineWidth=2;
-  ctx.strokeRect(px+8,py+5,TILE-16,TILE-8);
-  ctx.strokeStyle='rgba(251,191,36,.72)';
-  ctx.lineWidth=1;
-  ctx.strokeRect(px+11,py+8,TILE-22,TILE-14);
-  ctx.fillStyle='#facc15';
-  ctx.beginPath();
-  ctx.arc(px+TILE-13,py+TILE/2+1,2.2,0,Math.PI*2);
-  ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,.16)';
-  ctx.fillRect(px+11,py+7,3,TILE-13);
+  ctx.fillStyle = '#111827';
+  ctx.fillRect(px, py, TILE, TILE);
+  ctx.fillStyle = '#1f2937';
+  ctx.fillRect(px+2, py+2, TILE-4, TILE-4);
   ctx.restore();
+  return false;
+}
+
+function drawLockedDoorSprite(px,py){
+  drawLockedDoorAssetImage(px,py);
 }
 function drawLockedRoomFogTile(px,py){
   ctx.save();
@@ -15188,20 +15192,10 @@ drawLockedDoorAndShroudOverlay = function(){
   for(const room of S.lockedRooms){
     if(!room || room.opened) continue;
     const d=room.door;
-    if(d && inView(d.x,d.y,ox,oy) && S.seen[d.y] && S.seen[d.y][d.x]){
+    if(d && inView(d.x,d.y,ox,oy)){
       const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
-      ctx.save();
-      ctx.fillStyle='#3b2413';
-      ctx.fillRect(px+5,py+4,TILE-10,TILE-7);
-      ctx.strokeStyle='#facc15';
-      ctx.lineWidth=2;
-      ctx.strokeRect(px+7,py+6,TILE-14,TILE-11);
-      ctx.fillStyle='#facc15';
-      ctx.font='bold 14px system-ui';
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-      ctx.fillText('',px+TILE/2,py+TILE/2+1);
-      ctx.restore();
+      if(typeof drawTile === 'function') drawTile(px,py,'wall');
+      drawLockedDoorSprite(px,py);
     }
   }
 };
@@ -19519,6 +19513,50 @@ generateFloor = function(){
   }
 
   setDoorAsset91();
+})();
+
+
+
+
+(function forceRealDoorAsset93(){
+  const REAL_DOOR_ASSET_93 = './assets/icons/object/door.png';
+  function refreshDoorAsset93(){
+    if(typeof LOCKED_DOOR_ASSET_IMAGE !== 'undefined' && LOCKED_DOOR_ASSET_IMAGE){
+      if(!String(LOCKED_DOOR_ASSET_IMAGE.src || '').endsWith('/assets/icons/object/door.png')){
+        LOCKED_DOOR_ASSET_IMAGE.src = REAL_DOOR_ASSET_93;
+      }
+      LOCKED_DOOR_ASSET_IMAGE.onload = function(){ try{ renderAll(); }catch(e){} };
+    }
+    if(typeof FINAL_DOOR_ASSET_83 !== 'undefined' && FINAL_DOOR_ASSET_83){
+      FINAL_DOOR_ASSET_83.src = REAL_DOOR_ASSET_93;
+      FINAL_DOOR_ASSET_83.onload = function(){ try{ renderAll(); }catch(e){} };
+    }
+  }
+  refreshDoorAsset93();
+
+  const drawRealDoor93 = function(px,py){
+    refreshDoorAsset93();
+    if(typeof drawLockedDoorAssetImage === 'function') return drawLockedDoorAssetImage(px,py);
+    const img = typeof FINAL_DOOR_ASSET_83 !== 'undefined' ? FINAL_DOOR_ASSET_83 : null;
+    if(img && img.complete && img.naturalWidth){
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, px, py, TILE, TILE);
+      ctx.restore();
+      return true;
+    }
+    ctx.save();
+    ctx.fillStyle='#111827';
+    ctx.fillRect(px,py,TILE,TILE);
+    ctx.restore();
+    return false;
+  };
+
+  drawLockedDoorSprite = function(px,py){ drawRealDoor93(px,py); };
+  if(typeof finalDrawDoorImage73 === 'function') finalDrawDoorImage73 = function(px,py){ drawRealDoor93(px,py); };
+  if(typeof finalDrawDoorImageFallback82 === 'function') finalDrawDoorImageFallback82 = function(px,py){ drawRealDoor93(px,py); };
+  if(typeof drawDoorAsset88 === 'function') drawDoorAsset88 = function(px,py){ drawRealDoor93(px,py); };
+  if(typeof noYellowDoorFallback88 === 'function') noYellowDoorFallback88 = function(px,py){ drawRealDoor93(px,py); };
 })();
 
 </script>
