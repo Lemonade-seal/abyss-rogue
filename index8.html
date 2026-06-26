@@ -19552,6 +19552,434 @@ skillCooldownText = function(cls,k){
   }catch(e){}
 })();
 
+
+
+
+(function installWallBreakAndCommonCooldownFinal(){
+  const COMMON_SKILL_KEYS_FINAL = ['openDoor','breakWall'];
+  const ALL_SKILL_KEYS_FINAL = ['smash','dash','heal','openDoor','breakWall'];
+
+  function ensureCommonCooldownAndSkillsFinal(){
+    if(!S || !S.player) return null;
+
+    const p=S.player;
+
+    try{
+      if(Array.isArray(SKILL_TURN_CD_KEYS)){
+        ['openDoor','breakWall'].forEach(k=>{
+          if(!SKILL_TURN_CD_KEYS.includes(k)) SKILL_TURN_CD_KEYS.push(k);
+        });
+      }
+    }catch(e){}
+
+    p.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0,breakWall:0}, p.cd || {});
+    p.skillTurnLock = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillTurnLock || {});
+    p.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillEnhance || {});
+
+    return p;
+  }
+
+  const ensureRunFieldsBeforeWallBreakFinal = typeof ensureRunFields === 'function' ? ensureRunFields : null;
+  if(ensureRunFieldsBeforeWallBreakFinal){
+    ensureRunFields = function(){
+      ensureRunFieldsBeforeWallBreakFinal.apply(this, arguments);
+      ensureCommonCooldownAndSkillsFinal();
+    };
+  }
+
+  const ensureCommonSkillFieldsBeforeWallBreakFinal = typeof ensureCommonSkillFields === 'function' ? ensureCommonSkillFields : null;
+  ensureCommonSkillFields = function(){
+    if(ensureCommonSkillFieldsBeforeWallBreakFinal) ensureCommonSkillFieldsBeforeWallBreakFinal.apply(this, arguments);
+    ensureCommonCooldownAndSkillsFinal();
+  };
+
+  const skillNameByKeyBeforeWallBreakFinal = typeof skillNameByKey === 'function' ? skillNameByKey : null;
+  skillNameByKey = function(k){
+    if(k === 'openDoor') return '문열기';
+    if(k === 'breakWall') return '벽부수기';
+    return skillNameByKeyBeforeWallBreakFinal ? skillNameByKeyBeforeWallBreakFinal(k) : String(k || '');
+  };
+
+  const skillSmallTextByKeyBeforeWallBreakFinal = typeof skillSmallTextByKey === 'function' ? skillSmallTextByKey : null;
+  skillSmallTextByKey = function(k){
+    if(k === 'openDoor' || k === 'breakWall') return '공통 기술';
+    return skillSmallTextByKeyBeforeWallBreakFinal ? skillSmallTextByKeyBeforeWallBreakFinal(k) : '스킬';
+  };
+
+  const ensureSkillQuickSlotsBeforeWallBreakFinal = typeof ensureSkillQuickSlots === 'function' ? ensureSkillQuickSlots : null;
+  ensureSkillQuickSlots = function(){
+    ensureCommonCooldownAndSkillsFinal();
+
+    const p=S && S.player;
+    if(!p) return;
+
+    let q = Array.isArray(p.skillQuickSlots) ? p.skillQuickSlots.slice(0,3) : ['smash','dash','heal'];
+    while(q.length < 3) q.push(['smash','dash','heal'][q.length] || 'smash');
+
+    p.skillQuickSlots = q.map(k=>ALL_SKILL_KEYS_FINAL.includes(k) ? k : 'smash');
+  };
+
+  function commonSkillCooldownLeftFinal(k){
+    const p=ensureCommonCooldownAndSkillsFinal();
+    if(!p) return 0;
+
+    const turn=Math.floor(Number(p.turn)||0);
+    const lock=Math.max(0,Math.floor(Number(p.skillTurnLock && p.skillTurnLock[k])||0));
+    let left=0;
+
+    if(lock>turn){
+      left=lock-turn;
+    }else{
+      left=Math.max(0,Math.floor(Number(p.cd && p.cd[k])||0));
+      if(left>0){
+        p.skillTurnLock[k]=turn+left;
+      }else{
+        p.skillTurnLock[k]=0;
+      }
+    }
+
+    p.cd[k]=left;
+    return left;
+  }
+
+  function setCommonSkillCooldownFinal(k,turns){
+    ensureCommonCooldownAndSkillsFinal();
+
+    if(typeof setSkillCooldownTurn === 'function'){
+      setSkillCooldownTurn(k,turns);
+      return;
+    }
+
+    const p=S.player;
+    const cd=Math.max(0,Math.floor(Number(turns)||0));
+    p.skillTurnLock[k]=Math.floor(Number(p.turn)||0)+cd+1;
+    p.cd[k]=cd;
+  }
+
+  function blockCommonSkillCooldownFinal(k,label){
+    const left=commonSkillCooldownLeftFinal(k);
+
+    if(left>0){
+      if(typeof clearSkillPreviewNow === 'function') clearSkillPreviewNow();
+      toast(`${label || skillNameByKey(k)} 재사용 ${left}턴`);
+      try{ renderAll(); }catch(e){}
+      return true;
+    }
+
+    return false;
+  }
+
+  function openDoorCooldownTurnsFinal(){
+    const lv=clamp(Number(skillLv('openDoor')||0),0,20);
+    const rogueBonus=S && S.player && S.player.classId==='rogue' ? 5 : 0;
+    return Math.max(5,30-lv-rogueBonus);
+  }
+
+  openDoorCooldownTurns = function(){
+    return openDoorCooldownTurnsFinal();
+  };
+
+  function breakWallCooldownTurnsFinal(){
+    const lv=clamp(Number(skillLv('breakWall')||0),0,20);
+    const warriorBonus=S && S.player && S.player.classId==='warrior' ? 3 : 0;
+    return Math.max(4,16-Math.floor(lv/2)-warriorBonus);
+  }
+
+  function breakWallChanceFinal(){
+    const lv=clamp(Number(skillLv('breakWall')||0),0,20);
+    const warriorBonus=S && S.player && S.player.classId==='warrior' ? 20 : 0;
+    return clamp(35 + lv*2 + warriorBonus, 35, 95);
+  }
+
+  breakWallCooldownTurns = function(){
+    return breakWallCooldownTurnsFinal();
+  };
+
+  breakWallChance = function(){
+    return breakWallChanceFinal();
+  };
+
+  function dirDeltaFinal(dir){
+    if(dir==='left') return [-1,0];
+    if(dir==='right') return [1,0];
+    if(dir==='up') return [0,-1];
+    if(dir==='down') return [0,1];
+    return [0,0];
+  }
+
+  function protectedLockedRoomWallFinal(x,y){
+    try{
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,true)) return true;
+      if(typeof lockedRoomAtRect === 'function' && lockedRoomAtRect(x,y,true)) return true;
+    }catch(e){}
+    return false;
+  }
+
+  function canBreakWallCellFinal(x,y){
+    if(!S || !S.map || !inMap(x,y)) return false;
+    if(x<=0 || y<=0 || x>=MAPW-1 || y>=MAPH-1) return false;
+    if(S.map[y][x] !== '#') return false;
+    if(protectedLockedRoomWallFinal(x,y)) return false;
+    return true;
+  }
+
+  function adjacentBreakWallTargetFinal(){
+    const p=S && S.player;
+    if(!p) return null;
+
+    const first=dirDeltaFinal(p.dir || 'down');
+
+    if(first[0] || first[1]){
+      const tx=p.x+first[0], ty=p.y+first[1];
+      if(canBreakWallCellFinal(tx,ty)) return {x:tx,y:ty};
+    }
+
+    for(const [dx,dy] of DIRS){
+      const x=p.x+dx, y=p.y+dy;
+      if(canBreakWallCellFinal(x,y)) return {x,y};
+    }
+
+    return null;
+  }
+
+  function useBreakWallSkillFinal(){
+    if(!S || !S.player) return;
+    if(typeof canAct === 'function' && !canAct()) return;
+
+    ensureCommonCooldownAndSkillsFinal();
+
+    if(blockCommonSkillCooldownFinal('breakWall','벽부수기')) return;
+
+    const target=adjacentBreakWallTargetFinal();
+
+    if(!target){
+      toast('부술 수 있는 벽이 인접해 있지 않습니다.');
+      return;
+    }
+
+    hideModal();
+
+    const p=S.player;
+    const pct=breakWallChanceFinal();
+    const ok=rand(100)<pct;
+
+    if(ok){
+      S.map[target.y][target.x]='.';
+
+      if(S.seen && S.seen[target.y]) S.seen[target.y][target.x]=true;
+
+      if(typeof addFx === 'function'){
+        addFx({kind:'burst',x:target.x,y:target.y,color:'#94a3b8',spark:'#f8fafc',dur:300});
+      }
+
+      addLog(`<span class="legend">벽부수기 성공</span>. 벽을 부쉈다. (${pct}%)`);
+    }else{
+      if(typeof addFx === 'function'){
+        addFx({kind:'hit',x:target.x,y:target.y,color:'#64748b',spark:'#cbd5e1',dur:220});
+      }
+
+      addLog(`벽부수기 실패. 벽이 버텼다. (${pct}%)`);
+    }
+
+    setCommonSkillCooldownFinal('breakWall',breakWallCooldownTurnsFinal());
+
+    if(typeof afterPlayerAction === 'function') afterPlayerAction();
+    else renderAll();
+  }
+
+  useBreakWallSkill = function(){
+    return useBreakWallSkillFinal();
+  };
+
+  const adjacentLockedDoorFinal = typeof adjacentLockedDoor === 'function' ? adjacentLockedDoor : null;
+  useOpenDoorSkill = function(){
+    if(!S || !S.player) return;
+    if(typeof canAct === 'function' && !canAct()) return;
+
+    ensureCommonCooldownAndSkillsFinal();
+
+    if(blockCommonSkillCooldownFinal('openDoor','문열기')) return;
+
+    const room=adjacentLockedDoorFinal ? adjacentLockedDoorFinal() : (typeof adjacentLockedDoor === 'function' ? adjacentLockedDoor() : null);
+
+    if(!room || !room.door){
+      toast('사거리 1칸 안에 잠긴 문이 없습니다.');
+      return;
+    }
+
+    const p=S.player;
+    const doorDistance=Math.abs(p.x-room.door.x)+Math.abs(p.y-room.door.y);
+
+    if(doorDistance!==1){
+      toast('문열기 사거리는 1칸입니다.');
+      return;
+    }
+
+    hideModal();
+
+    const pct=typeof openDoorChance === 'function' ? openDoorChance() : 0;
+    const ok=rand(100)<pct;
+
+    if(ok){
+      if(typeof revealLockedRoom === 'function') revealLockedRoom(room);
+      addFx({kind:'ring',x:room.door.x,y:room.door.y,color:'#facc15',dur:380});
+      addLog(`<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. (${pct}%)`);
+    }else{
+      addFx({kind:'hit',x:room.door.x,y:room.door.y,color:'#64748b',spark:'#cbd5e1',dur:220});
+      addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
+    }
+
+    setCommonSkillCooldownFinal('openDoor',openDoorCooldownTurnsFinal());
+
+    if(typeof afterPlayerAction === 'function') afterPlayerAction();
+    else renderAll();
+  };
+
+  const skillFunctionByKeyBeforeWallBreakFinal = typeof skillFunctionByKey === 'function' ? skillFunctionByKey : null;
+  skillFunctionByKey = function(k){
+    if(k==='openDoor') return useOpenDoorSkill;
+    if(k==='breakWall') return useBreakWallSkill;
+    return skillFunctionByKeyBeforeWallBreakFinal ? skillFunctionByKeyBeforeWallBreakFinal(k) : skillSmash;
+  };
+
+  skillCooldownByKey = function(k){
+    ensureCommonCooldownAndSkillsFinal();
+
+    if(k==='openDoor' || k==='breakWall') return commonSkillCooldownLeftFinal(k);
+    if(k==='smash' || k==='dash' || k==='heal') return typeof skillCooldownLeft === 'function' ? skillCooldownLeft(k) : Math.max(0,Number(S.player.cd && S.player.cd[k] || 0));
+
+    return Math.max(0,Number(S.player.cd && S.player.cd[k] || 0));
+  };
+
+  canUseQuickSlotSkillKey = function(key){
+    if(!S || !S.player) return false;
+
+    if(key==='openDoor' || key==='breakWall'){
+      return !blockCommonSkillCooldownFinal(key,skillNameByKey(key));
+    }
+
+    if((key==='smash' || key==='dash' || key==='heal') && typeof blockSkillCooldown === 'function'){
+      if(blockSkillCooldown(key,skillNameByKey(key))) return false;
+    }
+
+    return true;
+  };
+
+  const actualSkillMpCostBeforeWallBreakFinal = typeof actualSkillMpCost === 'function' ? actualSkillMpCost : null;
+  actualSkillMpCost = function(cls,k){
+    if(k==='openDoor' || k==='breakWall') return 0;
+    return actualSkillMpCostBeforeWallBreakFinal ? actualSkillMpCostBeforeWallBreakFinal(cls,k) : 0;
+  };
+
+  if(typeof skillMpText === 'function'){
+    skillMpText = function(cls,k){
+      if(k==='openDoor' || k==='breakWall') return '0';
+      return String(actualSkillMpCost(cls,k));
+    };
+    window.skillMpText = skillMpText;
+  }
+
+  const skillEnhanceDescBeforeWallBreakFinal = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
+  skillEnhanceDesc = function(k){
+    ensureCommonCooldownAndSkillsFinal();
+
+    if(k==='openDoor'){
+      const lv=skillLv('openDoor');
+      const info=skillCostInfo(lv);
+      const cost=lv>=20 ? 'MAX 강화 완료' : `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
+      const rogueText=S && S.player && S.player.classId==='rogue' ? ' · 도적 쿨타임 -5턴' : '';
+      return `${cost} · 문 열기 확률 ${openDoorChance()}% · 사거리 1칸 · 쿨타임 ${openDoorCooldownTurnsFinal()}턴${rogueText}`;
+    }
+
+    if(k==='breakWall'){
+      const lv=skillLv('breakWall');
+      const info=skillCostInfo(lv);
+      const cost=lv>=20 ? 'MAX 강화 완료' : `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
+      const warriorText=S && S.player && S.player.classId==='warrior' ? ' · 전사 보너스: 확률 +20% / 쿨타임 -3턴' : ' · 전사 선택 시 보너스 적용';
+      return `${cost} · 벽 파괴 확률 ${breakWallChanceFinal()}% · 사거리 1칸 · 쿨타임 ${breakWallCooldownTurnsFinal()}턴${warriorText}`;
+    }
+
+    return skillEnhanceDescBeforeWallBreakFinal ? skillEnhanceDescBeforeWallBreakFinal(k) : '';
+  };
+
+  commonSkillCardsQuickslot = function(){
+    ensureCommonCooldownAndSkillsFinal();
+
+    const openLv=skillLv('openDoor');
+    const wallLv=skillLv('breakWall');
+    const warriorText=S && S.player && S.player.classId==='warrior' ? '<p class="goodtxt">전사 보너스: 벽부수기 확률 +20%, 쿨타임 -3턴</p>' : '';
+
+    return `<div class="choice skillChoice">
+      <h4>1. 문열기 <span class="legend">+${openLv}</span></h4>
+      <p>인접 1칸 안의 잠긴 문을 엽니다.</p>
+      <p class="muted">${skillEnhanceDesc('openDoor')}</p>
+      <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${openLv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
+    </div>
+    <div class="choice skillChoice">
+      <h4>2. 벽부수기 <span class="legend">+${wallLv}</span></h4>
+      <p>인접 1칸 안의 일반 벽을 일정 확률로 부숩니다. 잠긴 방의 벽은 부술 수 없습니다.</p>
+      ${warriorText}
+      <p class="muted">${skillEnhanceDesc('breakWall')}</p>
+      <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="breakWall" ${wallLv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('breakWall')}
+    </div>
+    <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
+  };
+
+  const updateSkillButtonsFromQuickSlotsBeforeWallBreakFinal = typeof updateSkillButtonsFromQuickSlots === 'function' ? updateSkillButtonsFromQuickSlots : null;
+  updateSkillButtonsFromQuickSlots = function(){
+    ensureSkillQuickSlots();
+
+    ['skill1','skill2','skill3'].forEach((id,idx)=>{
+      const el=$(id);
+      if(!el) return;
+
+      const key=quickSlotSkillKey(idx);
+      const b=el.querySelector('b');
+      const small=el.querySelector('small');
+
+      if(b) b.textContent=skillNameByKey(key);
+      if(small) small.textContent=skillSmallTextByKey(key);
+
+      updateCooldown(id,skillCooldownByKey(key));
+    });
+  };
+
+  function enemyInClosedLockedRoomForAutoFinal(e){
+    try{
+      return !!(e && e.hp>0 && typeof lockedRoomAtRect === 'function' && lockedRoomAtRect(e.x,e.y,false));
+    }catch(err){
+      return false;
+    }
+  }
+
+  if(typeof fullAutoVisibleEnemies === 'function'){
+    const fullAutoVisibleEnemiesBeforeWallBreakFinal = fullAutoVisibleEnemies;
+    fullAutoVisibleEnemies = function(){
+      const list=fullAutoVisibleEnemiesBeforeWallBreakFinal.apply(this,arguments) || [];
+      return list.filter(e=>!enemyInClosedLockedRoomForAutoFinal(e));
+    };
+  }
+
+  if(typeof fullAutoSelectEnemyTarget === 'function'){
+    const fullAutoSelectEnemyTargetBeforeWallBreakFinal = fullAutoSelectEnemyTarget;
+    fullAutoSelectEnemyTarget = function(enemies){
+      return fullAutoSelectEnemyTargetBeforeWallBreakFinal.call(this,(enemies||[]).filter(e=>!enemyInClosedLockedRoomForAutoFinal(e)));
+    };
+  }
+
+  if(typeof autoSelectEnemy === 'function'){
+    const autoSelectEnemyBeforeWallBreakFinal = autoSelectEnemy;
+    autoSelectEnemy = function(enemies,opts){
+      return autoSelectEnemyBeforeWallBreakFinal.call(this,(enemies||[]).filter(e=>!enemyInClosedLockedRoomForAutoFinal(e)),opts);
+    };
+  }
+
+  try{
+    ensureCommonCooldownAndSkillsFinal();
+    if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots();
+  }catch(e){}
+})();
+
 </script>
 </body>
 </html>
