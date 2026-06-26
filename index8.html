@@ -14766,7 +14766,10 @@ function normalizeLockedRoomsSolid(){
     if(!room.opened){
       forLockedRoomRect(room,(x,y)=>{
         if(!inMap(x,y)) return;
-        S.map[y][x] = '#';
+
+        // 닫힌 문방: 외곽은 벽, 내부는 검은 장막 아래 바닥 데이터.
+        // 실제 이동은 passable/blocked에서 닫힌 방 전체를 막는다.
+        S.map[y][x] = lockedRoomBoundaryCell(room,x,y) ? '#' : '.';
         if(S.seen && S.seen[y]) S.seen[y][x] = false;
       });
 
@@ -15073,6 +15076,30 @@ function drawLockedDoorSprite(px,py){
   ctx.restore();
 }
 
+
+function drawLockedRoomInteriorShroud(px,py){
+  ctx.save();
+
+  // 내부 시야 차단용 검은 장막. 벽 경계에는 이 함수를 호출하지 않는다.
+  ctx.fillStyle='rgba(0,0,0,.96)';
+  ctx.fillRect(px,py,TILE,TILE);
+
+  ctx.fillStyle='rgba(2,6,23,.90)';
+  ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
+
+  ctx.fillStyle='rgba(15,23,42,.30)';
+  ctx.beginPath();
+  ctx.arc(px+TILE*.34,py+TILE*.32,TILE*.22,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle='rgba(0,0,0,.35)';
+  ctx.beginPath();
+  ctx.arc(px+TILE*.72,py+TILE*.72,TILE*.25,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
 function drawLockedDoorAndShroudOverlay(){
   if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
 
@@ -15087,7 +15114,14 @@ function drawLockedDoorAndShroudOverlay(){
     forLockedRoomRect(room,(x,y)=>{
       if(!inView(x,y,ox,oy)) return;
       const px=(x-ox)*TILE, py=(y-oy)*TILE;
-      drawTile(px,py,'wall');
+
+      if(lockedRoomBoundaryCell(room,x,y)){
+        drawTile(px,py,'wall');
+      }else{
+        // 검은 장막은 내부 칸에만 그린다. 벽타일 위에는 덮지 않는다.
+        drawTile(px,py,'floor');
+        drawLockedRoomInteriorShroud(px,py);
+      }
     });
 
     const d=room.door;
