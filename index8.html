@@ -19432,6 +19432,181 @@ showSkillMenu = function(){
   window.normalizeRankingRowColors87 = normalizeRankingRowColors87;
 })();
 
+
+/* PATCH 88: diagnose fixes - no yellow door outline, asset-only door render, real ranking row online/offline coloring */
+(function(){
+  /* Door problem fix:
+     - Old drawLockedDoorSprite still had yellow strokeStyle and could run in an earlier render wrapper.
+     - Replace it too, not only the final overlay. */
+  function noYellowDoorFallback88(px, py){
+    ctx.save();
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = '#3f4a3e';
+    ctx.fillRect(px+2, py+2, TILE-4, TILE-4);
+    ctx.fillStyle = '#26311f';
+    ctx.fillRect(px+4, py+4, TILE-8, TILE-5);
+    ctx.fillStyle = '#4a3122';
+    ctx.fillRect(px+7, py+6, TILE-14, TILE-10);
+    ctx.fillStyle = '#6b4a32';
+    ctx.fillRect(px+9, py+7, TILE-18, TILE-12);
+    ctx.strokeStyle = '#17110d';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(px+7, py+6, TILE-14, TILE-10);
+    ctx.fillStyle = '#111827';
+    ctx.fillRect(px+8, py+11, TILE-16, 2);
+    ctx.fillRect(px+8, py+20, TILE-16, 2);
+    ctx.fillStyle = '#09090b';
+    ctx.beginPath();
+    ctx.arc(px+TILE-9, py+Math.floor(TILE*0.58), 2.2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDoorAsset88(px, py){
+    const img = typeof FINAL_DOOR_ASSET_83 !== 'undefined' ? FINAL_DOOR_ASSET_83 : null;
+    if(img && img.complete && img.naturalWidth){
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(img, px, py, TILE, TILE);
+      ctx.restore();
+      return true;
+    }
+    noYellowDoorFallback88(px, py);
+    return false;
+  }
+
+  if(typeof FINAL_DOOR_ASSET_83 !== 'undefined' && FINAL_DOOR_ASSET_83){
+    FINAL_DOOR_ASSET_83.onload = function(){ try{ renderAll(); }catch(e){} };
+    FINAL_DOOR_ASSET_83.onerror = function(){ console.warn('door asset load failed:', FINAL_DOOR_ASSET_83.src); };
+  }
+
+  drawLockedDoorSprite = function(px, py){ drawDoorAsset88(px, py); };
+  finalDrawDoorImage73 = function(px, py){ drawDoorAsset88(px, py); };
+  finalDrawDoorImageFallback82 = noYellowDoorFallback88;
+
+  /* Ranking problem fix:
+     - Existing ranking rows had no online/offline text, so text-scanning could not classify rows.
+     - Re-render ranking rows with row classes based on active online table/list. */
+  const style = document.createElement('style');
+  style.textContent = `
+    #modal #modalCard .rankingTable tr.rankingOnline td,
+    #modal #modalCard .rankingTable tr.rankingOnline td *,
+    #modal #modalCard .rankingTable tr.rankingOnline .rankTop{color:#ffffff!important;}
+    #modal #modalCard .rankingTable tr.rankingOffline td,
+    #modal #modalCard .rankingTable tr.rankingOffline td *,
+    #modal #modalCard .rankingTable tr.rankingOffline .rankTop{color:#94a3b8!important;}
+  `;
+  document.head.appendChild(style);
+
+  function onlineKeyCandidates88(obj){
+    const keys=[];
+    const userId = String(obj.userId || obj.user_id || '').trim();
+    const provider = String(obj.provider || obj.mode || '').trim();
+    const slotRaw = obj.slotIndex != null ? obj.slotIndex : (obj.slot_index != null ? obj.slot_index : null);
+    const slot0 = slotRaw == null || slotRaw === '-' ? '' : String(Number(slotRaw));
+    const nick = String(obj.nickname || '').trim().toLowerCase();
+    if(userId && provider && slot0 !== 'NaN' && slot0 !== '') keys.push(`u:${userId}|p:${provider}|s:${slot0}`);
+    if(userId) keys.push(`u:${userId}`);
+    if(nick) keys.push(`n:${nick}`);
+    return keys;
+  }
+
+  async function fetchOnlineKeys88(){
+    const keys = new Set();
+    try{
+      if(typeof normalizeOnlineList === 'function'){
+        (normalizeOnlineList() || []).forEach(u=>{
+          const slotNum = u.slot == null || u.slot === '-' ? null : Math.max(0, Number(u.slot)-1);
+          onlineKeyCandidates88({userId:u.userId, provider:u.mode, slotIndex:slotNum, nickname:u.nickname}).forEach(k=>keys.add(k));
+        });
+      }
+    }catch(e){}
+    try{
+      const client = getCloudClient && getCloudClient();
+      if(client && typeof client.from === 'function'){
+        const since = new Date(Date.now() - 45000).toISOString();
+        const {data,error} = await client
+          .from('game_online_users')
+          .select('user_id,provider,nickname,slot_index,updated_at')
+          .gte('updated_at', since)
+          .limit(300);
+        if(!error && Array.isArray(data)){
+          data.forEach(row=>onlineKeyCandidates88(row).forEach(k=>keys.add(k)));
+        }
+      }
+    }catch(e){ console.warn('ranking online color fetch failed:', e && e.message ? e.message : e); }
+    return keys;
+  }
+
+  function rankingRecordOnline88(r, onlineKeys){
+    return onlineKeyCandidates88(r).some(k=>onlineKeys.has(k));
+  }
+
+  showRankingMenu = async function(){
+    pauseAutoForChoice();
+    const client = getCloudClient && getCloudClient();
+    const user = await currentCloudUser();
+    if(!client || !user){
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">게스트 로그인은 서버 랭킹에 등록되지 않습니다. 카카오/네이버 로그인 후 이용하세요.</p>
+        ${makeCloseBar()}`, false);
+      bindCloseOnly();
+      return;
+    }
+
+    showModal(`<h2>랭킹</h2><p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>`, false);
+    try{
+      if(typeof syncPublicRankingRowsForCurrentUser === 'function'){
+        try{ await syncPublicRankingRowsForCurrentUser(); }catch(e){}
+      }
+      const records = await collectRankingRecords();
+      const onlineKeys = await fetchOnlineKeys88();
+      const rows = records.map((r,i)=>{
+        const online = rankingRecordOnline88(r, onlineKeys);
+        const rowClass = online ? 'rankingOnline' : 'rankingOffline';
+        return `<tr class="${rowClass}" data-ranking-online="${online?1:0}">
+          <td class="${i<3?'rankTop':''}">${i+1}</td>
+          <td>${escapeText(r.nickname)}</td>
+          <td>${escapeText(r.className)}</td>
+          <td>${Number(r.level || 1)}</td>
+          <td>${Number(r.floor || 1)}</td>
+          <td>${Number(r.combatPower || 0).toLocaleString()}</td>
+          <td>${Number(r.score || 0).toLocaleString()}</td>
+        </tr>`;
+      }).join('');
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>
+        <div class="grid2" style="margin:8px 0 4px">
+          <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
+          <span></span>
+        </div>
+        <table class="rankingTable">
+          <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7" style="text-align:center" class="muted">서버에 등록된 랭킹이 없습니다.</td></tr>'}</tbody>
+        </table>
+        ${makeCloseBar()}`, false);
+      const btn = $('rankingRefreshBtn');
+      if(btn){
+        btn.onclick = async ()=>{
+          btn.disabled = true;
+          btn.textContent = '새로고침 중...';
+          await showRankingMenu();
+        };
+      }
+      bindCloseOnly();
+      try{ wrapRankingTableIfNeeded(); }catch(e){}
+    }catch(e){
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">랭킹은 서버 테이블 기준으로만 표시합니다.</p>
+        <p class="muted badtxt">${escapeText(e && e.message ? e.message : String(e))}</p>
+        ${makeCloseBar()}`, false);
+      bindCloseOnly();
+    }
+  };
+  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+})();
+
 </script>
 </body>
 </html>
