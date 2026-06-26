@@ -19559,6 +19559,255 @@ generateFloor = function(){
   if(typeof noYellowDoorFallback88 === 'function') noYellowDoorFallback88 = function(px,py){ drawRealDoor93(px,py); };
 })();
 
+
+
+
+(function forceLockedRoomAllWall94(){
+  function roomCells94(room){
+    return room && Array.isArray(room.cells) ? room.cells.filter(c=>c && Number.isFinite(c.x) && Number.isFinite(c.y)) : [];
+  }
+
+  function roomBounds94(room){
+    const cells = roomCells94(room);
+    if(!cells.length) return null;
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+    cells.forEach(c=>{
+      if(c.x < minX) minX = c.x;
+      if(c.y < minY) minY = c.y;
+      if(c.x > maxX) maxX = c.x;
+      if(c.y > maxY) maxY = c.y;
+    });
+    return {minX,minY,maxX,maxY};
+  }
+
+  function isRoomBoundary94(room,x,y){
+    const b = roomBounds94(room);
+    if(!b) return false;
+    return x === b.minX || x === b.maxX || y === b.minY || y === b.maxY;
+  }
+
+  function roomDoorEntryCell94(room){
+    if(!room || !room.door) return null;
+    return roomCells94(room).find(c=>Math.abs(c.x-room.door.x)+Math.abs(c.y-room.door.y) === 1) || null;
+  }
+
+  function isDoorEntryCell94(room,x,y){
+    const e = roomDoorEntryCell94(room);
+    return !!(e && e.x === x && e.y === y);
+  }
+
+  function innerOpenCells94(room){
+    return roomCells94(room).filter(c=>!isRoomBoundary94(room,c.x,c.y) || isDoorEntryCell94(room,c.x,c.y));
+  }
+
+  function moveContentsOffClosedWalls94(room){
+    if(!S || !room || !Array.isArray(room.cells)) return;
+    const targetCells = innerOpenCells94(room);
+    if(!targetCells.length) return;
+
+    let i = 0;
+    function nextTarget(){
+      const c = targetCells[i % targetCells.length];
+      i++;
+      return c;
+    }
+
+    (S.items||[]).forEach(it=>{
+      if(!it) return;
+      if(room.cells.some(c=>c.x===it.x && c.y===it.y) && isRoomBoundary94(room,it.x,it.y) && !isDoorEntryCell94(room,it.x,it.y)){
+        const t = nextTarget();
+        it.x = t.x;
+        it.y = t.y;
+      }
+    });
+
+    (S.enemies||[]).forEach(e=>{
+      if(!e || e.hp<=0) return;
+      if(room.cells.some(c=>c.x===e.x && c.y===e.y) && isRoomBoundary94(room,e.x,e.y) && !isDoorEntryCell94(room,e.x,e.y)){
+        const t = nextTarget();
+        e.x = t.x;
+        e.y = t.y;
+      }
+    });
+  }
+
+  function normalizeLockedRoomsAllWall94(){
+    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
+
+    S.lockedRooms.forEach(room=>{
+      if(!room || !Array.isArray(room.cells)) return;
+
+      moveContentsOffClosedWalls94(room);
+
+      if(!room.opened){
+        // 닫힌 문방: 방 전체를 벽으로 막는다. 내부 바닥/검은 안개를 보여주지 않는다.
+        roomCells94(room).forEach(c=>{
+          if(!inMap(c.x,c.y)) return;
+          S.map[c.y][c.x] = '#';
+          if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
+        });
+        if(room.door && inMap(room.door.x,room.door.y)){
+          S.map[room.door.y][room.door.x] = 'D';
+        }
+        return;
+      }
+
+      // 열린 뒤에도 둘레는 벽으로 유지한다.
+      // 문 바로 안쪽 1칸과 내부만 바닥으로 열어 문으로만 출입하게 한다.
+      roomCells94(room).forEach(c=>{
+        if(!inMap(c.x,c.y)) return;
+        const openCell = !isRoomBoundary94(room,c.x,c.y) || isDoorEntryCell94(room,c.x,c.y);
+        S.map[c.y][c.x] = openCell ? '.' : '#';
+        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = true;
+      });
+
+      if(room.door && inMap(room.door.x,room.door.y)){
+        S.map[room.door.y][room.door.x] = '.';
+        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = true;
+      }
+    });
+  }
+
+  function drawRealDoor94(px,py){
+    if(typeof drawLockedDoorAssetImage === 'function') return drawLockedDoorAssetImage(px,py);
+    if(typeof drawLockedDoorSprite === 'function') return drawLockedDoorSprite(px,py);
+    return false;
+  }
+
+  window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
+    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+    normalizeLockedRoomsAllWall94();
+
+    const p = S.player;
+    const ox = p.x - Math.floor(VIEW/2);
+    const oy = p.y - Math.floor(VIEW/2);
+
+    for(const room of S.lockedRooms){
+      if(!room || room.opened) continue;
+
+      // 닫힌 문방은 전부 벽타일로만 보이게 한다.
+      // 검은 안개/바닥 격자는 더 이상 그리지 않는다.
+      roomCells94(room).forEach(c=>{
+        if(!inView(c.x,c.y,ox,oy)) return;
+        const px = (c.x-ox)*TILE;
+        const py = (c.y-oy)*TILE;
+        if(typeof drawTile === 'function') drawTile(px,py,'wall');
+      });
+
+      const d = room.door;
+      if(d && inView(d.x,d.y,ox,oy)){
+        const px = (d.x-ox)*TILE;
+        const py = (d.y-oy)*TILE;
+        if(typeof drawTile === 'function') drawTile(px,py,'wall');
+        drawRealDoor94(px,py);
+      }
+    }
+  };
+
+  if(typeof revealLockedRoom === 'function'){
+    const revealLockedRoomBefore94 = revealLockedRoom;
+    revealLockedRoom = function(room){
+      if(!S || !room) return revealLockedRoomBefore94.apply(this, arguments);
+
+      room.opened = true;
+
+      roomCells94(room).forEach(c=>{
+        if(!inMap(c.x,c.y)) return;
+        const openCell = !isRoomBoundary94(room,c.x,c.y) || isDoorEntryCell94(room,c.x,c.y);
+        S.map[c.y][c.x] = openCell ? '.' : '#';
+        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = true;
+      });
+
+      if(room.door && inMap(room.door.x,room.door.y)){
+        S.map[room.door.y][room.door.x]='.';
+        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x]=true;
+      }
+    };
+  }
+
+  if(typeof passable === 'function'){
+    const passableBefore94 = passable;
+    passable = function(x,y){
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return false;
+
+      const room = Array.isArray(S && S.lockedRooms)
+        ? S.lockedRooms.find(r=>r && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y))
+        : null;
+
+      if(room){
+        if(!room.opened) return false;
+        if(isRoomBoundary94(room,x,y) && !isDoorEntryCell94(room,x,y)) return false;
+      }
+
+      return passableBefore94.apply(this, arguments);
+    };
+  }
+
+  if(typeof blocked === 'function'){
+    const blockedBefore94 = blocked;
+    blocked = function(x,y){
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return true;
+
+      const room = Array.isArray(S && S.lockedRooms)
+        ? S.lockedRooms.find(r=>r && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y))
+        : null;
+
+      if(room){
+        if(!room.opened) return true;
+        if(isRoomBoundary94(room,x,y) && !isDoorEntryCell94(room,x,y)) return true;
+      }
+
+      return blockedBefore94.apply(this, arguments);
+    };
+  }
+
+  if(typeof mapCellClass === 'function'){
+    const mapCellClassBefore94 = mapCellClass;
+    mapCellClass = function(x,y){
+      const room = Array.isArray(S && S.lockedRooms)
+        ? S.lockedRooms.find(r=>r && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y))
+        : null;
+
+      if(room){
+        if(!room.opened) return 'wall';
+        if(isRoomBoundary94(room,x,y) && !isDoorEntryCell94(room,x,y)) return 'wall';
+      }
+
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return 'wall';
+      return mapCellClassBefore94.apply(this, arguments);
+    };
+  }
+
+  if(typeof render === 'function'){
+    const renderBefore94 = render;
+    render = function(){
+      normalizeLockedRoomsAllWall94();
+      const ret = renderBefore94.apply(this, arguments);
+      if(typeof drawLockedDoorAndShroudOverlay === 'function') drawLockedDoorAndShroudOverlay();
+      return ret;
+    };
+  }
+
+  if(typeof renderAll === 'function'){
+    const renderAllBefore94 = renderAll;
+    renderAll = function(){
+      normalizeLockedRoomsAllWall94();
+      return renderAllBefore94.apply(this, arguments);
+    };
+  }
+
+  if(typeof generateFloor === 'function'){
+    const generateFloorBefore94 = generateFloor;
+    generateFloor = function(){
+      const ret = generateFloorBefore94.apply(this, arguments);
+      normalizeLockedRoomsAllWall94();
+      return ret;
+    };
+  }
+
+  normalizeLockedRoomsAllWall94();
+})();
+
 </script>
 </body>
 </html>
