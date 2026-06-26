@@ -7781,11 +7781,6 @@ function playerMove(dx,dy){
     renderAll();
     return;
   }
-  if(typeof lockedDoorAt === 'function' && lockedDoorAt(nx,ny,false)){
-    addLog('문이 잠겨있다.');
-    renderAll();
-    return;
-  }
   if(!passable(nx,ny)){addLog('벽에 막혔다.'); renderAll(); return;}
   p.x=nx; p.y=ny;
   if(S.map[ny][nx]==='>'){
@@ -14684,7 +14679,7 @@ function lockedDoorAt(x,y, includeOpened=false){
   return S.lockedRooms.find(r=>r && r.door && r.door.x===x && r.door.y===y && (includeOpened || !r.opened)) || null;
 }
 
-const LOCKED_DOOR_ASSET_PATH = './assets/icons/object/door.png?v=room-door-only-1';
+const LOCKED_DOOR_ASSET_PATH = './assets/icons/object/door.png?v=locked-floor-shroud-1';
 const LOCKED_DOOR_IMAGE = new Image();
 LOCKED_DOOR_IMAGE.src = LOCKED_DOOR_ASSET_PATH;
 LOCKED_DOOR_IMAGE.onload = function(){ try{ renderAll(); }catch(e){} };
@@ -14699,14 +14694,11 @@ function lockedRoomBounds(room){
     };
   }
 
-  const cells = room && Array.isArray(room.floorCells) && room.floorCells.length
-    ? room.floorCells
-    : (room && Array.isArray(room.cells) ? room.cells : []);
-
+  const floors = room && Array.isArray(room.floorCells) ? room.floorCells : [];
+  const cells = floors.length ? floors : (room && Array.isArray(room.cells) ? room.cells : []);
   if(!cells.length && !(room && room.door)) return null;
 
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
-
   cells.forEach(c=>{
     if(c.x<minX) minX=c.x;
     if(c.y<minY) minY=c.y;
@@ -14735,10 +14727,6 @@ function forLockedRoomRect(room, fn){
   }
 }
 
-function lockedRoomDoorCell(room,x,y){
-  return !!(room && room.door && room.door.x===x && room.door.y===y);
-}
-
 function lockedRoomFloorCells(room){
   if(!room) return [];
 
@@ -14746,19 +14734,18 @@ function lockedRoomFloorCells(room){
     return room.floorCells.filter(c=>c && Number.isFinite(c.x) && Number.isFinite(c.y));
   }
 
-  // 이전 저장 데이터 호환:
-  // 방 안에서 문 칸만 빼고 전부 돌아다닐 수 있는 바닥으로 복구한다.
+  // 이전 저장 데이터 호환: rect가 있으면 외곽을 제외한 내부 전체를 floorCells로 복구
   const b=lockedRoomBounds(room);
   if(!b) return [];
 
   const cells=[];
-  for(let y=b.minY;y<=b.maxY;y++){
-    for(let x=b.minX;x<=b.maxX;x++){
-      if(!lockedRoomDoorCell(room,x,y)) cells.push({x,y});
+  for(let y=b.minY+1;y<=b.maxY-1;y++){
+    for(let x=b.minX+1;x<=b.maxX-1;x++){
+      cells.push({x,y});
     }
   }
 
-  room.floorCells=cells;
+  room.floorCells = cells;
   return cells;
 }
 
@@ -14770,6 +14757,10 @@ function lockedRoomFloorSet(room){
 
 function lockedRoomFloorCell(room,x,y){
   return lockedRoomFloorSet(room).has(x+','+y);
+}
+
+function lockedRoomDoorCell(room,x,y){
+  return !!(room && room.door && room.door.x===x && room.door.y===y);
 }
 
 function pointInLockedRoomRect(room,x,y){
@@ -14802,7 +14793,7 @@ function normalizeLockedRoomsSolid(){
     if(!b) return;
 
     if(!room.rect){
-      room.rect={x:b.minX,y:b.minY,w:b.maxX-b.minX+1,h:b.maxY-b.minY+1};
+      room.rect = {x:b.minX,y:b.minY,w:b.maxX-b.minX+1,h:b.maxY-b.minY+1};
     }
 
     const floorSet=lockedRoomFloorSet(room);
@@ -14811,10 +14802,11 @@ function normalizeLockedRoomsSolid(){
       forLockedRoomRect(room,(x,y)=>{
         if(!inMap(x,y)) return;
 
-        // 방은 문을 제외하면 막힌 벽이 아니다.
-        // 닫힌 상태에서도 바닥 데이터는 '.'로 둔다.
-        // 실제 이동/시야는 문 잠금과 장막으로 제어한다.
-        S.map[y][x]=lockedRoomDoorCell(room,x,y) ? 'D' : '.';
+        // 닫힌 방 데이터:
+        // 바닥 공간은 존재하지만 검은 장막으로 가린다.
+        // 바닥 공간 외부와 외곽은 전부 벽이다.
+        if(lockedRoomDoorCell(room,x,y)) S.map[y][x]='D';
+        else S.map[y][x]=floorSet.has(x+','+y) ? '.' : '#';
 
         if(S.seen && S.seen[y]) S.seen[y][x]=false;
       });
@@ -14822,13 +14814,12 @@ function normalizeLockedRoomsSolid(){
       if(room.door && inMap(room.door.x,room.door.y)){
         S.map[room.door.y][room.door.x]='D';
       }
-
       return;
     }
 
     forLockedRoomRect(room,(x,y)=>{
       if(!inMap(x,y)) return;
-      const open=lockedRoomDoorCell(room,x,y) || floorSet.has(x+','+y);
+      const open=lockedRoomOpenCell(room,x,y);
       S.map[y][x]=open ? '.' : '#';
       if(S.seen && S.seen[y]) S.seen[y][x]=true;
     });
@@ -14837,11 +14828,8 @@ function normalizeLockedRoomsSolid(){
 
 function hideLockedRoomSeenCells(){
   if(!S || !S.seen || !Array.isArray(S.lockedRooms)) return;
-
   S.lockedRooms.forEach(room=>{
     if(!room || room.opened) return;
-
-    // 문이 열리기 전에는 바닥/보상/몬스터가 보여서는 안 된다.
     forLockedRoomRect(room,(x,y)=>{
       if(inMap(x,y) && S.seen[y]) S.seen[y][x]=false;
     });
@@ -14853,9 +14841,10 @@ function revealLockedRoom(room){
 
   room.opened=true;
 
+  const floorSet=lockedRoomFloorSet(room);
   forLockedRoomRect(room,(x,y)=>{
     if(!inMap(x,y)) return;
-    const open=lockedRoomDoorCell(room,x,y) || lockedRoomFloorCell(room,x,y);
+    const open=lockedRoomDoorCell(room,x,y) || floorSet.has(x+','+y);
     S.map[y][x]=open ? '.' : '#';
     if(S.seen && S.seen[y]) S.seen[y][x]=true;
   });
@@ -14863,7 +14852,6 @@ function revealLockedRoom(room){
 
 function adjacentLockedDoor(){
   if(!S || !S.player) return null;
-
   const p=S.player;
 
   for(const [dx,dy] of DIRS){
@@ -14878,7 +14866,6 @@ function useOpenDoorSkill(){
   if(!S || !S.player) return;
 
   const room=adjacentLockedDoor();
-
   if(!room){
     toast('인접한 잠긴 문이 없습니다.');
     return;
@@ -14906,10 +14893,7 @@ passable = function(x,y){
   if(lockedDoorAt(x,y,false)) return false;
 
   const room=lockedRoomAtRect(x,y,true);
-
   if(room){
-    // 닫힌 방에서 실질적으로 길을 막는 것은 문이다.
-    // 그래도 우회 진입 방지를 위해 문 열기 전에는 방 내부 이동을 차단한다.
     if(!room.opened) return false;
     if(!lockedRoomOpenCell(room,x,y)) return false;
   }
@@ -14922,7 +14906,6 @@ blocked = function(x,y){
   if(lockedDoorAt(x,y,false)) return true;
 
   const room=lockedRoomAtRect(x,y,true);
-
   if(room){
     if(!room.opened) return true;
     if(!lockedRoomOpenCell(room,x,y)) return true;
@@ -14956,8 +14939,6 @@ reveal = function(){
 function canPlaceLockedRoomRect(rx,ry,w,h){
   if(rx<2 || ry<2 || rx+w>=MAPW-2 || ry+h>=MAPH-2) return false;
 
-  // 방을 넣을 영역은 기존 맵의 빈 벽 공간이어야 한다.
-  // 하지만 생성된 방 내부는 전부 바닥으로 전환된다.
   for(let y=ry;y<ry+h;y++){
     for(let x=rx;x<rx+w;x++){
       if(!inMap(x,y) || S.map[y][x] !== '#') return false;
@@ -14969,27 +14950,30 @@ function canPlaceLockedRoomRect(rx,ry,w,h){
 }
 
 function lockedRoomRectForDoor(door,dir){
-  const floorW=4+rand(5); // 4~8
-  const floorH=4+rand(5); // 4~8
+  const floorW=4+rand(5); // 캐릭터가 실제로 돌아다니는 바닥: 4~8칸
+  const floorH=4+rand(5);
+  const w=floorW+2;
+  const h=floorH+2;
+
   let rx=0, ry=0;
 
-  // rect 자체가 실제 바닥 공간이다.
-  // door는 그 바닥 공간의 외곽 한 칸을 대체한다.
+  // door는 외곽 벽 한 칸을 대체한다.
+  // 문 바로 안쪽은 floorCells에 포함되어 문을 열면 바로 진입 가능하다.
   if(dir.dx===1){
     rx=door.x;
-    ry=door.y-rand(floorH);
+    ry=door.y-(1+rand(floorH));
   }else if(dir.dx===-1){
-    rx=door.x-floorW+1;
-    ry=door.y-rand(floorH);
+    rx=door.x-w+1;
+    ry=door.y-(1+rand(floorH));
   }else if(dir.dy===1){
-    rx=door.x-rand(floorW);
+    rx=door.x-(1+rand(floorW));
     ry=door.y;
   }else{
-    rx=door.x-rand(floorW);
-    ry=door.y-floorH+1;
+    rx=door.x-(1+rand(floorW));
+    ry=door.y-h+1;
   }
 
-  return {rx,ry,w:floorW,h:floorH};
+  return {rx,ry,w,h,floorW,floorH};
 }
 
 function findLockedRoomCandidate(){
@@ -15016,23 +15000,20 @@ function findLockedRoomCandidate(){
   return candidates.length ? one(candidates) : null;
 }
 
-function buildLockedRoomFloorCells(rect,door){
+function buildLockedRoomFloorCells(rect){
   const cells=[];
-
-  for(let y=rect.ry;y<rect.ry+rect.h;y++){
-    for(let x=rect.rx;x<rect.rx+rect.w;x++){
-      if(door && x===door.x && y===door.y) continue;
+  for(let y=rect.ry+1;y<=rect.ry+rect.h-2;y++){
+    for(let x=rect.rx+1;x<=rect.rx+rect.w-2;x++){
       cells.push({x,y});
     }
   }
-
   return cells;
 }
 
 function placeLockedRoomItem(room,type,data={}){
   const cells=lockedRoomFloorCells(room).slice();
 
-  for(let tries=0;tries<180 && cells.length;tries++){
+  for(let tries=0;tries<160 && cells.length;tries++){
     const c=one(cells);
     if(S.items.some(i=>i.x===c.x&&i.y===c.y) || S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) continue;
     S.items.push(Object.assign({x:c.x,y:c.y,type},data));
@@ -15045,7 +15026,7 @@ function placeLockedRoomItem(room,type,data={}){
 function placeLockedRoomEnemy(room,floor){
   const cells=lockedRoomFloorCells(room).slice();
 
-  for(let tries=0;tries<180 && cells.length;tries++){
+  for(let tries=0;tries<160 && cells.length;tries++){
     const c=one(cells);
     if(S.items.some(i=>i.x===c.x&&i.y===c.y) || S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) continue;
     S.enemies.push(makeEnemy(c.x,c.y,floor,false));
@@ -15104,12 +15085,12 @@ function installLockedRoomsForFloor(floor){
 
     const {door,rect}=cand;
     const cells=[];
-    const floorCells=buildLockedRoomFloorCells(rect,door);
+    const floorCells=buildLockedRoomFloorCells(rect);
 
     for(let y=rect.ry;y<rect.ry+rect.h;y++){
       for(let x=rect.rx;x<rect.rx+rect.w;x++){
         const isDoor=x===door.x && y===door.y;
-        S.map[y][x]=isDoor?'D':'.';
+        S.map[y][x]=isDoor?'D':'#';
         S.seen[y][x]=false;
         cells.push({x,y});
       }
@@ -15165,8 +15146,7 @@ function drawLockedRoomFloorShroud(room,ox,oy){
 
   ctx.save();
 
-  // 방 안의 실제 바닥타일 전체를 검은 장막으로 덮는다.
-  // 내부 보물/몬스터 렌더보다 뒤에 호출되므로 문 열기 전에는 안 보인다.
+  // 바닥타일 수만큼 정확히 검은 장막으로 덮는다.
   floors.forEach(c=>{
     if(!inView(c.x,c.y,ox,oy)) return;
 
@@ -15197,12 +15177,22 @@ function drawLockedDoorAndShroudOverlay(){
   for(const room of S.lockedRooms){
     if(!room || room.opened) continue;
 
-    // 렌더 마지막에 바닥칸 전체를 장막으로 덮어 보상/몬스터를 숨긴다.
+    // 1. 보물/몬스터까지 포함해 바닥칸 전체를 장막으로 덮는다.
     drawLockedRoomFloorShroud(room,ox,oy);
 
+    // 2. 벽은 벽으로 다시 확정해서 막힌 오브젝트 의미를 유지한다.
+    forLockedRoomRect(room,(x,y)=>{
+      if(!inView(x,y,ox,oy)) return;
+      if(!lockedRoomFloorCell(room,x,y) && !lockedRoomDoorCell(room,x,y)){
+        drawTile((x-ox)*TILE,(y-oy)*TILE,'wall');
+      }
+    });
+
+    // 3. 문은 열면 통과되는 오브젝트다.
     const d=room.door;
     if(d && inView(d.x,d.y,ox,oy)){
       const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+      drawTile(px,py,'wall');
       drawLockedDoorSprite(px,py);
     }
   }
@@ -15213,7 +15203,7 @@ render=function(){
   normalizeLockedRoomsSolid();
   renderBeforeLockedRooms();
 
-  // 마지막 레이어: 장막과 문
+  // 렌더 마지막에 다시 덮어야 내부 보물/몬스터가 안 보인다.
   drawLockedDoorAndShroudOverlay();
 };
 
@@ -15228,7 +15218,7 @@ mapCellClass=function(x,y){
   const room=lockedRoomAtRect(x,y,true);
 
   if(room){
-    if(!room.opened) return lockedRoomDoorCell(room,x,y) ? 'wall' : 'floor';
+    if(!room.opened) return 'wall';
     if(!lockedRoomOpenCell(room,x,y)) return 'wall';
   }
 
