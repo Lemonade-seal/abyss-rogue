@@ -19027,31 +19027,39 @@ function finalNormalizeClosedRoomsToWalls73(){
     }
   });
 }
-function finalDrawDoorImage73(px,py){
+const FINAL_DOOR_ASSET_83 = new Image();
+FINAL_DOOR_ASSET_83.src = './assets/icons/object/dungeon_door_asset_bottom_left.png';
+function finalDrawDoorImageFallback82(px,py){
   ctx.save();
-  ctx.fillStyle = '#0f172a';
+  ctx.fillStyle = '#28333f';
   ctx.fillRect(px, py, TILE, TILE);
-  ctx.fillStyle = '#1f2937';
-  ctx.fillRect(px+2, py+2, TILE-4, TILE-4);
-  ctx.fillStyle = '#2b1608';
-  ctx.fillRect(px+6, py+3, TILE-12, TILE-5);
-  ctx.fillStyle = '#5b3419';
-  ctx.fillRect(px+8, py+5, TILE-16, TILE-8);
-  ctx.fillStyle = '#8b5a2b';
-  ctx.fillRect(px+10, py+7, TILE-20, TILE-12);
-  ctx.strokeStyle = '#1c0f06';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(px+8, py+5, TILE-16, TILE-8);
-  ctx.strokeStyle = 'rgba(250,204,21,.75)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(px+11, py+8, TILE-22, TILE-14);
-  ctx.fillStyle = '#facc15';
+  ctx.fillStyle = '#64735d';
+  ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
+  ctx.fillStyle = '#394535';
+  ctx.fillRect(px+3, py+4, TILE-6, TILE-5);
+  ctx.fillStyle = '#4f3728';
+  ctx.fillRect(px+7, py+6, TILE-14, TILE-10);
+  ctx.fillStyle = '#6d4a33';
+  for(let i=0;i<4;i++) ctx.fillRect(px+8+i*4, py+6, 2, TILE-11);
+  ctx.fillStyle = '#1f1b18';
+  ctx.fillRect(px+8, py+10, TILE-16, 2);
+  ctx.fillRect(px+8, py+19, TILE-16, 2);
+  ctx.fillStyle = '#101418';
   ctx.beginPath();
-  ctx.arc(px+TILE-13, py+Math.floor(TILE/2)+1, 2.2, 0, Math.PI*2);
+  ctx.arc(px+TILE-9, py+Math.floor(TILE*0.58), 2.2, 0, Math.PI*2);
   ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,.14)';
-  ctx.fillRect(px+11, py+7, 3, TILE-13);
   ctx.restore();
+}
+function finalDrawDoorImage73(px,py){
+  const img = FINAL_DOOR_ASSET_83;
+  if(img && img.complete && img.naturalWidth){
+    ctx.save();
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, px, py, TILE, TILE);
+    ctx.restore();
+    return;
+  }
+  finalDrawDoorImageFallback82(px,py);
 }
 function finalDrawClosedRoomBlackFog73(px,py){
   ctx.save();
