@@ -14919,7 +14919,7 @@ function canPlaceLockedRoomRect(rx,ry,w,h){
 }
 
 function lockedRoomRectForDoor(door, dir){
-  const w=4+rand(3), h=4+rand(3);
+  const w=7+rand(4), h=7+rand(4);
   let rx=0, ry=0;
 
   if(dir.dx===1){
@@ -15077,25 +15077,90 @@ function drawLockedDoorSprite(px,py){
 }
 
 
-function drawLockedRoomInteriorShroud(px,py){
+
+function lockedRoomVisualBounds(room){
+  const b = lockedRoomBounds(room);
+  if(!b || !S || !Array.isArray(S.map)) return b;
+
+  // 기존 저장 데이터에 이미 작은 방이 만들어진 경우도 화면에서는 방 크기만큼 장막이 보이도록 보정한다.
+  // 단, 실제 통로/바닥을 먹지 않게 확장은 벽('#')으로 채워진 칸으로만 한다.
+  const v = {minX:b.minX, minY:b.minY, maxX:b.maxX, maxY:b.maxY};
+  const targetW = 7;
+  const targetH = 7;
+
+  function stripIsWall(side){
+    if(side==='left'){
+      const x=v.minX-1;
+      if(x<1) return false;
+      for(let y=v.minY;y<=v.maxY;y++) if(!inMap(x,y) || S.map[y][x] !== '#') return false;
+      return true;
+    }
+    if(side==='right'){
+      const x=v.maxX+1;
+      if(x>=MAPW-1) return false;
+      for(let y=v.minY;y<=v.maxY;y++) if(!inMap(x,y) || S.map[y][x] !== '#') return false;
+      return true;
+    }
+    if(side==='up'){
+      const y=v.minY-1;
+      if(y<1) return false;
+      for(let x=v.minX;x<=v.maxX;x++) if(!inMap(x,y) || S.map[y][x] !== '#') return false;
+      return true;
+    }
+    if(side==='down'){
+      const y=v.maxY+1;
+      if(y>=MAPH-1) return false;
+      for(let x=v.minX;x<=v.maxX;x++) if(!inMap(x,y) || S.map[y][x] !== '#') return false;
+      return true;
+    }
+    return false;
+  }
+
+  let guard=0;
+  while((v.maxX-v.minX+1)<targetW && guard++<20){
+    if(stripIsWall('left')) v.minX--;
+    else if(stripIsWall('right')) v.maxX++;
+    else break;
+  }
+
+  guard=0;
+  while((v.maxY-v.minY+1)<targetH && guard++<20){
+    if(stripIsWall('up')) v.minY--;
+    else if(stripIsWall('down')) v.maxY++;
+    else break;
+  }
+
+  return v;
+}
+
+function drawLockedRoomFullShroudRect(room,ox,oy){
+  const b = lockedRoomVisualBounds(room);
+  if(!b) return;
+
+  const x1=(b.minX-ox)*TILE;
+  const y1=(b.minY-oy)*TILE;
+  const w=(b.maxX-b.minX+1)*TILE;
+  const h=(b.maxY-b.minY+1)*TILE;
+
   ctx.save();
 
-  // 내부 시야 차단용 검은 장막. 벽 경계에는 이 함수를 호출하지 않는다.
+  // 방 크기 전체를 하나의 검은 장막으로 덮는다.
+  // 이후 경계 벽과 문을 다시 그려서 벽타일 위에 장막이 남지 않게 한다.
   ctx.fillStyle='rgba(0,0,0,.96)';
-  ctx.fillRect(px,py,TILE,TILE);
+  ctx.fillRect(x1,y1,w,h);
 
-  ctx.fillStyle='rgba(2,6,23,.90)';
-  ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
+  ctx.fillStyle='rgba(2,6,23,.88)';
+  ctx.fillRect(x1+1,y1+1,Math.max(0,w-2),Math.max(0,h-2));
 
-  ctx.fillStyle='rgba(15,23,42,.30)';
-  ctx.beginPath();
-  ctx.arc(px+TILE*.34,py+TILE*.32,TILE*.22,0,Math.PI*2);
-  ctx.fill();
-
-  ctx.fillStyle='rgba(0,0,0,.35)';
-  ctx.beginPath();
-  ctx.arc(px+TILE*.72,py+TILE*.72,TILE*.25,0,Math.PI*2);
-  ctx.fill();
+  // 장막 내부에 아주 약한 어둠 무늬를 넣되, 방 크기 전체를 유지한다.
+  ctx.fillStyle='rgba(15,23,42,.22)';
+  for(let y=b.minY;y<=b.maxY;y++){
+    for(let x=b.minX;x<=b.maxX;x++){
+      if(((x+y)&1)===0){
+        ctx.fillRect((x-ox)*TILE+2,(y-oy)*TILE+2,TILE-4,TILE-4);
+      }
+    }
+  }
 
   ctx.restore();
 }
@@ -15111,18 +15176,23 @@ function drawLockedDoorAndShroudOverlay(){
   for(const room of S.lockedRooms){
     if(!room || room.opened) continue;
 
-    forLockedRoomRect(room,(x,y)=>{
-      if(!inView(x,y,ox,oy)) return;
-      const px=(x-ox)*TILE, py=(y-oy)*TILE;
+    const b=lockedRoomVisualBounds(room);
+    if(!b) continue;
 
-      if(lockedRoomBoundaryCell(room,x,y)){
-        drawTile(px,py,'wall');
-      }else{
-        // 검은 장막은 내부 칸에만 그린다. 벽타일 위에는 덮지 않는다.
-        drawTile(px,py,'floor');
-        drawLockedRoomInteriorShroud(px,py);
+    // 먼저 방 크기 전체에 장막을 깐다.
+    drawLockedRoomFullShroudRect(room,ox,oy);
+
+    // 그 위에 외곽 벽을 다시 그린다.
+    // 따라서 벽타일 위에는 검은 장막이 최종적으로 남지 않는다.
+    for(let y=b.minY;y<=b.maxY;y++){
+      for(let x=b.minX;x<=b.maxX;x++){
+        if(!inView(x,y,ox,oy)) continue;
+        if(x===b.minX || x===b.maxX || y===b.minY || y===b.maxY){
+          const px=(x-ox)*TILE, py=(y-oy)*TILE;
+          drawTile(px,py,'wall');
+        }
       }
-    });
+    }
 
     const d=room.door;
     if(d && inView(d.x,d.y,ox,oy)){
