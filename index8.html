@@ -14673,29 +14673,151 @@ function lockedDoorAt(x,y, includeOpened=false){
   if(!S || !Array.isArray(S.lockedRooms)) return null;
   return S.lockedRooms.find(r=>r && r.door && r.door.x===x && r.door.y===y && (includeOpened || !r.opened)) || null;
 }
+
+const LOCKED_DOOR_ASSET_PATH = './assets/icons/object/door.png?v=door-clean-1';
+const LOCKED_DOOR_IMAGE = new Image();
+LOCKED_DOOR_IMAGE.src = LOCKED_DOOR_ASSET_PATH;
+LOCKED_DOOR_IMAGE.onload = function(){ try{ renderAll(); }catch(e){} };
+
+function lockedRoomCells(room){
+  return room && Array.isArray(room.cells)
+    ? room.cells.filter(c=>c && Number.isFinite(c.x) && Number.isFinite(c.y))
+    : [];
+}
+
+function lockedRoomBounds(room){
+  const cells = lockedRoomCells(room);
+  if(!cells.length) return null;
+
+  let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+  cells.forEach(c=>{
+    if(c.x<minX) minX=c.x;
+    if(c.y<minY) minY=c.y;
+    if(c.x>maxX) maxX=c.x;
+    if(c.y>maxY) maxY=c.y;
+  });
+
+  return {minX,minY,maxX,maxY};
+}
+
+function forLockedRoomRect(room, fn){
+  const b = lockedRoomBounds(room);
+  if(!b) return;
+  for(let y=b.minY; y<=b.maxY; y++){
+    for(let x=b.minX; x<=b.maxX; x++){
+      fn(x,y,b);
+    }
+  }
+}
+
+function pointInLockedRoomRect(room,x,y){
+  const b = lockedRoomBounds(room);
+  return !!(b && x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY);
+}
+
+function lockedRoomAtRect(x,y, includeOpened=true){
+  if(!S || !Array.isArray(S.lockedRooms)) return null;
+  return S.lockedRooms.find(r=>r && (includeOpened || !r.opened) && pointInLockedRoomRect(r,x,y)) || null;
+}
+
+function lockedRoomBoundaryCell(room,x,y){
+  const b = lockedRoomBounds(room);
+  if(!b) return false;
+  return x===b.minX || x===b.maxX || y===b.minY || y===b.maxY;
+}
+
+function lockedRoomDoorInnerCell(room){
+  if(!room || !room.door) return null;
+  const b = lockedRoomBounds(room);
+  if(!b) return null;
+
+  const d = room.door;
+
+  if(d.x < b.minX) return {x:b.minX, y:clamp(d.y,b.minY,b.maxY)};
+  if(d.x > b.maxX) return {x:b.maxX, y:clamp(d.y,b.minY,b.maxY)};
+  if(d.y < b.minY) return {x:clamp(d.x,b.minX,b.maxX), y:b.minY};
+  if(d.y > b.maxY) return {x:clamp(d.x,b.minX,b.maxX), y:b.maxY};
+
+  return lockedRoomCells(room).find(c=>Math.abs(c.x-d.x)+Math.abs(c.y-d.y)===1) || null;
+}
+
+function lockedRoomDoorInnerAt(room,x,y){
+  const c = lockedRoomDoorInnerCell(room);
+  return !!(c && c.x===x && c.y===y);
+}
+
+function lockedRoomOpenCell(room,x,y){
+  if(!room || !room.opened) return false;
+  if(lockedRoomDoorInnerAt(room,x,y)) return true;
+  return !lockedRoomBoundaryCell(room,x,y);
+}
+
 function lockedRoomCellAt(x,y){
   if(!S || !Array.isArray(S.lockedRooms)) return null;
-  return S.lockedRooms.find(r=>!r.opened && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y)) || null;
+  return S.lockedRooms.find(r=>r && !r.opened && pointInLockedRoomRect(r,x,y)) || null;
 }
-function hideLockedRoomSeenCells(){
-  if(!S || !S.seen || !Array.isArray(S.lockedRooms)) return;
-  S.lockedRooms.forEach(r=>{
-    if(!r || r.opened || !Array.isArray(r.cells)) return;
-    r.cells.forEach(c=>{ if(inMap(c.x,c.y)) S.seen[c.y][c.x]=false; });
-  });
-}
-function revealLockedRoom(room){
-  if(!S || !room) return;
-  room.opened = true;
-  if(room.door && inMap(room.door.x, room.door.y)) S.map[room.door.y][room.door.x]='.';
-  (room.cells||[]).forEach(c=>{
-    if(inMap(c.x,c.y)){
-      S.map[c.y][c.x]='.';
-      S.seen[c.y][c.x]=true;
+
+function normalizeLockedRoomsSolid(){
+  if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
+
+  S.lockedRooms.forEach(room=>{
+    if(!room || !lockedRoomBounds(room)) return;
+
+    if(!room.opened){
+      forLockedRoomRect(room,(x,y)=>{
+        if(!inMap(x,y)) return;
+        S.map[y][x] = '#';
+        if(S.seen && S.seen[y]) S.seen[y][x] = false;
+      });
+
+      if(room.door && inMap(room.door.x,room.door.y)){
+        S.map[room.door.y][room.door.x] = 'D';
+      }
+      return;
+    }
+
+    forLockedRoomRect(room,(x,y)=>{
+      if(!inMap(x,y)) return;
+      const open = lockedRoomOpenCell(room,x,y);
+      S.map[y][x] = open ? '.' : '#';
+      if(S.seen && S.seen[y]) S.seen[y][x] = true;
+    });
+
+    if(room.door && inMap(room.door.x,room.door.y)){
+      S.map[room.door.y][room.door.x] = '.';
+      if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = true;
     }
   });
-  if(room.door && inMap(room.door.x, room.door.y)) S.seen[room.door.y][room.door.x]=true;
 }
+
+function hideLockedRoomSeenCells(){
+  if(!S || !S.seen || !Array.isArray(S.lockedRooms)) return;
+  S.lockedRooms.forEach(room=>{
+    if(!room || room.opened) return;
+    forLockedRoomRect(room,(x,y)=>{
+      if(inMap(x,y) && S.seen[y]) S.seen[y][x]=false;
+    });
+  });
+}
+
+function revealLockedRoom(room){
+  if(!S || !room) return;
+
+  room.opened = true;
+
+  forLockedRoomRect(room,(x,y)=>{
+    if(!inMap(x,y)) return;
+    const open = lockedRoomOpenCell(room,x,y);
+    S.map[y][x] = open ? '.' : '#';
+    if(S.seen && S.seen[y]) S.seen[y][x] = true;
+  });
+
+  if(room.door && inMap(room.door.x, room.door.y)){
+    S.map[room.door.y][room.door.x]='.';
+    if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x]=true;
+  }
+}
+
 function adjacentLockedDoor(){
   if(!S || !S.player) return null;
   const p=S.player;
@@ -14705,17 +14827,21 @@ function adjacentLockedDoor(){
   }
   return null;
 }
+
 function useOpenDoorSkill(){
   if(!S || !S.player) return;
+
   const room = adjacentLockedDoor();
   if(!room){
     toast('인접한 잠긴 문이 없습니다.');
     return;
   }
+
   hideModal();
+
   const pct=openDoorChance();
   const ok = rand(100) < pct;
-  const p=S.player;
+
   if(ok){
     revealLockedRoom(room);
     addFx({kind:'ring', x:room.door.x, y:room.door.y, color:'#facc15', dur:380});
@@ -14724,86 +14850,147 @@ function useOpenDoorSkill(){
     addFx({kind:'hit', x:room.door.x, y:room.door.y, color:'#64748b', spark:'#cbd5e1', dur:220});
     addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
   }
+
   afterPlayerAction();
-};
+}
 
 const passableBeforeLockedDoor = passable;
 passable = function(x,y){
   if(lockedDoorAt(x,y,false)) return false;
+
+  const room = lockedRoomAtRect(x,y,true);
+  if(room){
+    if(!room.opened) return false;
+    if(!lockedRoomOpenCell(room,x,y)) return false;
+  }
+
   return passableBeforeLockedDoor(x,y);
 };
+
 const blockedBeforeLockedDoor = blocked;
 blocked = function(x,y){
-  if(lockedDoorAt(x,y,false) || lockedRoomCellAt(x,y)) return true;
+  if(lockedDoorAt(x,y,false)) return true;
+
+  const room = lockedRoomAtRect(x,y,true);
+  if(room){
+    if(!room.opened) return true;
+    if(!lockedRoomOpenCell(room,x,y)) return true;
+  }
+
   return blockedBeforeLockedDoor(x,y);
 };
+
 const clearLineBeforeLockedDoor = clearLine;
 clearLine = function(x1,y1,x2,y2){
   if(x1!==x2 && y1!==y2) return false;
-  const dx=Math.sign(x2-x1), dy=Math.sign(y2-y1); let x=x1+dx,y=y1+dy;
+
+  const dx=Math.sign(x2-x1), dy=Math.sign(y2-y1);
+  let x=x1+dx, y=y1+dy;
+
   while(x!==x2 || y!==y2){
     if(S.map[y][x]==='#' || lockedDoorAt(x,y,false) || lockedRoomCellAt(x,y)) return false;
     x+=dx; y+=dy;
   }
+
   return true;
 };
+
 const revealBeforeLockedRooms = reveal;
 reveal = function(){
   revealBeforeLockedRooms();
+  normalizeLockedRoomsSolid();
   hideLockedRoomSeenCells();
 };
 
 function canPlaceLockedRoomRect(rx,ry,w,h){
   if(rx<2 || ry<2 || rx+w>=MAPW-2 || ry+h>=MAPH-2) return false;
-  for(let y=ry;y<ry+h;y++) for(let x=rx;x<rx+w;x++){
-    if(!inMap(x,y) || S.map[y][x] !== '#') return false;
-    if(Array.isArray(S.lockedRooms) && S.lockedRooms.some(r=>!r.opened && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y))) return false;
+
+  for(let y=ry;y<ry+h;y++){
+    for(let x=rx;x<rx+w;x++){
+      if(!inMap(x,y) || S.map[y][x] !== '#') return false;
+      if(Array.isArray(S.lockedRooms) && S.lockedRooms.some(r=>!r.opened && pointInLockedRoomRect(r,x,y))) return false;
+    }
   }
+
   return true;
 }
+
 function lockedRoomRectForDoor(door, dir){
   const w=4+rand(3), h=4+rand(3);
   let rx=0, ry=0;
-  if(dir.dx===1){ rx=door.x+1; ry=door.y-rand(h); }
-  else if(dir.dx===-1){ rx=door.x-w; ry=door.y-rand(h); }
-  else if(dir.dy===1){ rx=door.x-rand(w); ry=door.y+1; }
-  else { rx=door.x-rand(w); ry=door.y-h; }
+
+  if(dir.dx===1){
+    rx=door.x+1;
+    ry=door.y-rand(h);
+  }else if(dir.dx===-1){
+    rx=door.x-w;
+    ry=door.y-rand(h);
+  }else if(dir.dy===1){
+    rx=door.x-rand(w);
+    ry=door.y+1;
+  }else{
+    rx=door.x-rand(w);
+    ry=door.y-h;
+  }
+
   return {rx,ry,w,h};
 }
+
 function findLockedRoomCandidate(){
   const dirs=[{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
   const candidates=[];
-  for(let y=2;y<MAPH-2;y++) for(let x=2;x<MAPW-2;x++){
-    if(S.map[y][x] !== '.') continue;
-    if(S.exit && S.exit.x===x && S.exit.y===y) continue;
-    dirs.forEach(d=>{
-      const door={x:x+d.dx,y:y+d.dy};
-      if(!inMap(door.x,door.y) || S.map[door.y][door.x] !== '#') return;
-      for(let tries=0;tries<3;tries++){
-        const rect=lockedRoomRectForDoor(door,d);
-        if(canPlaceLockedRoomRect(rect.rx,rect.ry,rect.w,rect.h)) candidates.push({door,dir:d,rect});
-      }
-    });
+
+  for(let y=2;y<MAPH-2;y++){
+    for(let x=2;x<MAPW-2;x++){
+      if(S.map[y][x] !== '.') continue;
+      if(S.exit && S.exit.x===x && S.exit.y===y) continue;
+
+      dirs.forEach(d=>{
+        const door={x:x+d.dx,y:y+d.dy};
+        if(!inMap(door.x,door.y) || S.map[door.y][door.x] !== '#') return;
+
+        for(let tries=0;tries<3;tries++){
+          const rect=lockedRoomRectForDoor(door,d);
+          if(canPlaceLockedRoomRect(rect.rx,rect.ry,rect.w,rect.h)) candidates.push({door,dir:d,rect});
+        }
+      });
+    }
   }
+
   return candidates.length ? one(candidates) : null;
 }
+
+function lockedRoomSafeRewardCells(room){
+  const cells=[];
+  forLockedRoomRect(room,(x,y)=>{
+    if(!lockedRoomBoundaryCell(room,x,y) || lockedRoomDoorInnerAt(room,x,y)) cells.push({x,y});
+  });
+  return cells.length ? cells : lockedRoomCells(room);
+}
+
 function placeLockedRoomItem(room, type, data={}){
-  const cells=(room.cells||[]).slice();
+  const cells=lockedRoomSafeRewardCells(room).slice();
+
   for(let tries=0;tries<80 && cells.length;tries++){
     const c=one(cells);
     if(S.items.some(i=>i.x===c.x&&i.y===c.y) || S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) continue;
     S.items.push(Object.assign({x:c.x,y:c.y,type}, data));
     return true;
   }
+
   return false;
 }
+
 function populateLockedRoom(room, floor){
+  const rewardCells=lockedRoomSafeRewardCells(room);
   const typeRoll=rand(100);
+
   room.rewardType = typeRoll<42 ? 'monster' : (typeRoll<78 ? 'treasure' : 'event');
+
   if(room.rewardType==='monster'){
     const n=5+rand(6)+Math.floor(floor/4);
     for(let i=0;i<n;i++){
-      const c=one(room.cells);
+      const c=one(rewardCells);
       if(S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) continue;
       S.enemies.push(makeEnemy(c.x,c.y,floor,false));
     }
@@ -14820,120 +15007,125 @@ function populateLockedRoom(room, floor){
     });
     if(chance(.06)) placeLockedRoomItem(room,'skillgem',{});
     for(let i=0;i<2+rand(4);i++){
-      const c=one(room.cells);
+      const c=one(rewardCells);
       if(!S.enemies.some(e=>e.hp>0&&e.x===c.x&&e.y===c.y)) S.enemies.push(makeEnemy(c.x,c.y,floor,false));
     }
   }
 }
+
 function installLockedRoomsForFloor(floor){
   if(!S || !Array.isArray(S.map)) return;
+
   S.lockedRooms = [];
+
   const count = chance(.72) ? (floor>=8 && chance(.45) ? 2 : 1) : 0;
+
   for(let i=0;i<count;i++){
     const cand=findLockedRoomCandidate();
     if(!cand) break;
+
     const {door,rect}=cand;
     const cells=[];
-    for(let y=rect.ry;y<rect.ry+rect.h;y++) for(let x=rect.rx;x<rect.rx+rect.w;x++){
-      // 닫힌 방은 실제 맵에서도 벽 타일로 유지한다. 문열기 성공 시 revealLockedRoom()에서 바닥으로 복구된다.
-      S.map[y][x]='#';
-      S.seen[y][x]=false;
-      cells.push({x,y});
+
+    for(let y=rect.ry;y<rect.ry+rect.h;y++){
+      for(let x=rect.rx;x<rect.rx+rect.w;x++){
+        S.map[y][x]='#';
+        S.seen[y][x]=false;
+        cells.push({x,y});
+      }
     }
+
     S.map[door.y][door.x]='D';
     S.seen[door.y][door.x]=false;
+
     const room={id:'locked_'+floor+'_'+i+'_'+Date.now().toString(36), door, cells, opened:false};
     populateLockedRoom(room, floor);
     S.lockedRooms.push(room);
   }
+
+  normalizeLockedRoomsSolid();
   reveal();
 }
+
 const generateFloorBeforeLockedRooms = generateFloor;
 generateFloor = function(floor, first=false){
   generateFloorBeforeLockedRooms(floor, first);
   installLockedRoomsForFloor(floor);
+  normalizeLockedRoomsSolid();
 };
 
-var LOCKED_DOOR_ASSET_PATH = './assets/icons/object/door.png';
-var LOCKED_DOOR_ASSET_IMAGE = new Image();
-LOCKED_DOOR_ASSET_IMAGE.src = LOCKED_DOOR_ASSET_PATH;
-LOCKED_DOOR_ASSET_IMAGE.onload = function(){ try{ renderAll(); }catch(e){} };
+function drawLockedDoorSprite(px,py){
+  const img = LOCKED_DOOR_IMAGE;
 
-function drawLockedDoorAssetImage(px,py){
-  const img = LOCKED_DOOR_ASSET_IMAGE;
   if(img && img.complete && img.naturalWidth){
     ctx.save();
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(img, px, py, TILE, TILE);
+    ctx.imageSmoothingEnabled=false;
+    ctx.drawImage(img,px,py,TILE,TILE);
     ctx.restore();
-    return true;
+    return;
   }
 
-  // 에셋 로딩 전 임시 표시. 노란 테두리/손그림 문은 더 이상 그리지 않는다.
   ctx.save();
-  ctx.fillStyle = '#111827';
-  ctx.fillRect(px, py, TILE, TILE);
-  ctx.fillStyle = '#1f2937';
-  ctx.fillRect(px+2, py+2, TILE-4, TILE-4);
+  ctx.fillStyle='#111827';
+  ctx.fillRect(px,py,TILE,TILE);
+  ctx.fillStyle='#1f2937';
+  ctx.fillRect(px+2,py+2,TILE-4,TILE-4);
   ctx.restore();
-  return false;
 }
 
-function drawLockedDoorSprite(px,py){
-  drawLockedDoorAssetImage(px,py);
-}
-function drawLockedRoomFogTile(px,py){
-  ctx.save();
-  // 벽타일 위에 방 내부만 검은 시야구름을 씌운다.
-  ctx.fillStyle='rgba(0,0,0,.62)';
-  ctx.fillRect(px,py,TILE,TILE);
-  ctx.fillStyle='rgba(2,6,23,.34)';
-  ctx.beginPath(); ctx.arc(px+10,py+11,8,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(px+23,py+20,9,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(15,23,42,.18)';
-  ctx.fillRect(px+3,py+3,TILE-6,TILE-6);
-  ctx.restore();
-}
-function normalizeClosedLockedRoomsToWalls(){
-  if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
-  S.lockedRooms.forEach(room=>{
-    if(!room || room.opened) return;
-    (room.cells||[]).forEach(c=>{ if(inMap(c.x,c.y)) S.map[c.y][c.x]='#'; });
-    if(room.door && inMap(room.door.x,room.door.y)) S.map[room.door.y][room.door.x]='D';
-  });
-}
 function drawLockedDoorAndShroudOverlay(){
   if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-  normalizeClosedLockedRoomsToWalls();
+
+  normalizeLockedRoomsSolid();
+
   const p=S.player;
   const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
+
   for(const room of S.lockedRooms){
     if(!room || room.opened) continue;
-    (room.cells||[]).forEach(c=>{
-      if(!inView(c.x,c.y,ox,oy)) return;
-      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+
+    forLockedRoomRect(room,(x,y)=>{
+      if(!inView(x,y,ox,oy)) return;
+      const px=(x-ox)*TILE, py=(y-oy)*TILE;
       drawTile(px,py,'wall');
-      drawLockedRoomFogTile(px,py);
     });
+
     const d=room.door;
-    if(d && inView(d.x,d.y,ox,oy) && S.seen[d.y] && S.seen[d.y][d.x]){
+    if(d && inView(d.x,d.y,ox,oy)){
       const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
       drawTile(px,py,'wall');
       drawLockedDoorSprite(px,py);
     }
   }
 }
+
 const renderBeforeLockedRooms = render;
 render = function(){
+  normalizeLockedRoomsSolid();
   renderBeforeLockedRooms();
   drawLockedDoorAndShroudOverlay();
 };
+
+const renderAllBeforeLockedRooms = renderAll;
+renderAll = function(){
+  normalizeLockedRoomsSolid();
+  return renderAllBeforeLockedRooms.apply(this, arguments);
+};
+
 const mapCellClassBeforeLockedRooms = mapCellClass;
 mapCellClass = function(x,y){
-  if(lockedRoomCellAt(x,y)) return 'wall';
+  const room = lockedRoomAtRect(x,y,true);
+
+  if(room){
+    if(!room.opened) return 'wall';
+    if(!lockedRoomOpenCell(room,x,y)) return 'wall';
+  }
+
   if(lockedDoorAt(x,y,false)) return 'wall';
+
   return mapCellClassBeforeLockedRooms(x,y);
 };
+
 
 if($('skillMenuBtn')){
   $('skillMenuBtn').onclick = ()=>showSkillMenu('job');
@@ -15184,21 +15376,6 @@ generateFloor = function(floor, first=false){
   bossOpenLockedRooms();
 };
 
-/* locked room must look like unexplored black fog, not darkened floor tiles */
-drawLockedDoorAndShroudOverlay = function(){
-  if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-  const p=S.player;
-  const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
-  for(const room of S.lockedRooms){
-    if(!room || room.opened) continue;
-    const d=room.door;
-    if(d && inView(d.x,d.y,ox,oy)){
-      const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
-      if(typeof drawTile === 'function') drawTile(px,py,'wall');
-      drawLockedDoorSprite(px,py);
-    }
-  }
-};
 
 showQuickSlotSelect = function(skillKey){
   ensureSkillQuickSlots();
@@ -18689,107 +18866,6 @@ skillCooldownText = function(cls,k){
 })();
 
 
-function finalNormalizeClosedRoomsToWalls73(){
-  if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
-  S.lockedRooms.forEach(room=>{
-    if(!room || room.opened) return;
-    (room.cells||[]).forEach(c=>{
-      if(inMap(c.x,c.y)){
-        S.map[c.y][c.x] = '#';
-        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
-      }
-    });
-    if(room.door && inMap(room.door.x, room.door.y)){
-      S.map[room.door.y][room.door.x] = 'D';
-    }
-  });
-}
-const FINAL_DOOR_ASSET_83 = new Image();
-FINAL_DOOR_ASSET_83.src = './assets/icons/object/door.png';
-function finalDrawDoorImageFallback82(px,py){
-  ctx.save();
-  ctx.fillStyle = '#28333f';
-  ctx.fillRect(px, py, TILE, TILE);
-  ctx.fillStyle = '#64735d';
-  ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
-  ctx.fillStyle = '#394535';
-  ctx.fillRect(px+3, py+4, TILE-6, TILE-5);
-  ctx.fillStyle = '#4f3728';
-  ctx.fillRect(px+7, py+6, TILE-14, TILE-10);
-  ctx.fillStyle = '#6d4a33';
-  for(let i=0;i<4;i++) ctx.fillRect(px+8+i*4, py+6, 2, TILE-11);
-  ctx.fillStyle = '#1f1b18';
-  ctx.fillRect(px+8, py+10, TILE-16, 2);
-  ctx.fillRect(px+8, py+19, TILE-16, 2);
-  ctx.fillStyle = '#101418';
-  ctx.beginPath();
-  ctx.arc(px+TILE-9, py+Math.floor(TILE*0.58), 2.2, 0, Math.PI*2);
-  ctx.fill();
-  ctx.restore();
-}
-function finalDrawDoorImage73(px,py){
-  const img = FINAL_DOOR_ASSET_83;
-  if(img && img.complete && img.naturalWidth){
-    ctx.save();
-    ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(img, px, py, TILE, TILE);
-    ctx.restore();
-    return;
-  }
-  finalDrawDoorImageFallback82(px,py);
-}
-function finalDrawClosedRoomBlackFog73(px,py){
-  ctx.save();
-  ctx.fillStyle = '#020617';
-  ctx.fillRect(px, py, TILE, TILE);
-  ctx.fillStyle = 'rgba(0,0,0,.88)';
-  ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
-  ctx.fillStyle = 'rgba(15,23,42,.42)';
-  ctx.beginPath(); ctx.arc(px+8, py+10, 8, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(px+23, py+21, 9, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,.34)';
-  ctx.fillRect(px+3, py+3, TILE-6, TILE-6);
-  ctx.restore();
-}
-drawLockedDoorAndShroudOverlay = function(){
-  if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-  finalNormalizeClosedRoomsToWalls73();
-  const p = S.player;
-  const ox = p.x - Math.floor(VIEW/2), oy = p.y - Math.floor(VIEW/2);
-  for(const room of S.lockedRooms){
-    if(!room || room.opened) continue;
-    (room.cells||[]).forEach(c=>{
-      if(!inView(c.x,c.y,ox,oy)) return;
-      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
-      if(typeof drawTile === 'function') drawTile(px,py,'wall');
-      finalDrawClosedRoomBlackFog73(px,py);
-    });
-    const d = room.door;
-    if(d && inView(d.x,d.y,ox,oy)){
-      // 자물쇠 문자 대신 문 이미지. 닫힌 방 경계의 문칸만 표시한다.
-      const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
-      finalDrawDoorImage73(px,py);
-    }
-  }
-};
-const finalRenderBeforeDoorFog73 = render;
-render = function(){
-  finalNormalizeClosedRoomsToWalls73();
-  return finalRenderBeforeDoorFog73.apply(this, arguments);
-};
-const finalRenderAllBeforeDoorFog73 = renderAll;
-renderAll = function(){
-  finalNormalizeClosedRoomsToWalls73();
-  return finalRenderAllBeforeDoorFog73.apply(this, arguments);
-};
-const finalGenerateFloorBeforeDoorFog73 = generateFloor;
-generateFloor = function(){
-  const ret = finalGenerateFloorBeforeDoorFog73.apply(this, arguments);
-  finalNormalizeClosedRoomsToWalls73();
-  return ret;
-};
-
-
 (function(){
   if(typeof actualSkillMpCost !== 'function') return;
   skillMpText = function(cls,k){
@@ -18797,220 +18873,6 @@ generateFloor = function(){
     return String(actualSkillMpCost(cls,k));
   };
   window.skillMpText = skillMpText;
-})();
-
-
-(function(){
-  function roomCellSet(room){
-    const s = new Set();
-    (room && room.cells || []).forEach(c=>{ if(c) s.add(c.x+','+c.y); });
-    return s;
-  }
-  function isClosedRoomCell(x,y){
-    return !!(typeof lockedRoomCellAt === 'function' && lockedRoomCellAt(x,y));
-  }
-  function normalizeClosedRooms85(){
-    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
-    S.lockedRooms.forEach(room=>{
-      if(!room || room.opened) return;
-      (room.cells||[]).forEach(c=>{
-        if(!inMap(c.x,c.y)) return;
-        S.map[c.y][c.x] = '#';
-        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
-      });
-      if(room.door && inMap(room.door.x, room.door.y)){
-        S.map[room.door.y][room.door.x] = 'D';
-      }
-    });
-  }
-  function drawClosedRoomShroud85(room, ox, oy){
-    const cells = roomCellSet(room);
-    (room.cells||[]).forEach(c=>{
-      if(!inView(c.x,c.y,ox,oy)) return;
-      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
-      if(typeof drawTile === 'function') drawTile(px,py,'wall');
-      const hasL = cells.has((c.x-1)+','+c.y);
-      const hasR = cells.has((c.x+1)+','+c.y);
-      const hasU = cells.has(c.x+','+(c.y-1));
-      const hasD = cells.has(c.x+','+(c.y+1));
-      ctx.save();
-      ctx.fillStyle = 'rgba(2,6,23,.98)';
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = 'rgba(0,0,0,.92)';
-      ctx.fillRect(px+2, py+2, TILE-4, TILE-4);
-      ctx.fillStyle = 'rgba(15,23,42,.58)';
-      ctx.beginPath(); ctx.arc(px+10, py+10, 7, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(px+23, py+22, 8, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,.98)';
-      if(!hasL) ctx.fillRect(px, py, 2, TILE);
-      if(!hasR) ctx.fillRect(px+TILE-2, py, 2, TILE);
-      if(!hasU) ctx.fillRect(px, py, TILE, 2);
-      if(!hasD) ctx.fillRect(px, py+TILE-2, TILE, 2);
-      ctx.restore();
-    });
-  }
-
-  drawLockedDoorAndShroudOverlay = function(){
-    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-    normalizeClosedRooms85();
-    const p=S.player;
-    const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
-    for(const room of S.lockedRooms){
-      if(!room || room.opened) continue;
-      drawClosedRoomShroud85(room, ox, oy);
-      const d=room.door;
-      if(d && inView(d.x,d.y,ox,oy)){
-        const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
-        if(typeof drawTile === 'function') drawTile(px,py,'wall');
-        finalDrawDoorImage73(px,py);
-      }
-    }
-  };
-
-  const renderBefore85 = render;
-  render = function(){
-    normalizeClosedRooms85();
-    return renderBefore85.apply(this, arguments);
-  };
-  const renderAllBefore85 = renderAll;
-  renderAll = function(){
-    normalizeClosedRooms85();
-    return renderAllBefore85.apply(this, arguments);
-  };
-  const generateFloorBefore85 = generateFloor;
-  generateFloor = function(){
-    const ret = generateFloorBefore85.apply(this, arguments);
-    normalizeClosedRooms85();
-    return ret;
-  };
-  const revealLockedRoomBefore85 = revealLockedRoom;
-  revealLockedRoom = function(room){
-    const ret = revealLockedRoomBefore85.apply(this, arguments);
-    normalizeClosedRooms85();
-    return ret;
-  };
-  const mapCellClassBefore85 = mapCellClass;
-  mapCellClass = function(x,y){
-    if(isClosedRoomCell(x,y)) return 'wall';
-    if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return 'wall';
-    return mapCellClassBefore85.apply(this, arguments);
-  };
-})();
-
-
-(function(){
-  function normalizeClosedRooms86(){
-    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
-    S.lockedRooms.forEach(room=>{
-      if(!room || room.opened) return;
-      (room.cells||[]).forEach(c=>{
-        if(!c || !inMap(c.x,c.y)) return;
-        S.map[c.y][c.x] = '#';
-        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
-      });
-      if(room.door && inMap(room.door.x, room.door.y)){
-        S.map[room.door.y][room.door.x] = 'D';
-      }
-    });
-  }
-
-  function drawRoomOnlyFog86(room, ox, oy){
-    const set = new Set((room.cells||[]).map(c=>c.x+','+c.y));
-    (room.cells||[]).forEach(c=>{
-      if(!c || !inView(c.x,c.y,ox,oy)) return;
-
-      const px = (c.x-ox)*TILE;
-      const py = (c.y-oy)*TILE;
-
-      if(typeof drawTile === 'function') drawTile(px, py, 'wall');
-
-      const hasL = set.has((c.x-1)+','+c.y);
-      const hasR = set.has((c.x+1)+','+c.y);
-      const hasU = set.has(c.x+','+(c.y-1));
-      const hasD = set.has(c.x+','+(c.y+1));
-
-      ctx.save();
-      ctx.fillStyle = 'rgba(0,0,0,.96)';
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = 'rgba(2,6,23,.92)';
-      ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
-
-      // fog texture stays inside the closed room tile only
-      ctx.fillStyle = 'rgba(15,23,42,.45)';
-      ctx.beginPath(); ctx.arc(px+9, py+10, 7, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(px+23, py+22, 8, 0, Math.PI*2); ctx.fill();
-
-      // darker boundary along the room edge
-      ctx.fillStyle = 'rgba(0,0,0,1)';
-      if(!hasL) ctx.fillRect(px, py, 2, TILE);
-      if(!hasR) ctx.fillRect(px+TILE-2, py, 2, TILE);
-      if(!hasU) ctx.fillRect(px, py, TILE, 2);
-      if(!hasD) ctx.fillRect(px, py+TILE-2, TILE, 2);
-      ctx.restore();
-    });
-  }
-
-  function drawDoorAssetOnly86(px, py){
-    if(typeof finalDrawDoorImage73 === 'function'){
-      finalDrawDoorImage73(px, py);
-      return;
-    }
-    if(typeof drawLockedDoorSprite === 'function'){
-      drawLockedDoorSprite(px, py);
-    }
-  }
-
-  window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
-    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-
-    normalizeClosedRooms86();
-
-    const p = S.player;
-    const ox = p.x - Math.floor(VIEW/2);
-    const oy = p.y - Math.floor(VIEW/2);
-
-    for(const room of S.lockedRooms){
-      if(!room || room.opened) continue;
-
-      drawRoomOnlyFog86(room, ox, oy);
-
-      const d = room.door;
-      if(d && inView(d.x,d.y,ox,oy)){
-        const px = (d.x-ox)*TILE;
-        const py = (d.y-oy)*TILE;
-
-        // final door layer: no lock symbol, no text, asset only
-        if(typeof drawTile === 'function') drawTile(px, py, 'wall');
-        drawDoorAssetOnly86(px, py);
-      }
-    }
-  };
-
-  const renderBeforeDoorFinal86 = render;
-  render = function(){
-    normalizeClosedRooms86();
-    const ret = renderBeforeDoorFinal86.apply(this, arguments);
-
-    // Draw once more at the very end so no modal/range/tile pass can cover the door.
-    if(typeof drawLockedDoorAndShroudOverlay === 'function'){
-      drawLockedDoorAndShroudOverlay();
-    }
-
-    return ret;
-  };
-
-  const renderAllBeforeDoorFinal86 = renderAll;
-  renderAll = function(){
-    normalizeClosedRooms86();
-    return renderAllBeforeDoorFinal86.apply(this, arguments);
-  };
-
-  const generateFloorBeforeDoorFinal86 = generateFloor;
-  generateFloor = function(){
-    const ret = generateFloorBeforeDoorFinal86.apply(this, arguments);
-    normalizeClosedRooms86();
-    return ret;
-  };
 })();
 
 
@@ -19087,56 +18949,6 @@ generateFloor = function(){
 
 
 (function(){
-  /* Door problem fix:
-     - Old drawLockedDoorSprite still had yellow strokeStyle and could run in an earlier render wrapper.
-     - Replace it too, not only the final overlay. */
-  function noYellowDoorFallback88(px, py){
-    ctx.save();
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(px, py, TILE, TILE);
-    ctx.fillStyle = '#3f4a3e';
-    ctx.fillRect(px+2, py+2, TILE-4, TILE-4);
-    ctx.fillStyle = '#26311f';
-    ctx.fillRect(px+4, py+4, TILE-8, TILE-5);
-    ctx.fillStyle = '#4a3122';
-    ctx.fillRect(px+7, py+6, TILE-14, TILE-10);
-    ctx.fillStyle = '#6b4a32';
-    ctx.fillRect(px+9, py+7, TILE-18, TILE-12);
-    ctx.strokeStyle = '#17110d';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(px+7, py+6, TILE-14, TILE-10);
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(px+8, py+11, TILE-16, 2);
-    ctx.fillRect(px+8, py+20, TILE-16, 2);
-    ctx.fillStyle = '#09090b';
-    ctx.beginPath();
-    ctx.arc(px+TILE-9, py+Math.floor(TILE*0.58), 2.2, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function drawDoorAsset88(px, py){
-    const img = typeof FINAL_DOOR_ASSET_83 !== 'undefined' ? FINAL_DOOR_ASSET_83 : null;
-    if(img && img.complete && img.naturalWidth){
-      ctx.save();
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(img, px, py, TILE, TILE);
-      ctx.restore();
-      return true;
-    }
-    noYellowDoorFallback88(px, py);
-    return false;
-  }
-
-  if(typeof FINAL_DOOR_ASSET_83 !== 'undefined' && FINAL_DOOR_ASSET_83){
-    FINAL_DOOR_ASSET_83.onload = function(){ try{ renderAll(); }catch(e){} };
-    FINAL_DOOR_ASSET_83.onerror = function(){ console.warn('door asset load failed:', FINAL_DOOR_ASSET_83.src); };
-  }
-
-  drawLockedDoorSprite = function(px, py){ drawDoorAsset88(px, py); };
-  finalDrawDoorImage73 = function(px, py){ drawDoorAsset88(px, py); };
-  finalDrawDoorImageFallback82 = noYellowDoorFallback88;
-
   /* Ranking problem fix:
      - Existing ranking rows had no online/offline text, so text-scanning could not classify rows.
      - Re-render ranking rows with row classes based on active online table/list. */
@@ -19257,857 +19069,6 @@ generateFloor = function(){
     }
   };
   if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
-})();
-
-
-
-
-(function installFinalLockedDoorRoomFix91(){
-  const FINAL_LOCKED_DOOR_DATA_91 = './assets/icons/object/door.png';
-
-  function setDoorAsset91(){
-    try{
-      if(typeof FINAL_DOOR_ASSET_83 !== 'undefined' && FINAL_DOOR_ASSET_83){
-        if(FINAL_DOOR_ASSET_83.src !== FINAL_LOCKED_DOOR_DATA_91){
-          FINAL_DOOR_ASSET_83.src = FINAL_LOCKED_DOOR_DATA_91;
-        }
-        FINAL_DOOR_ASSET_83.onload = function(){ try{ renderAll(); }catch(e){} };
-      }
-    }catch(e){}
-  }
-
-  function roomBounds91(room){
-    const cells = room && Array.isArray(room.cells) ? room.cells.filter(c=>c && Number.isFinite(c.x) && Number.isFinite(c.y)) : [];
-    if(!cells.length) return null;
-    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-    cells.forEach(c=>{
-      if(c.x<minX) minX=c.x;
-      if(c.y<minY) minY=c.y;
-      if(c.x>maxX) maxX=c.x;
-      if(c.y>maxY) maxY=c.y;
-    });
-    return {minX,minY,maxX,maxY};
-  }
-
-  function isRoomBoundary91(room,x,y){
-    const b = roomBounds91(room);
-    if(!b) return false;
-    return x===b.minX || x===b.maxX || y===b.minY || y===b.maxY;
-  }
-
-  function innerCells91(room){
-    const cells = room && Array.isArray(room.cells) ? room.cells : [];
-    const inner = cells.filter(c=>c && !isRoomBoundary91(room,c.x,c.y));
-    return inner.length ? inner : cells.filter(c=>c);
-  }
-
-  function allRoomCells91(room){
-    return room && Array.isArray(room.cells) ? room.cells.filter(c=>c) : [];
-  }
-
-  function firstInnerCell91(room){
-    const inner = innerCells91(room);
-    return inner.length ? inner[0] : null;
-  }
-
-  function relocateClosedRoomContents91(room){
-    if(!S || !room || !Array.isArray(room.cells)) return;
-    const inner = innerCells91(room);
-    if(!inner.length) return;
-    let idx=0;
-    function nextCell(){
-      const c = inner[idx % inner.length];
-      idx++;
-      return c;
-    }
-    (S.items||[]).forEach(it=>{
-      if(!it) return;
-      if(room.cells.some(c=>c.x===it.x && c.y===it.y) && isRoomBoundary91(room,it.x,it.y)){
-        const c=nextCell();
-        it.x=c.x; it.y=c.y;
-      }
-    });
-    (S.enemies||[]).forEach(e=>{
-      if(!e || e.hp<=0) return;
-      if(room.cells.some(c=>c.x===e.x && c.y===e.y) && isRoomBoundary91(room,e.x,e.y)){
-        const c=nextCell();
-        e.x=c.x; e.y=c.y;
-      }
-    });
-  }
-
-  function normalizeLockedRooms91(){
-    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
-    S.lockedRooms.forEach(room=>{
-      if(!room || !Array.isArray(room.cells)) return;
-      relocateClosedRoomContents91(room);
-      const opened = !!room.opened;
-      allRoomCells91(room).forEach(c=>{
-        if(!inMap(c.x,c.y)) return;
-        if(opened){
-          S.map[c.y][c.x] = isRoomBoundary91(room,c.x,c.y) ? '#' : '.';
-          if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = true;
-        }else{
-          S.map[c.y][c.x] = '#';
-          if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
-        }
-      });
-      if(room.door && inMap(room.door.x, room.door.y)){
-        S.map[room.door.y][room.door.x] = opened ? '.' : 'D';
-        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = opened ? true : S.seen[room.door.y][room.door.x];
-      }
-    });
-  }
-
-  function drawDoorAsset91(px,py){
-    setDoorAsset91();
-    const img = typeof FINAL_DOOR_ASSET_83 !== 'undefined' ? FINAL_DOOR_ASSET_83 : null;
-    if(img && img.complete && img.naturalWidth){
-      ctx.save();
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, px, py, TILE, TILE);
-      ctx.restore();
-      return true;
-    }
-
-    ctx.save();
-    ctx.fillStyle='#121820';
-    ctx.fillRect(px,py,TILE,TILE);
-    ctx.fillStyle='#53635b';
-    ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
-    ctx.fillStyle='#26331f';
-    ctx.fillRect(px+3,py+4,TILE-6,TILE-5);
-    ctx.fillStyle='#4b3325';
-    ctx.fillRect(px+7,py+6,TILE-14,TILE-10);
-    ctx.fillStyle='#6a4931';
-    ctx.fillRect(px+9,py+7,TILE-18,TILE-12);
-    ctx.fillStyle='#8a6343';
-    ctx.fillRect(px+11,py+7,2,TILE-12);
-    ctx.fillRect(px+17,py+7,2,TILE-12);
-    ctx.fillStyle='#211711';
-    ctx.fillRect(px+8,py+11,TILE-16,2);
-    ctx.fillRect(px+8,py+20,TILE-16,2);
-    ctx.fillStyle='#0b0b0c';
-    ctx.fillRect(px+22,py+17,3,3);
-    ctx.restore();
-    return false;
-  }
-
-  function drawInnerFog91(px,py){
-    ctx.save();
-    ctx.fillStyle='rgba(0,0,0,.94)';
-    ctx.fillRect(px,py,TILE,TILE);
-    ctx.fillStyle='rgba(2,6,23,.82)';
-    ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
-    ctx.fillStyle='rgba(15,23,42,.38)';
-    ctx.beginPath(); ctx.arc(px+9,py+10,7,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(px+23,py+22,8,0,Math.PI*2); ctx.fill();
-    ctx.restore();
-  }
-
-  window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
-    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-    normalizeLockedRooms91();
-
-    const p=S.player;
-    const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
-
-    for(const room of S.lockedRooms){
-      if(!room || room.opened) continue;
-
-      allRoomCells91(room).forEach(c=>{
-        if(!c || !inView(c.x,c.y,ox,oy)) return;
-        const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
-        if(isRoomBoundary91(room,c.x,c.y)){
-          if(typeof drawTile === 'function') drawTile(px,py,'wall');
-        }else{
-          if(typeof drawTile === 'function') drawTile(px,py,'floor');
-          drawInnerFog91(px,py);
-        }
-      });
-
-      const d=room.door;
-      if(d && inView(d.x,d.y,ox,oy)){
-        const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
-        if(typeof drawTile === 'function') drawTile(px,py,'wall');
-        drawDoorAsset91(px,py);
-      }
-    }
-  };
-
-  if(typeof drawLockedDoorSprite === 'function'){
-    drawLockedDoorSprite = function(px,py){ drawDoorAsset91(px,py); };
-  }
-  if(typeof finalDrawDoorImage73 === 'function'){
-    finalDrawDoorImage73 = function(px,py){ drawDoorAsset91(px,py); };
-  }
-  if(typeof finalDrawDoorImageFallback82 === 'function'){
-    finalDrawDoorImageFallback82 = function(px,py){ drawDoorAsset91(px,py); };
-  }
-
-  if(typeof revealLockedRoom === 'function'){
-    const revealLockedRoomBefore91 = revealLockedRoom;
-    revealLockedRoom = function(room){
-      if(!S || !room) return revealLockedRoomBefore91.apply(this, arguments);
-      room.opened = true;
-      allRoomCells91(room).forEach(c=>{
-        if(!inMap(c.x,c.y)) return;
-        S.map[c.y][c.x] = isRoomBoundary91(room,c.x,c.y) ? '#' : '.';
-        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = true;
-      });
-      if(room.door && inMap(room.door.x, room.door.y)){
-        S.map[room.door.y][room.door.x]='.';
-        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x]=true;
-      }
-    };
-  }
-
-  if(typeof passable === 'function'){
-    const passableBefore91 = passable;
-    passable = function(x,y){
-      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return false;
-      const room = Array.isArray(S && S.lockedRooms) ? S.lockedRooms.find(r=>r && r.opened && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y)) : null;
-      if(room && isRoomBoundary91(room,x,y)) return false;
-      return passableBefore91.apply(this, arguments);
-    };
-  }
-
-  if(typeof mapCellClass === 'function'){
-    const mapCellClassBefore91 = mapCellClass;
-    mapCellClass = function(x,y){
-      const room = Array.isArray(S && S.lockedRooms) ? S.lockedRooms.find(r=>r && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y)) : null;
-      if(room){
-        if(!room.opened) return 'wall';
-        if(isRoomBoundary91(room,x,y)) return 'wall';
-      }
-      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return 'wall';
-      return mapCellClassBefore91.apply(this, arguments);
-    };
-  }
-
-  if(typeof render === 'function'){
-    const renderBefore91 = render;
-    render = function(){
-      normalizeLockedRooms91();
-      const ret = renderBefore91.apply(this, arguments);
-      if(typeof drawLockedDoorAndShroudOverlay === 'function') drawLockedDoorAndShroudOverlay();
-      return ret;
-    };
-  }
-
-  if(typeof renderAll === 'function'){
-    const renderAllBefore91 = renderAll;
-    renderAll = function(){
-      normalizeLockedRooms91();
-      return renderAllBefore91.apply(this, arguments);
-    };
-  }
-
-  if(typeof generateFloor === 'function'){
-    const generateFloorBefore91 = generateFloor;
-    generateFloor = function(){
-      const ret = generateFloorBefore91.apply(this, arguments);
-      normalizeLockedRooms91();
-      return ret;
-    };
-  }
-
-  setDoorAsset91();
-})();
-
-
-
-
-(function forceRealDoorAsset93(){
-  const REAL_DOOR_ASSET_93 = './assets/icons/object/door.png';
-  function refreshDoorAsset93(){
-    if(typeof LOCKED_DOOR_ASSET_IMAGE !== 'undefined' && LOCKED_DOOR_ASSET_IMAGE){
-      if(!String(LOCKED_DOOR_ASSET_IMAGE.src || '').endsWith('/assets/icons/object/door.png')){
-        LOCKED_DOOR_ASSET_IMAGE.src = REAL_DOOR_ASSET_93;
-      }
-      LOCKED_DOOR_ASSET_IMAGE.onload = function(){ try{ renderAll(); }catch(e){} };
-    }
-    if(typeof FINAL_DOOR_ASSET_83 !== 'undefined' && FINAL_DOOR_ASSET_83){
-      FINAL_DOOR_ASSET_83.src = REAL_DOOR_ASSET_93;
-      FINAL_DOOR_ASSET_83.onload = function(){ try{ renderAll(); }catch(e){} };
-    }
-  }
-  refreshDoorAsset93();
-
-  const drawRealDoor93 = function(px,py){
-    refreshDoorAsset93();
-    if(typeof drawLockedDoorAssetImage === 'function') return drawLockedDoorAssetImage(px,py);
-    const img = typeof FINAL_DOOR_ASSET_83 !== 'undefined' ? FINAL_DOOR_ASSET_83 : null;
-    if(img && img.complete && img.naturalWidth){
-      ctx.save();
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, px, py, TILE, TILE);
-      ctx.restore();
-      return true;
-    }
-    ctx.save();
-    ctx.fillStyle='#111827';
-    ctx.fillRect(px,py,TILE,TILE);
-    ctx.restore();
-    return false;
-  };
-
-  drawLockedDoorSprite = function(px,py){ drawRealDoor93(px,py); };
-  if(typeof finalDrawDoorImage73 === 'function') finalDrawDoorImage73 = function(px,py){ drawRealDoor93(px,py); };
-  if(typeof finalDrawDoorImageFallback82 === 'function') finalDrawDoorImageFallback82 = function(px,py){ drawRealDoor93(px,py); };
-  if(typeof drawDoorAsset88 === 'function') drawDoorAsset88 = function(px,py){ drawRealDoor93(px,py); };
-  if(typeof noYellowDoorFallback88 === 'function') noYellowDoorFallback88 = function(px,py){ drawRealDoor93(px,py); };
-})();
-
-
-
-
-(function forceLockedRoomAllWall94(){
-  function roomCells94(room){
-    return room && Array.isArray(room.cells) ? room.cells.filter(c=>c && Number.isFinite(c.x) && Number.isFinite(c.y)) : [];
-  }
-
-  function roomBounds94(room){
-    const cells = roomCells94(room);
-    if(!cells.length) return null;
-    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
-    cells.forEach(c=>{
-      if(c.x < minX) minX = c.x;
-      if(c.y < minY) minY = c.y;
-      if(c.x > maxX) maxX = c.x;
-      if(c.y > maxY) maxY = c.y;
-    });
-    return {minX,minY,maxX,maxY};
-  }
-
-  function isRoomBoundary94(room,x,y){
-    const b = roomBounds94(room);
-    if(!b) return false;
-    return x === b.minX || x === b.maxX || y === b.minY || y === b.maxY;
-  }
-
-  function roomDoorEntryCell94(room){
-    if(!room || !room.door) return null;
-    return roomCells94(room).find(c=>Math.abs(c.x-room.door.x)+Math.abs(c.y-room.door.y) === 1) || null;
-  }
-
-  function isDoorEntryCell94(room,x,y){
-    const e = roomDoorEntryCell94(room);
-    return !!(e && e.x === x && e.y === y);
-  }
-
-  function innerOpenCells94(room){
-    return roomCells94(room).filter(c=>!isRoomBoundary94(room,c.x,c.y) || isDoorEntryCell94(room,c.x,c.y));
-  }
-
-  function moveContentsOffClosedWalls94(room){
-    if(!S || !room || !Array.isArray(room.cells)) return;
-    const targetCells = innerOpenCells94(room);
-    if(!targetCells.length) return;
-
-    let i = 0;
-    function nextTarget(){
-      const c = targetCells[i % targetCells.length];
-      i++;
-      return c;
-    }
-
-    (S.items||[]).forEach(it=>{
-      if(!it) return;
-      if(room.cells.some(c=>c.x===it.x && c.y===it.y) && isRoomBoundary94(room,it.x,it.y) && !isDoorEntryCell94(room,it.x,it.y)){
-        const t = nextTarget();
-        it.x = t.x;
-        it.y = t.y;
-      }
-    });
-
-    (S.enemies||[]).forEach(e=>{
-      if(!e || e.hp<=0) return;
-      if(room.cells.some(c=>c.x===e.x && c.y===e.y) && isRoomBoundary94(room,e.x,e.y) && !isDoorEntryCell94(room,e.x,e.y)){
-        const t = nextTarget();
-        e.x = t.x;
-        e.y = t.y;
-      }
-    });
-  }
-
-  function normalizeLockedRoomsAllWall94(){
-    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
-
-    S.lockedRooms.forEach(room=>{
-      if(!room || !Array.isArray(room.cells)) return;
-
-      moveContentsOffClosedWalls94(room);
-
-      if(!room.opened){
-        // 닫힌 문방: 방 전체를 벽으로 막는다. 내부 바닥/검은 안개를 보여주지 않는다.
-        roomCells94(room).forEach(c=>{
-          if(!inMap(c.x,c.y)) return;
-          S.map[c.y][c.x] = '#';
-          if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
-        });
-        if(room.door && inMap(room.door.x,room.door.y)){
-          S.map[room.door.y][room.door.x] = 'D';
-        }
-        return;
-      }
-
-      // 열린 뒤에도 둘레는 벽으로 유지한다.
-      // 문 바로 안쪽 1칸과 내부만 바닥으로 열어 문으로만 출입하게 한다.
-      roomCells94(room).forEach(c=>{
-        if(!inMap(c.x,c.y)) return;
-        const openCell = !isRoomBoundary94(room,c.x,c.y) || isDoorEntryCell94(room,c.x,c.y);
-        S.map[c.y][c.x] = openCell ? '.' : '#';
-        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = true;
-      });
-
-      if(room.door && inMap(room.door.x,room.door.y)){
-        S.map[room.door.y][room.door.x] = '.';
-        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = true;
-      }
-    });
-  }
-
-  function drawRealDoor94(px,py){
-    if(typeof drawLockedDoorAssetImage === 'function') return drawLockedDoorAssetImage(px,py);
-    if(typeof drawLockedDoorSprite === 'function') return drawLockedDoorSprite(px,py);
-    return false;
-  }
-
-  window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
-    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-    normalizeLockedRoomsAllWall94();
-
-    const p = S.player;
-    const ox = p.x - Math.floor(VIEW/2);
-    const oy = p.y - Math.floor(VIEW/2);
-
-    for(const room of S.lockedRooms){
-      if(!room || room.opened) continue;
-
-      // 닫힌 문방은 전부 벽타일로만 보이게 한다.
-      // 검은 안개/바닥 격자는 더 이상 그리지 않는다.
-      roomCells94(room).forEach(c=>{
-        if(!inView(c.x,c.y,ox,oy)) return;
-        const px = (c.x-ox)*TILE;
-        const py = (c.y-oy)*TILE;
-        if(typeof drawTile === 'function') drawTile(px,py,'wall');
-      });
-
-      const d = room.door;
-      if(d && inView(d.x,d.y,ox,oy)){
-        const px = (d.x-ox)*TILE;
-        const py = (d.y-oy)*TILE;
-        if(typeof drawTile === 'function') drawTile(px,py,'wall');
-        drawRealDoor94(px,py);
-      }
-    }
-  };
-
-  if(typeof revealLockedRoom === 'function'){
-    const revealLockedRoomBefore94 = revealLockedRoom;
-    revealLockedRoom = function(room){
-      if(!S || !room) return revealLockedRoomBefore94.apply(this, arguments);
-
-      room.opened = true;
-
-      roomCells94(room).forEach(c=>{
-        if(!inMap(c.x,c.y)) return;
-        const openCell = !isRoomBoundary94(room,c.x,c.y) || isDoorEntryCell94(room,c.x,c.y);
-        S.map[c.y][c.x] = openCell ? '.' : '#';
-        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = true;
-      });
-
-      if(room.door && inMap(room.door.x,room.door.y)){
-        S.map[room.door.y][room.door.x]='.';
-        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x]=true;
-      }
-    };
-  }
-
-  if(typeof passable === 'function'){
-    const passableBefore94 = passable;
-    passable = function(x,y){
-      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return false;
-
-      const room = Array.isArray(S && S.lockedRooms)
-        ? S.lockedRooms.find(r=>r && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y))
-        : null;
-
-      if(room){
-        if(!room.opened) return false;
-        if(isRoomBoundary94(room,x,y) && !isDoorEntryCell94(room,x,y)) return false;
-      }
-
-      return passableBefore94.apply(this, arguments);
-    };
-  }
-
-  if(typeof blocked === 'function'){
-    const blockedBefore94 = blocked;
-    blocked = function(x,y){
-      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return true;
-
-      const room = Array.isArray(S && S.lockedRooms)
-        ? S.lockedRooms.find(r=>r && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y))
-        : null;
-
-      if(room){
-        if(!room.opened) return true;
-        if(isRoomBoundary94(room,x,y) && !isDoorEntryCell94(room,x,y)) return true;
-      }
-
-      return blockedBefore94.apply(this, arguments);
-    };
-  }
-
-  if(typeof mapCellClass === 'function'){
-    const mapCellClassBefore94 = mapCellClass;
-    mapCellClass = function(x,y){
-      const room = Array.isArray(S && S.lockedRooms)
-        ? S.lockedRooms.find(r=>r && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y))
-        : null;
-
-      if(room){
-        if(!room.opened) return 'wall';
-        if(isRoomBoundary94(room,x,y) && !isDoorEntryCell94(room,x,y)) return 'wall';
-      }
-
-      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return 'wall';
-      return mapCellClassBefore94.apply(this, arguments);
-    };
-  }
-
-  if(typeof render === 'function'){
-    const renderBefore94 = render;
-    render = function(){
-      normalizeLockedRoomsAllWall94();
-      const ret = renderBefore94.apply(this, arguments);
-      if(typeof drawLockedDoorAndShroudOverlay === 'function') drawLockedDoorAndShroudOverlay();
-      return ret;
-    };
-  }
-
-  if(typeof renderAll === 'function'){
-    const renderAllBefore94 = renderAll;
-    renderAll = function(){
-      normalizeLockedRoomsAllWall94();
-      return renderAllBefore94.apply(this, arguments);
-    };
-  }
-
-  if(typeof generateFloor === 'function'){
-    const generateFloorBefore94 = generateFloor;
-    generateFloor = function(){
-      const ret = generateFloorBefore94.apply(this, arguments);
-      normalizeLockedRoomsAllWall94();
-      return ret;
-    };
-  }
-
-  normalizeLockedRoomsAllWall94();
-})();
-
-
-
-
-(function forceLockedRoomSolidBox95(){
-  function cells95(room){
-    return room && Array.isArray(room.cells)
-      ? room.cells.filter(c=>c && Number.isFinite(c.x) && Number.isFinite(c.y))
-      : [];
-  }
-
-  function bounds95(room){
-    const a = cells95(room);
-    if(!a.length) return null;
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    a.forEach(c=>{
-      if(c.x < minX) minX = c.x;
-      if(c.y < minY) minY = c.y;
-      if(c.x > maxX) maxX = c.x;
-      if(c.y > maxY) maxY = c.y;
-    });
-
-    return {minX,minY,maxX,maxY};
-  }
-
-  function forRoomRect95(room, fn){
-    const b = bounds95(room);
-    if(!b) return;
-    for(let y=b.minY; y<=b.maxY; y++){
-      for(let x=b.minX; x<=b.maxX; x++){
-        fn(x,y,b);
-      }
-    }
-  }
-
-  function isBoundary95(room,x,y){
-    const b = bounds95(room);
-    if(!b) return false;
-    return x===b.minX || x===b.maxX || y===b.minY || y===b.maxY;
-  }
-
-  function doorInnerCell95(room){
-    if(!room || !room.door) return null;
-    const b = bounds95(room);
-    if(!b) return null;
-
-    const d = room.door;
-
-    if(d.x < b.minX) return {x:b.minX, y:Math.max(b.minY, Math.min(b.maxY, d.y))};
-    if(d.x > b.maxX) return {x:b.maxX, y:Math.max(b.minY, Math.min(b.maxY, d.y))};
-    if(d.y < b.minY) return {x:Math.max(b.minX, Math.min(b.maxX, d.x)), y:b.minY};
-    if(d.y > b.maxY) return {x:Math.max(b.minX, Math.min(b.maxX, d.x)), y:b.maxY};
-
-    return cells95(room).find(c=>Math.abs(c.x-d.x)+Math.abs(c.y-d.y)===1) || null;
-  }
-
-  function isDoorInnerCell95(room,x,y){
-    const c = doorInnerCell95(room);
-    return !!(c && c.x===x && c.y===y);
-  }
-
-  function openedCell95(room,x,y){
-    if(!room || !room.opened) return false;
-    if(isDoorInnerCell95(room,x,y)) return true;
-    return !isBoundary95(room,x,y);
-  }
-
-  function moveObjectsInside95(room){
-    if(!S || !room) return;
-    const b = bounds95(room);
-    if(!b) return;
-
-    const targets = [];
-    forRoomRect95(room,(x,y)=>{
-      if(openedCell95(room,x,y) || (!room.opened && !isBoundary95(room,x,y))) targets.push({x,y});
-    });
-    if(!targets.length){
-      const c = doorInnerCell95(room);
-      if(c) targets.push(c);
-    }
-    if(!targets.length) return;
-
-    let i=0;
-    function next(){
-      const t = targets[i % targets.length];
-      i++;
-      return t;
-    }
-
-    function inRect(x,y){
-      return x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY;
-    }
-
-    (S.items||[]).forEach(it=>{
-      if(!it || !inRect(it.x,it.y)) return;
-      if(!room.opened || !openedCell95(room,it.x,it.y)){
-        const t=next();
-        it.x=t.x; it.y=t.y;
-      }
-    });
-
-    (S.enemies||[]).forEach(e=>{
-      if(!e || e.hp<=0 || !inRect(e.x,e.y)) return;
-      if(!room.opened || !openedCell95(room,e.x,e.y)){
-        const t=next();
-        e.x=t.x; e.y=t.y;
-      }
-    });
-  }
-
-  function normalizeSolidRooms95(){
-    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
-
-    S.lockedRooms.forEach(room=>{
-      if(!room || !bounds95(room)) return;
-
-      moveObjectsInside95(room);
-
-      if(!room.opened){
-        // 닫힌 문방은 사각형 전체를 벽으로 만든다. 아래/위/좌/우 누락 없이 전부 벽.
-        forRoomRect95(room,(x,y)=>{
-          if(!inMap(x,y)) return;
-          S.map[y][x] = '#';
-          if(S.seen && S.seen[y]) S.seen[y][x] = false;
-        });
-
-        if(room.door && inMap(room.door.x,room.door.y)){
-          S.map[room.door.y][room.door.x] = 'D';
-        }
-        return;
-      }
-
-      // 열린 문방은 테두리 벽 유지.
-      // 문 바로 안쪽 칸과 내부 칸만 바닥이다.
-      forRoomRect95(room,(x,y)=>{
-        if(!inMap(x,y)) return;
-        const open = openedCell95(room,x,y);
-        S.map[y][x] = open ? '.' : '#';
-        if(S.seen && S.seen[y]) S.seen[y][x] = true;
-      });
-
-      if(room.door && inMap(room.door.x,room.door.y)){
-        S.map[room.door.y][room.door.x] = '.';
-        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = true;
-      }
-    });
-  }
-
-  function drawDoor95(px,py){
-    if(typeof drawLockedDoorAssetImage === 'function') return drawLockedDoorAssetImage(px,py);
-    if(typeof drawLockedDoorSprite === 'function') return drawLockedDoorSprite(px,py);
-    return false;
-  }
-
-  function drawSolidClosedRoom95(room,ox,oy){
-    forRoomRect95(room,(x,y)=>{
-      if(!inView(x,y,ox,oy)) return;
-      const px=(x-ox)*TILE;
-      const py=(y-oy)*TILE;
-      if(typeof drawTile === 'function') drawTile(px,py,'wall');
-    });
-
-    if(room.door && inView(room.door.x,room.door.y,ox,oy)){
-      const px=(room.door.x-ox)*TILE;
-      const py=(room.door.y-oy)*TILE;
-      if(typeof drawTile === 'function') drawTile(px,py,'wall');
-      drawDoor95(px,py);
-    }
-  }
-
-  window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
-    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-
-    normalizeSolidRooms95();
-
-    const p = S.player;
-    const ox = p.x - Math.floor(VIEW/2);
-    const oy = p.y - Math.floor(VIEW/2);
-
-    for(const room of S.lockedRooms){
-      if(!room || room.opened) continue;
-      drawSolidClosedRoom95(room,ox,oy);
-    }
-  };
-
-  if(typeof revealLockedRoom === 'function'){
-    const revealBefore95 = revealLockedRoom;
-    revealLockedRoom = function(room){
-      if(!S || !room || !bounds95(room)) return revealBefore95.apply(this, arguments);
-
-      room.opened = true;
-
-      forRoomRect95(room,(x,y)=>{
-        if(!inMap(x,y)) return;
-        const open = openedCell95(room,x,y);
-        S.map[y][x] = open ? '.' : '#';
-        if(S.seen && S.seen[y]) S.seen[y][x] = true;
-      });
-
-      if(room.door && inMap(room.door.x,room.door.y)){
-        S.map[room.door.y][room.door.x] = '.';
-        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = true;
-      }
-    };
-  }
-
-  if(typeof passable === 'function'){
-    const passableBefore95 = passable;
-    passable = function(x,y){
-      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return false;
-
-      const room = Array.isArray(S && S.lockedRooms)
-        ? S.lockedRooms.find(r=>{
-            const b=bounds95(r);
-            return b && x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY;
-          })
-        : null;
-
-      if(room){
-        if(!room.opened) return false;
-        if(!openedCell95(room,x,y)) return false;
-      }
-
-      return passableBefore95.apply(this, arguments);
-    };
-  }
-
-  if(typeof blocked === 'function'){
-    const blockedBefore95 = blocked;
-    blocked = function(x,y){
-      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return true;
-
-      const room = Array.isArray(S && S.lockedRooms)
-        ? S.lockedRooms.find(r=>{
-            const b=bounds95(r);
-            return b && x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY;
-          })
-        : null;
-
-      if(room){
-        if(!room.opened) return true;
-        if(!openedCell95(room,x,y)) return true;
-      }
-
-      return blockedBefore95.apply(this, arguments);
-    };
-  }
-
-  if(typeof mapCellClass === 'function'){
-    const mapCellClassBefore95 = mapCellClass;
-    mapCellClass = function(x,y){
-      const room = Array.isArray(S && S.lockedRooms)
-        ? S.lockedRooms.find(r=>{
-            const b=bounds95(r);
-            return b && x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY;
-          })
-        : null;
-
-      if(room){
-        if(!room.opened) return 'wall';
-        if(!openedCell95(room,x,y)) return 'wall';
-      }
-
-      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return 'wall';
-      return mapCellClassBefore95.apply(this, arguments);
-    };
-  }
-
-  if(typeof render === 'function'){
-    const renderBefore95 = render;
-    render = function(){
-      normalizeSolidRooms95();
-      const ret = renderBefore95.apply(this, arguments);
-
-      // 최종 레이어에서 다시 한 번 사각형 전체 벽을 덮어 그린다.
-      // 이전 패치의 검은 사각형/하단 누락을 이 단계에서 확실히 가린다.
-      if(typeof drawLockedDoorAndShroudOverlay === 'function') drawLockedDoorAndShroudOverlay();
-
-      return ret;
-    };
-  }
-
-  if(typeof renderAll === 'function'){
-    const renderAllBefore95 = renderAll;
-    renderAll = function(){
-      normalizeSolidRooms95();
-      return renderAllBefore95.apply(this, arguments);
-    };
-  }
-
-  if(typeof generateFloor === 'function'){
-    const generateBefore95 = generateFloor;
-    generateFloor = function(){
-      const ret = generateBefore95.apply(this, arguments);
-      normalizeSolidRooms95();
-      return ret;
-    };
-  }
-
-  normalizeSolidRooms95();
 })();
 
 </script>
