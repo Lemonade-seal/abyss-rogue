@@ -1053,9 +1053,6 @@
   }
 
 
-
-
-
   /* 요청 반영: 닉네임이 길면 스킬 버튼과 같은 좌우 흐름 애니메이션 적용 */
   .topInfoPill .mainHudLine{
     display:flex!important;
@@ -2226,9 +2223,6 @@ body.liveKeymapMode .keymapLiveDragging{
   .currencyVisual{display:inline-flex;align-items:center;gap:4px;vertical-align:middle}
   .currencyIconImg{width:20px;height:20px;object-fit:contain;vertical-align:middle;filter:drop-shadow(0 1px 1px rgba(0,0,0,.75));image-rendering:auto}
   @media (min-width:900px){.currencyIconImg{width:22px;height:22px}}
-
-
-
 
 
   /* 최종 정리: 상단 재화 표시 - 숫자 + 아이콘, 문자 라벨 없음 */
@@ -8083,7 +8077,6 @@ function basicAttackButton(){
   toast(p.classId==='mage'||p.classId==='hunter' ? '사거리 안에 적이 없다.' : '인접한 적이 없다.');
 }
 
-/* DIRECT FIX: skill cooldown is turn-lock based, inside real game scope */
 const SKILL_TURN_CD_KEYS = ['smash','dash','heal'];
 function ensureSkillTurnCooldownState(){
   const p = S && S.player;
@@ -8934,7 +8927,6 @@ function getSpriteDef(id){
   return SPRITES[key] || buildProcSprite(key) || SPRITES.slime;
 }
 
-/* 스킬 범위 미리보기 복구 */
 function skillPreviewNow(){
   return (typeof nowMs === 'function') ? nowMs() : Date.now();
 }
@@ -10007,7 +9999,6 @@ document.addEventListener('dragstart', e=>e.preventDefault());
 let lastTouch=0; document.addEventListener('touchend', e=>{const now=Date.now(); if(now-lastTouch<350) e.preventDefault(); lastTouch=now;}, {passive:false});
 
 
-/* ===== 요청 반영: 로그인 선택 + 캐릭터 슬롯 시스템 ===== */
 let activeLoginMode = 'none';
 let activeCharacterSlot = null;
 let cloudCharacterSlots = [null,null,null];
@@ -10469,7 +10460,6 @@ function startSavedCharacter(mode, slotIndex){
 }
 
 
-/* 요청 반영: 캐릭터 슬롯별 보유 영혼을 영혼 강화에서 통합 사용 */
 function currentSoulPoolMode(mode){
   return mode || activeLoginMode || (S && S.loginMode) || 'guest';
 }
@@ -10697,7 +10687,6 @@ showSystemMenu = function(){
   };
 };
 
-/* ===== 요청 반영: 닉네임 HUD + 전투력/랭킹 + 게스트 닉네임 제한 + 스킬 글자 이동 ===== */
 function playerNickname(p){
   if(!p) return '-';
   return String(p.name || p.nickname || p.className || '이름 없음');
@@ -10871,7 +10860,6 @@ saveCloudCharacterProfile = async function(){
 };
 
 
-/* 요청 반영: 닉네임 중복 방지 */
 function normalizeNicknameForCheck(nick){
   return String(nick || '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
@@ -11253,7 +11241,6 @@ async function initStartPage(){
   if(!handled) showStart();
 }
 
-/* 최종 고정: 게임 시작 기본 로그창 + 기존 로그/채팅/off 순환 사용 */
 function restoreDefaultLogPanel(){
   mapPanelMode = 'log';
   if(S) S.mapPanelMode = 'log';
@@ -11276,7 +11263,6 @@ startSavedCharacter = function(mode, slotIndex){
   restoreDefaultLogPanel();
 };
 
-/* 요청 반영: 온라인 배지 + 접속 인원 리스트 */
 const ONLINE_PRESENCE_CHANNEL = 'life-rpg-online-presence-v1';
 const ONLINE_CLIENT_ID = (()=>{
   try{
@@ -11401,7 +11387,6 @@ try{
   setInterval(()=>syncOnlinePresence(true), 15000);
 }catch(e){}
 
-/* 상단 HUD 표기 최종 보정 */
 const originalUpdateUiForTopHudFormat = updateUi;
 updateUi = function(){
   originalUpdateUiForTopHudFormat();
@@ -11439,7 +11424,6 @@ updateUi = function(){
 };
 
 
-/* 요청 반영: 긴 닉네임도 스킬 버튼처럼 흐름 애니메이션 처리 */
 function refreshNicknameMarquee(){
   requestAnimationFrame(()=>{
     const nickEl = $('nickText');
@@ -11474,7 +11458,6 @@ updateUi = function(){
 };
 window.addEventListener('resize', refreshNicknameMarquee);
 
-/* 검사 수정: 새 원정은 캐릭터 슬롯 삭제가 아니라 진행도 초기화 후 슬롯 화면으로 이동 */
 function deleteCharacterSlotOnly(mode, slotIndex){
   const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
   const idx = Number(slotIndex);
@@ -11581,7 +11564,6 @@ showDeleteCurrentCharacterConfirm = function(mode){
 };
 
 
-/* 요청 반영: 랭킹은 온라인 상태가 아니라 슬롯별 최고기록 기준으로 고정 */
 function normalizeStoredRankRecord(rec, fallbackNick){
   if(!rec || typeof rec !== 'object') return null;
   const nick = rec.nickname || fallbackNick || '이름 없음';
@@ -11766,7 +11748,6 @@ deleteSupabaseAccountPermanently = async function(){
 };
 
 
-/* 버그 수정: 사망/귀환 후 영혼 강화 → 게임 시작 시 종료된 위치를 불러오지 않도록 처리 */
 function isPlayableSlotRun(run){
   if(!run || typeof run !== 'object' || !run.player) return false;
   if(run.dead) return false;
@@ -12021,7 +12002,6 @@ deleteCharacterSlotOnly = function(mode, slotIndex){
 };
 
 
-/* 요청 반영: 영혼 강화 초기화는 사용 영혼의 1/2 환급, 스탯창에 영혼 보정 표시 */
 function soulUpgradeZeroState(){
   return {hp:0, atk:0, def:0, crit:0, xp:0, gold:0};
 }
@@ -12146,7 +12126,6 @@ updateUi = function(){
 };
 
 
-/* 최종 수정: 스탯 메뉴 버튼이 이전 showStatsMenu를 물고 있던 문제 보정 */
 function soulUpgradeBonusStatsGridHtml(){
   const b = soulUpgradeBonusInfo();
   return `
@@ -12469,7 +12448,6 @@ function bindKeymapModalHandlers(){
   bindSortableList('keymapMenuList', 'menuOrder');
 }
 
-/* 설정 메뉴 구성 복구: 기존 메뉴 구성 유지 + 키맵핑 버튼만 추가 */
 showSystemMenu = function(){
   if(!S) return;
   pauseAutoForChoice();
@@ -12547,7 +12525,6 @@ function bindGamePinchZoom(){
 applyControlLayout();
 bindGamePinchZoom();
 
-/* 요청 반영: 확대 축소 최소값 100%, 실제 게임화면 키맵핑 모드 */
 try{
   clampGameZoom = function(v){
     return Math.max(1, Math.min(1.85, Number(v)||1));
@@ -12936,7 +12913,6 @@ function bindGameZoomResetTouch(){
 setGameZoom(Math.max(1, gameZoomValue || 1));
 bindGameZoomResetTouch();
 
-/* 최종 보정: 키맵핑 드래그 크기 고정 + 패드 실제 이동거리 반영 */
 function liveFixedButtonHeight(el){
   return el && el.classList && el.classList.contains('menuBtn') ? 38 : 64;
 }
@@ -13134,7 +13110,6 @@ startLiveAnalogDrag = function(e){
 };
 
 
-/* 최종 보정: 아날로그/버튼 좌우 반전 방식 + 로그창 위치 키맵핑 버튼 */
 function applyMirroredKeymapDom(layout){
   const l = cloneControlLayoutForLive(layout);
   const app = $('app');
@@ -13327,7 +13302,6 @@ startLiveAnalogDrag = function(e){
 };
 
 
-/* 최종 요청 패치: 드래그 객체 원본 비율 고정, 아날로그 이동 시 버튼 묶음 통째 이동, 키맵핑 조작바 중앙 고정 */
 function keymapActualRectSize(el){
   const r = el.getBoundingClientRect();
   return { w: Math.max(1, Math.round(r.width)), h: Math.max(1, Math.round(r.height)) };
@@ -13582,7 +13556,6 @@ startLiveAnalogDrag = function(e){
 };
 
 
-/* 최종 보정: 키맵핑 종료 후 임시 폭 고정 상태 완전 해제 */
 function clearKeymapBundleLockState(){
   const rightui = document.querySelector('.rightui');
   if(!rightui) return;
@@ -13600,7 +13573,6 @@ endLiveKeymapMode = function(mode){
 };
 
 
-/* 최종 요청 패치: 기본값/적용/취소 버튼을 아날로그 패드 위쪽으로 배치 */
 function positionKeymapLiveBarAboveAnalog(){
   const bar = $('keymapLiveBar');
   if(!bar) return;
@@ -13636,7 +13608,6 @@ ensureKeymapLiveBar = function(){
 };
 
 
-/* 최종 요청 패치: 키맵핑 자동 이동 애니메이션 스무스 처리 */
 (function(){
   const KEYMAP_SMOOTH_MS = 340;
   const KEYMAP_SMOOTH_EASING = 'cubic-bezier(.22,1,.36,1)';
@@ -13759,7 +13730,6 @@ ensureKeymapLiveBar = function(){
 })();
 
 
-/* ===== PC/세로모드/도움말 최종 적용 ===== */
 function isPhoneTabletLandscapeBlocked(){
   try{
     return !!(window.matchMedia && window.matchMedia('(orientation: landscape) and (any-pointer: coarse) and (max-width: 1400px)').matches);
@@ -13902,7 +13872,6 @@ pcHelpStyle.textContent = `
 document.head.appendChild(pcHelpStyle);
 
 
-/* ===== 요청 반영: 턴제/기능 도움말 접힘 카테고리 + 랭킹 스크롤 ===== */
 function renderHelpSection(title, rows, open){
   return `<details class="helpSection"${open ? ' open' : ''}>
     <summary>${escHtml(title)}</summary>
@@ -14002,7 +13971,6 @@ helpAccordionAndRankingScrollStyle.textContent = `
 `;
 document.head.appendChild(helpAccordionAndRankingScrollStyle);
 
-/* REQUEST ONLY: separate Kakao/Naver save data and show Naver login guide */
 function cloudProviderModeKey(mode){
   return mode === 'naver' ? 'naver' : 'kakao';
 }
@@ -14258,7 +14226,6 @@ showOnlineListModal = function(){
   showModal(`<h2>온라인 접속 인원</h2><p class="muted">현재 온라인 ${list.length}명</p><div class="onlineListBox">${rows}</div>${makeCloseBar()}`, false);
 };
 
-/* REQUEST ONLY: alert banner, alert settings, account submenu, system menu layout */
 const ALERT_SETTINGS_KEY = 'abyss_rogue_alert_settings_v1';
 function defaultAlertSettings(){
   return {all:true, legendary:true, chat:true};
@@ -14459,7 +14426,6 @@ if($('menuMenuBtn')){
   $('menuMenuBtn').onclick = showSystemMenu;
 }
 
-/* REQUEST ONLY: deleting a character removes that character's soul contribution from soul upgrades */
 function soulTrackingModeKey(mode){
   return isCloudLoginMode(mode) ? mode : 'guest';
 }
@@ -14608,9 +14574,6 @@ deleteCharacterSlotOnly = function(mode, slotIndex){
   const safeMode = mode || activeLoginMode || (S && S.loginMode) || 'guest';
   const impact = removeDeletedCharacterSoulImpact(safeMode, slotIndex);
   previousDeleteCharacterSlotOnlyForSoulTracking(safeMode, slotIndex);
-  if(impact.spentTracked > 0 || impact.unspentTracked > 0 || impact.currentSlotSoul > 0){
-    console.log('deleted character soul impact', impact);
-  }
 };
 showDeleteCharacterConfirm = function(mode, slotIndex){
   stopAuto();
@@ -14644,7 +14607,6 @@ showDeleteCharacterConfirm = function(mode, slotIndex){
   };
 };
 
-/* REQUEST ONLY: skill tabs, common Open Door skill, locked dark rooms */
 let activeSkillPageTab = 'job';
 
 function ensureCommonSkillFields(){
@@ -14672,16 +14634,7 @@ function openDoorChance(){
   const lv = skillLv('openDoor');
   return clamp(25 + lv * 3, 25, 85);
 }
-const skillEnhanceDescBeforeCommonSkill = skillEnhanceDesc;
-skillEnhanceDesc = function(k){
-  if(k === 'openDoor'){
-    const lv = skillLv('openDoor');
-    const info = skillCostInfo(lv);
-    if(lv >= 20) return `MAX 강화 완료 · 잠긴 문 열기 확률 ${openDoorChance()}%`;
-    return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · 현재 문 열기 확률 ${openDoorChance()}%`;
-  }
-  return skillEnhanceDescBeforeCommonSkill(k);
-};
+
 
 function skillTabButtons(tab){
   return `<div class="grid2" style="margin-top:8px">
@@ -14694,44 +14647,8 @@ function bindSkillTabs(){
   if(job) job.onclick=()=>showSkillMenu('job');
   if(common) common.onclick=()=>showSkillMenu('common');
 }
-function jobSkillCards(){
-  const p=S.player; const map={
-    warrior:[['강타','인접 적에게 큰 피해를 준다.'],['방패돌진','방향을 정해 돌진하고 적과 충돌하면 강하게 친다.'],['전투함성','HP를 회복하고 잠시 공격력이 증가한다.']],
-    rogue:[['급소찌르기','근접 단일 대상 치명 강화 공격.'],['그림자도약','방향을 정해 이동하고 다음 공격이 강화된다.'],['연막','연막을 펼쳐 회피율이 크게 오른다.']],
-    mage:[['마력탄','사거리 4칸 원거리 마법탄.'],['화염폭발','주변 2칸 전체 광역 공격. 벽 뒤 적은 제외.'],['재생술','HP를 많이 회복한다.']],
-    hunter:[['정밀사격','직선상의 적에게 강한 사격.'],['구르기','방향 지정 이동'],['다발 사격','여러 적에게 동시에 사격한다.']]
-  };
-  const skillKeys=['smash','dash','heal'];
-  const skills=map[p.classId]||[];
-  return skills.map((s,i)=>{
-    const k=skillKeys[i]; const lv=skillLv(k);
-    return `<div class="choice skillChoice"><h4>${i+1}. ${s[0]} <span class="legend">+${lv}</span></h4><p>${s[1]}</p><p class="muted">${skillEnhanceDesc(k)}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${k}" ${lv>=20?'disabled':''}>강화</button></div>`;
-  }).join('');
-}
-function commonSkillCards(){
-  const lv=skillLv('openDoor');
-  return `<div class="choice skillChoice">
-    <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
-    <p>인접한 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
-    <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
-    <div class="grid2" style="margin-top:8px">
-      <button class="btn warn smallbtn" id="useOpenDoorSkillBtn">사용</button>
-      <button class="btn good smallbtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>
-    </div>
-  </div>`;
-}
-showSkillMenu = function(tab='job'){
-  if(!S) return;
-  pauseAutoForChoice();
-  ensureCommonSkillFields();
-  activeSkillPageTab = tab === 'common' ? 'common' : 'job';
-  const cards = activeSkillPageTab === 'common' ? commonSkillCards() : jobSkillCards();
-  showModal(`<h2>스킬</h2><div id="skillGoldHeader" style="display:flex;justify-content:flex-end;align-items:center;gap:6px;margin:-2px 0 8px;padding:6px 8px;border:1px solid rgba(250,204,21,.42);border-radius:10px;background:rgba(15,23,42,.30);font-size:12px;color:#fef3c7;">남은 소지금 <b class="legend">${formatGold((S&&S.player&&S.player.gold)||0)}</b></div>${skillTabButtons(activeSkillPageTab)}<div class="grid3" style="grid-template-columns:1fr; margin-top:10px">${cards}</div>`, false);
-  bindSkillTabs();
-  modalCard.querySelectorAll('[data-skill-enhance]').forEach(btn=>btn.onclick=()=>enhanceSkill(btn.dataset.skillEnhance));
-  const openBtn=$('useOpenDoorSkillBtn');
-  if(openBtn) openBtn.onclick=()=>useOpenDoorSkill();
-};
+
+
 
 const enhanceSkillBeforeCommonDoor = enhanceSkill;
 enhanceSkill = function(k){
@@ -15009,12 +14926,10 @@ mapCellClass = function(x,y){
   return mapCellClassBeforeLockedRooms(x,y);
 };
 
-/* REQUEST ONLY: connect bottom skill button to tabbed skill menu */
 if($('skillMenuBtn')){
   $('skillMenuBtn').onclick = ()=>showSkillMenu('job');
 }
 
-/* REQUEST ONLY: equal common skill panel size and quickslot assignment for all skills */
 function ensureSkillQuickSlots(){
   if(!S || !S.player) return;
   ensureCommonSkillFields();
@@ -15044,13 +14959,27 @@ function quickSlotSkillKey(slotIndex){
   ensureSkillQuickSlots();
   return S.player.skillQuickSlots[slotIndex] || ['smash','dash','heal'][slotIndex] || 'smash';
 }
+function quickSlotUsesClassCooldown(key){
+  return key === 'smash' || key === 'dash' || key === 'heal';
+}
+function canUseQuickSlotSkillKey(key){
+  if(!S || !S.player) return false;
+  if(quickSlotUsesClassCooldown(key) && blockSkillCooldown(key, skillNameByKey(key))) return false;
+  return true;
+}
+function previewQuickSlotSkillKey(key, duration){
+  setSkillRangePreview(key, duration || 1200);
+}
+function executeQuickSlotSkillKey(key){
+  const fn = skillFunctionByKey(key);
+  if(typeof fn === 'function') fn();
+}
 function useQuickSlotSkill(slotIndex){
   if(!S || !S.player) return;
   const key = quickSlotSkillKey(slotIndex);
-  if((key==='smash'||key==='dash'||key==='heal') && blockSkillCooldown(key, skillNameByKey(key))) return;
-  setSkillRangePreview(key === 'openDoor' ? 'dash' : key, 1200);
-  const fn = skillFunctionByKey(key);
-  fn();
+  if(!canUseQuickSlotSkillKey(key)) return;
+  previewQuickSlotSkillKey(key, 1200);
+  executeQuickSlotSkillKey(key);
 }
 function updateSkillButtonsFromQuickSlots(){
   if(!S || !S.player) return;
@@ -15203,161 +15132,13 @@ document.addEventListener('keydown', e=>{
   }
 }, true);
 
-/* REQUEST ONLY: quickslot select window button labels */
-showQuickSlotSelect = function(skillKey){
-  ensureSkillQuickSlots();
-  const name = skillNameByKey(skillKey);
-  showModal(`<h2>스킬슬롯</h2>
-    <p class="muted"><b class="legend">${escapeText(name)}</b>을 넣을 스킬 버튼을 선택하세요.</p>
-    <div class="grid2" style="margin-top:10px">
-      <button class="btn good" data-assign-quick="0">스킬1</button>
-      <button class="btn good" data-assign-quick="1">스킬2</button>
-    </div>
-    <div class="grid2" style="margin-top:8px">
-      <button class="btn good" data-assign-quick="2">스킬3</button>
-      <button class="btn" id="quickSlotCloseBtn">닫기</button>
-    </div>`, false);
 
-  modalCard.querySelectorAll('[data-assign-quick]').forEach(btn=>{
-    btn.onclick=()=>{
-      const idx=Number(btn.dataset.assignQuick);
-      S.player.skillQuickSlots[idx] = skillKey;
-      addLog(`${skillNameByKey(skillKey)}을 스킬${idx+1}에 지정.`);
-      toast(`스킬${idx+1}: ${skillNameByKey(skillKey)}`);
-      saveRun();
-      updateSkillButtonsFromQuickSlots();
-      showSkillMenu(activeSkillPageTab);
-    };
-  });
-
-  const closeBtn=$('quickSlotCloseBtn');
-  if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
-};
-
-/* REQUEST ONLY: prevent duplicate skill quickslot assignment */
-showQuickSlotSelect = function(skillKey){
-  ensureSkillQuickSlots();
-  const name = skillNameByKey(skillKey);
-  showModal(`<h2>스킬슬롯</h2>
-    <p class="muted"><b class="legend">${escapeText(name)}</b>을 넣을 스킬 버튼을 선택하세요.</p>
-    <div class="grid2" style="margin-top:10px">
-      <button class="btn good" data-assign-quick="0">스킬1</button>
-      <button class="btn good" data-assign-quick="1">스킬2</button>
-    </div>
-    <div class="grid2" style="margin-top:8px">
-      <button class="btn good" data-assign-quick="2">스킬3</button>
-      <button class="btn" id="quickSlotCloseBtn">닫기</button>
-    </div>`, false);
-
-  modalCard.querySelectorAll('[data-assign-quick]').forEach(btn=>{
-    btn.onclick=()=>{
-      const idx=Number(btn.dataset.assignQuick);
-
-      // 같은 스킬이 다른 슬롯에 이미 있으면 먼저 비워서 중복 방지
-      S.player.skillQuickSlots = S.player.skillQuickSlots.map((k,i)=>{
-        if(i !== idx && k === skillKey) return null;
-        return k;
-      });
-
-      S.player.skillQuickSlots[idx] = skillKey;
-
-      addLog(`${skillNameByKey(skillKey)}을 스킬${idx+1}에 지정.`);
-      toast(`스킬${idx+1}: ${skillNameByKey(skillKey)}`);
-      saveRun();
-      updateSkillButtonsFromQuickSlots();
-      showSkillMenu(activeSkillPageTab);
-    };
-  });
-
-  const closeBtn=$('quickSlotCloseBtn');
-  if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
-};
-
-/* REQUEST ONLY: lower Open Door chance and fix range to 1 tile */
-openDoorChance = function(){
-  const lv = skillLv('openDoor');
-  return clamp(8 + lv * 2, 8, 48);
-};
-
-skillEnhanceDesc = function(k){
-  if(k === 'openDoor'){
-    const lv = skillLv('openDoor');
-    const info = skillCostInfo(lv);
-    if(lv >= 20) return `MAX 강화 완료 · 문 열기 확률 ${openDoorChance()}% · 사거리 1칸`;
-    return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · 현재 문 열기 확률 ${openDoorChance()}% · 사거리 1칸`;
-  }
-  return skillEnhanceDescBeforeCommonSkill(k);
-};
-
-commonSkillCardsQuickslot = function(){
-  const lv=skillLv('openDoor');
-  return `<div class="choice skillChoice">
-    <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
-    <p>인접 1칸 안의 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
-    <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
-    <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
-  </div>
-  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
-  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
-};
-
-useOpenDoorSkill = function(){
-  if(!S || !S.player) return;
-  const room = adjacentLockedDoor(); // 사거리 1칸: 상하좌우 인접한 문만 대상
-  if(!room){
-    toast('사거리 1칸 안에 잠긴 문이 없습니다.');
-    return;
-  }
-  const doorDistance = Math.abs(S.player.x - room.door.x) + Math.abs(S.player.y - room.door.y);
-  if(doorDistance !== 1){
-    toast('문열기 사거리는 1칸입니다.');
-    return;
-  }
-  hideModal();
-  const pct=openDoorChance();
-  const ok = rand(100) < pct;
-  if(ok){
-    revealLockedRoom(room);
-    addFx({kind:'ring', x:room.door.x, y:room.door.y, color:'#facc15', dur:380});
-    addLog(`<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. (${pct}%)`);
-  }else{
-    addFx({kind:'hit', x:room.door.x, y:room.door.y, color:'#64748b', spark:'#cbd5e1', dur:220});
-    addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
-  }
-  afterPlayerAction();
-};
-
-/* REQUEST ONLY: rogue bonus, boss can open locked door, fog display, quickslot swap rules */
 openDoorChance = function(){
   const lv = skillLv('openDoor');
   const rogueBonus = S && S.player && S.player.classId === 'rogue' ? 12 + Math.floor(lv / 4) : 0;
   return clamp(8 + lv * 2 + rogueBonus, 8, S && S.player && S.player.classId === 'rogue' ? 65 : 48);
 };
 
-skillEnhanceDesc = function(k){
-  if(k === 'openDoor'){
-    const lv = skillLv('openDoor');
-    const info = skillCostInfo(lv);
-    const rogueText = S && S.player && S.player.classId === 'rogue' ? ' · 도적 보너스 적용' : '';
-    if(lv >= 20) return `MAX 강화 완료 · 문 열기 확률 ${openDoorChance()}% · 사거리 1칸${rogueText}`;
-    return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}% · 현재 문 열기 확률 ${openDoorChance()}% · 사거리 1칸${rogueText}`;
-  }
-  return skillEnhanceDescBeforeCommonSkill(k);
-};
-
-commonSkillCardsQuickslot = function(){
-  const lv=skillLv('openDoor');
-  const rogueText = S && S.player && S.player.classId === 'rogue' ? '<p class="goodtxt">도적 보너스: 문열기 확률 추가 보정</p>' : '';
-  return `<div class="choice skillChoice">
-    <h4>1. 문열기 <span class="legend">+${lv}</span></h4>
-    <p>인접 1칸 안의 잠긴 문을 열어 잠긴 방의 어둠장막을 걷습니다.</p>
-    ${rogueText}
-    <p class="muted">${cleanSkillMenuEnhanceDesc('openDoor')}</p>
-    <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${lv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('openDoor')}
-  </div>
-  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
-  <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
-};
 
 function bossInsideLockedRoom(room){
   if(!S || !room || room.opened || !Array.isArray(room.cells)) return null;
@@ -15464,7 +15245,6 @@ showQuickSlotSelect = function(skillKey){
   if(closeBtn) closeBtn.onclick=()=>showSkillMenu(activeSkillPageTab);
 };
 
-/* REQUEST ONLY: quickslot button right edge + key/open-door range 1 tile, safe version */
 (function(){
   const style = document.createElement('style');
   style.id = 'quickSlotRightAndDoorRangeSafeStyle';
@@ -15553,7 +15333,6 @@ showQuickSlotSelect = function(skillKey){
 })();
 
 
-/* FIX: 문열기 퀵슬롯 사거리 표시를 실제 판정과 동일하게 1칸으로 고정 */
 (function(){
   function openDoorPreviewCellsFixed(){
     if(!S || !S.player) return [];
@@ -15575,14 +15354,6 @@ showQuickSlotSelect = function(skillKey){
     return skillPreviewCellsBeforeOpenDoorRangeFix(key);
   };
 
-  useQuickSlotSkill = function(slotIndex){
-    if(!S || !S.player) return;
-    const key = quickSlotSkillKey(slotIndex);
-    if((key==='smash'||key==='dash'||key==='heal') && blockSkillCooldown(key, skillNameByKey(key))) return;
-    setSkillRangePreview(key, 1200);
-    const fn = skillFunctionByKey(key);
-    fn();
-  };
 
   // 기존 기본 스킬 pointerdown 리스너가 먼저 붙어 있어도, 문열기 슬롯에서는 캡처 단계에서 1칸 미리보기를 우선 적용한다.
   ['skill1','skill2','skill3'].forEach((id,idx)=>{
@@ -15601,10 +15372,6 @@ showQuickSlotSelect = function(skillKey){
 })();
 
 
-/* FIX: 타유저 랭킹 기록 갱신/새로고침 안정화
-   - provider별 저장 분리 패치가 공개 랭킹 동기화를 덮어쓴 문제 복구
-   - public ranking이 이미 있으면 game_saves fallback을 생략하던 문제 수정
-   - 랭킹 모달에 즉시 새로고침 버튼 추가 */
 (function(){
   function rankingRefreshModeKey(){
     return cloudProviderModeKey(activeLoginMode || (S && S.loginMode) || 'kakao');
@@ -15764,10 +15531,6 @@ showQuickSlotSelect = function(skillKey){
 })();
 
 
-/* FIX: 랭킹을 서버 공용 테이블(game_rankings) 기준으로 강제
-   - 모든 유저가 같은 순위표를 보도록 game_rankings만 조회한다.
-   - game_saves/localStorage fallback은 표시 랭킹에서 제외한다.
-   - 테이블/RLS 미설정 시 설정 필요 메시지를 명확히 보여준다. */
 (function(){
   if(typeof PUBLIC_RANKING_TABLE === 'undefined') return;
 
@@ -15933,7 +15696,6 @@ showQuickSlotSelect = function(skillKey){
   if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
 })();
 
-/* REQUEST ONLY: full auto mode refactor - hunt first, adaptive potion, nearby loot, deterministic floor clear */
 function fullAutoResetFloorState(){
   if(!S || !S.player) return;
   if(S.fullAutoFloor !== S.player.floor){
@@ -16289,10 +16051,6 @@ function autoFullExplore(){
   waitTurn();
 }
 
-/* FINAL FIX: online game server sync + mobile keyboard orientation guard
-   - 채팅 입력 중 iOS/Android 키보드가 올라와도 가로모드 차단 안내가 뜨지 않게 한다.
-   - 채팅/온라인 목록/랭킹을 Supabase 서버 기준으로 동기화한다.
-   - Realtime이 꺼져 있어도 주기적 조회로 fallback한다. */
 (function(){
   const SERVER_CHAT_TABLE = 'game_chat_messages';
   const SERVER_ONLINE_TABLE = 'game_online_users';
@@ -16840,10 +16598,6 @@ function autoFullExplore(){
 })();
 
 
-/* FINAL FIX v2: ranking must be server-wide and actively synchronized
-   - 다른 유저가 랭킹창을 열지 않아도 저장/플레이 중 주기적으로 game_rankings에 반영한다.
-   - 랭킹 테이블 Realtime/polling으로 랭킹창을 최신화한다.
-   - RPC 결과만 믿지 않고 game_rankings 직접 조회와 병합한다. */
 (function(){
   const SERVER_RANKING_TABLE_V2 = (typeof PUBLIC_RANKING_TABLE !== 'undefined' && PUBLIC_RANKING_TABLE) ? PUBLIC_RANKING_TABLE : 'game_rankings';
   const SERVER_RANKING_CHANNEL_V2 = 'life-rpg-server-ranking-v3';
@@ -17145,9 +16899,6 @@ function autoFullExplore(){
 })();
 
 
-/* FINAL FIX v4: ranking score recalculation
-   점수는 이제 순위 기준과 같은 방향으로 계산한다.
-   층이 가장 크고, 그 다음 레벨/전투력/사냥·파밍 성과가 반영된다. */
 (function(){
   const SCORE_WEIGHT_FLOOR = 10000;
   const SCORE_WEIGHT_LEVEL = 100;
@@ -17266,7 +17017,6 @@ function autoFullExplore(){
 })();
 
 
-/* REQUEST ONLY: Open Door cooldown by turns: 30 -> 10 at +20, rogue -5 */
 function ensureOpenDoorCooldownField(){
   if(!S || !S.player) return;
   S.player.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0}, S.player.cd || {});
@@ -17347,17 +17097,7 @@ useOpenDoorSkill = function(){
   p.cd.openDoor = openDoorCooldownTurns() + 1;
   afterPlayerAction();
 };
-const useQuickSlotSkillBeforeOpenDoorCooldown = useQuickSlotSkill;
-useQuickSlotSkill = function(slotIndex){
-  if(!S || !S.player) return;
-  const key = quickSlotSkillKey(slotIndex);
-  if((key==='smash'||key==='dash'||key==='heal') && blockSkillCooldown(key, skillNameByKey(key))) return;
-  setSkillRangePreview(key, 1200);
-  skillFunctionByKey(key)();
-};
 
-
-/* REQUEST ONLY: warrior skill balance pass and shield charge master */
 function warriorSkillLevel(k){ return clamp(Number(skillLv(k)||0),0,20); }
 function warriorChargeGuardTurns(){ return 3 + Math.floor(warriorSkillLevel('dash')/10); }
 function warriorBattleCryTurns(){ return 4 + Math.floor(warriorSkillLevel('heal')/5); }
@@ -17473,24 +17213,8 @@ resolveAimedSkill = function(dx,dy){
   afterPlayerAction();
 };
 
-const skillEnhanceDescBeforeWarriorSkillBalance = skillEnhanceDesc;
-skillEnhanceDesc = function(k){
-  const p=S && S.player;
-  if(p && p.classId === 'warrior' && (k==='smash'||k==='dash'||k==='heal')){
-    const lv=skillLv(k), info=skillCostInfo(lv);
-    const cost = lv>=20 ? 'MAX 강화 완료' : `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
-    if(k==='smash') return `${cost} · 추가 피해 +${skillPowerBonus('smash')} · 쿨타임 ${Math.max(5,10-skillCdBonus('smash'))}턴`;
-    if(k==='dash'){
-      const master = lv>=20 ? ' · 마스터: 돌진 성공 시 충격 지점 1~4칸 적에게 반사 피해' : '';
-      return `${cost} · 충돌 피해 +${skillPowerBonus('dash')} · 방어 태세 ${warriorChargeGuardTurns()}턴 / 방어 +${warriorChargeGuardDefBonus()} · 쿨타임 ${Math.max(6,11-skillCdBonus('dash'))}턴${master}`;
-    }
-    if(k==='heal') return `${cost} · 회복량 +${skillPowerBonus('heal')*2} · 공격 +${warriorBattleCryAtkBonus()} · 지속 ${warriorBattleCryTurns()}턴 · 쿨타임 ${Math.max(7,13-skillCdBonus('heal'))}턴`;
-  }
-  return skillEnhanceDescBeforeWarriorSkillBalance(k);
-};
 
 
-/* REQUEST ONLY: warrior master skill names */
 const WARRIOR_MASTER_SKILL_NAMES = {
   smash: '타이탄 브레이크',
   dash: '이지스실드',
@@ -17509,18 +17233,7 @@ skillNameByKey = function(k){
   return skillNameByKeyBeforeWarriorMasterNames(k);
 };
 
-const skillEnhanceDescBeforeWarriorMasterNames = skillEnhanceDesc;
-skillEnhanceDesc = function(k){
-  const p = S && S.player;
-  if(p && p.classId === 'warrior' && (k==='smash' || k==='dash' || k==='heal')){
-    const base = skillEnhanceDescBeforeWarriorMasterNames(k);
-    const masterName = warriorMasterSkillName(k);
-    if(!masterName) return base;
-    if(warriorSkillLevel(k) >= 20) return `${base} · 마스터명: ${masterName}`;
-    return `${base} · +20 마스터명: ${masterName}`;
-  }
-  return skillEnhanceDescBeforeWarriorMasterNames(k);
-};
+
 
 const jobSkillCardsQuickslotBeforeWarriorMasterNames = jobSkillCardsQuickslot;
 jobSkillCardsQuickslot = function(){
@@ -17598,7 +17311,6 @@ resolveAimedSkill = function(dx,dy){
 };
 
 
-/* REQUEST: skill menu tap opens range / master-chain popup */
 (function(){
   function skillPopupEsc(v){
     if(typeof escapeText === 'function') return escapeText(v);
@@ -17783,20 +17495,8 @@ resolveAimedSkill = function(dx,dy){
     <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>
     <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
   };
-  function bindSkillInfoCards(){
-    if(!modalCard) return;
-    modalCard.querySelectorAll('[data-skill-info]').forEach(card=>{
-      card.onclick=(ev)=>{
-        if(ev.target && ev.target.closest('button')) return;
-        showSkillRangePopup(card.dataset.skillInfo, card.dataset.skillClass);
-      };
-    });
-  }
-  const showSkillMenuBeforeRangePopup = showSkillMenu;
-  showSkillMenu = function(tab='job'){
-    showSkillMenuBeforeRangePopup(tab);
-    bindSkillInfoCards();
-  };
+
+
   const style=document.createElement('style');
   style.id='skillRangePopupStyle';
   style.textContent=`
@@ -17815,7 +17515,6 @@ resolveAimedSkill = function(dx,dy){
 })();
 
 
-/* REQUEST: all class +20 master chain skills */
 const ALL_MASTER_SKILLS = {
   warrior: {
     smash:{name:'타이탄 브레이크', chance:35, base:'강타', trigger:'강타 명중 후 확률 연계', range:'대상 1명', effect:'추가 충격 피해, 정예/보스 추가 보정'},
@@ -18158,14 +17857,7 @@ skillNameByKey = function(k){
   return skillNameByKeyBeforeAllMasterChains(k);
 };
 
-const skillEnhanceDescBeforeAllMasterChains = skillEnhanceDesc;
-skillEnhanceDesc = function(k){
-  const p=S && S.player;
-  const base=skillEnhanceDescBeforeAllMasterChains(k);
-  const info=p ? masterSkillInfo(p.classId,k) : null;
-  if(!info) return base;
-  return skillLv(k)>=20 ? `${base} · 마스터 연계: ${info.name} ${info.chance}%` : `${base} · +20 마스터 연계: ${info.name} ${info.chance}%`;
-};
+
 
 function cleanSkillMenuEnhanceDesc(k){
   let txt = (typeof skillEnhanceDesc === 'function') ? String(skillEnhanceDesc(k) || '') : '';
@@ -18258,23 +17950,12 @@ function showSkillRangePopupMaster(skillKey,clsArg){
   const back=$('skillRangeBackBtn'); if(back) back.onclick=()=>showSkillMenu(activeSkillPageTab);
   const close=$('skillRangeCloseBtn'); if(close) close.onclick=()=>hideModal();
 }
-const showSkillMenuBeforeAllMasterChains = showSkillMenu;
-showSkillMenu = function(tab='job'){
-  showSkillMenuBeforeAllMasterChains(tab);
-  if(!modalCard) return;
-  modalCard.querySelectorAll('[data-skill-info]').forEach(card=>{
-    card.onclick=(ev)=>{
-      if(ev.target.closest('button')) return;
-      showSkillRangePopupMaster(card.getAttribute('data-skill-info'),card.getAttribute('data-skill-class'));
-    };
-  });
-};
+
 
 initStartPage();
 render();
 
 
-/* FINAL PASS: skill notice / effect-turn stability / duplicate-safe skill overrides */
 function skillActionBanner(msg){ if(msg) toast(msg); }
 function grantFreshEffect(key, turns){
   const p=S&&S.player; if(!p) return;
@@ -18587,7 +18268,6 @@ resolveAimedSkill = function(dx,dy){
 };
 
 
-/* FINAL PATCH: restore skill cooldown gates and cooldown display in skill range popup */
 function skillCooldownGateForFinalPatch(cdKey, label){
   return !blockSkillCooldown(cdKey, label);
 }
@@ -18634,7 +18314,6 @@ showSkillRangePopupMaster = showSkillRangePopupWithCooldownFinal;
 })();
 
 
-/* FINAL PATCH: class skill cooldown balance */
 const CLASS_SKILL_COOLDOWN_BALANCE = {
   warrior:{smash:{base:10,min:7,label:'강타'},dash:{base:12,min:9,label:'방패돌진'},heal:{base:14,min:11,label:'전투함성'}},
   rogue:{smash:{base:8,min:6,label:'급소찌르기'},dash:{base:9,min:7,label:'그림자도약'},heal:{base:13,min:10,label:'연막'}},
@@ -18690,21 +18369,8 @@ skillCooldownText = function(cls,k){
   if(CLASS_SKILL_COOLDOWN_BALANCE[classSkillCooldownClass(cls)]?.[k]) return `${classSkillCooldownValue(cls,k)}턴`;
   return skillCooldownTextBeforeClassBalance ? skillCooldownTextBeforeClassBalance(cls,k) : '-';
 };
-const skillEnhanceDescBeforeClassCooldownBalance = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
-skillEnhanceDesc = function(k){
-  let txt = skillEnhanceDescBeforeClassCooldownBalance ? String(skillEnhanceDescBeforeClassCooldownBalance(k)) : '';
-  const cls=(S&&S.player&&S.player.classId)||'warrior';
-  if(CLASS_SKILL_COOLDOWN_BALANCE[classSkillCooldownClass(cls)]?.[k]){
-    const cd=`쿨타임 ${classSkillCooldownValue(cls,k)}턴`;
-    txt = txt ? (txt.replace(/쿨타임\s*\d+턴/g,cd)) : cd;
-    if(!/쿨타임\s*\d+턴/.test(txt)) txt += ` · ${cd}`;
-  }
-  return txt;
-};
 
 
-
-/* FINAL PATCH: hunter precision master becomes directional piercing shot */
 (function(){
   if(window.ALL_MASTER_SKILLS && ALL_MASTER_SKILLS.hunter && ALL_MASTER_SKILLS.hunter.smash){
     ALL_MASTER_SKILLS.hunter.smash.name='매의 심판';
@@ -18777,7 +18443,6 @@ skillEnhanceDesc = function(k){
 
 
 
-/* FINAL FIX: skill cooldown + skill range popup must survive later patches */
 (function(){
   const FINAL_SKILL_COOLDOWNS = {
     warrior:{smash:{base:10,min:8,label:'강타'},dash:{base:12,min:10,label:'방패돌진'},heal:{base:14,min:12,label:'전투함성'}},
@@ -18904,17 +18569,72 @@ skillEnhanceDesc = function(k){
     return oldCooldownText ? oldCooldownText(cls,k) : '-';
   };
 
-  const oldEnhanceDesc = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
-  skillEnhanceDesc = function(k){
-    let txt = oldEnhanceDesc ? String(oldEnhanceDesc(k) || '') : '';
-    const cls = finalSkillClass(S && S.player && S.player.classId);
-    if(FINAL_SKILL_COOLDOWNS[cls]?.[k]){
-      const cdText = `쿨타임 ${finalSkillCd(cls,k)}턴`;
-      if(/쿨타임\s*\d+턴/.test(txt)) txt = txt.replace(/쿨타임\s*\d+턴/g, cdText);
-      else txt = txt ? `${txt} · ${cdText}` : cdText;
+
+  function skillEnhanceCostText(lv){
+    const info = skillCostInfo(lv);
+    if(lv >= 20) return 'MAX 강화 완료';
+    return `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
+  }
+  function skillEnhanceBaseEffectText(cls,k){
+    const effect = {
+      warrior:{smash:'피해 증가 · 쿨타임 감소',dash:'피해 증가 · 쿨타임 감소',heal:'회복량 증가 · 지속턴 증가 · 쿨타임 감소'},
+      rogue:{smash:'피해 증가 · 치명 보정 증가 · 쿨타임 감소',dash:'기습 강화 · 지속턴 증가 · 쿨타임 감소',heal:'연막 지속턴 증가 · 쿨타임 감소'},
+      mage:{smash:'피해 증가 · +15부터 사거리 +1 · 쿨타임 감소',dash:'광역 피해 증가 · 쿨타임 감소',heal:'회복량 증가 · 쿨타임 감소'},
+      hunter:{smash:'피해 증가 · +15부터 사거리 +1 · 쿨타임 감소',dash:'집중 지속턴 증가 · 쿨타임 감소',heal:'피해 증가 · 대상 수 증가 · +15부터 사거리 +1 · 쿨타임 감소'}
+    };
+    return (effect[cls] && effect[cls][k]) || '피해/효과 증가 · 쿨타임 감소';
+  }
+  function appendFinalCooldownText(txt,cls,k){
+    if(!FINAL_SKILL_COOLDOWNS[cls]?.[k]) return txt;
+    const cdText = `쿨타임 ${finalSkillCd(cls,k)}턴`;
+    if(/쿨타임\s*\d+턴/.test(txt)) return txt.replace(/쿨타임\s*\d+턴/g, cdText);
+    return txt ? `${txt} · ${cdText}` : cdText;
+  }
+  function appendSkillMasterText(txt,cls,k){
+    if(cls === 'warrior' && typeof warriorMasterSkillName === 'function' && typeof warriorSkillLevel === 'function'){
+      const masterName = warriorMasterSkillName(k);
+      if(masterName) txt += warriorSkillLevel(k) >= 20 ? ` · 마스터명: ${masterName}` : ` · +20 마스터명: ${masterName}`;
+    }
+    const info = typeof masterSkillInfo === 'function' ? masterSkillInfo(cls,k) : null;
+    if(info){
+      txt += skillLv(k) >= 20 ? ` · 마스터 연계: ${info.name} ${info.chance}%` : ` · +20 마스터 연계: ${info.name} ${info.chance}%`;
     }
     return txt;
+  }
+  skillEnhanceDesc = function(k){
+    const p = S && S.player;
+    const cls = finalSkillClass(p && p.classId);
+    const lv = skillLv(k);
+
+    if(k === 'openDoor'){
+      const cost = skillEnhanceCostText(lv);
+      const chance = typeof openDoorChance === 'function' ? openDoorChance() : 0;
+      const cd = typeof openDoorCooldownTurns === 'function' ? openDoorCooldownTurns() : 0;
+      const rogueText = p && p.classId === 'rogue' ? ' · 도적 쿨타임 -5턴' : '';
+      if(lv >= 20) return `${cost} · 문 열기 확률 ${chance}% · 사거리 1칸 · 쿨타임 ${cd}턴${rogueText}`;
+      return `${cost} · 현재 문 열기 확률 ${chance}% · 사거리 1칸 · 쿨타임 ${cd}턴${rogueText}`;
+    }
+
+    let txt = '';
+    const cost = skillEnhanceCostText(lv);
+
+    if(cls === 'warrior' && (k === 'smash' || k === 'dash' || k === 'heal')){
+      if(k === 'smash'){
+        txt = `${cost} · 추가 피해 +${skillPowerBonus('smash')}`;
+      }else if(k === 'dash'){
+        const master = lv >= 20 ? ' · 마스터: 돌진 성공 시 충격 지점 1~4칸 적에게 반사 피해' : '';
+        txt = `${cost} · 충돌 피해 +${skillPowerBonus('dash')} · 방어 태세 ${warriorChargeGuardTurns()}턴 / 방어 +${warriorChargeGuardDefBonus()}${master}`;
+      }else if(k === 'heal'){
+        txt = `${cost} · 회복량 +${skillPowerBonus('heal')*2} · 공격 +${warriorBattleCryAtkBonus()} · 지속 ${warriorBattleCryTurns()}턴`;
+      }
+    }else{
+      txt = lv >= 20 ? cost : `${cost} · ${skillEnhanceBaseEffectText(cls,k)}`;
+    }
+
+    txt = appendFinalCooldownText(txt,cls,k);
+    return appendSkillMasterText(txt,cls,k);
   };
+
 
   const oldSkillCooldownByKey = typeof skillCooldownByKey === 'function' ? skillCooldownByKey : null;
   skillCooldownByKey = function(k){
@@ -18930,28 +18650,8 @@ skillEnhanceDesc = function(k){
   };
   window.showSkillRangePopup = showSkillRangePopup;
 
-  function finalBindSkillRangeCards(){
-    if(!modalCard) return;
-    modalCard.querySelectorAll('[data-skill-info]').forEach(card=>{
-      if(card.dataset.finalRangePopupBound === '1') return;
-      card.dataset.finalRangePopupBound = '1';
-      card.addEventListener('click', ev=>{
-        if(ev.target && ev.target.closest('button')) return;
-        ev.preventDefault();
-        ev.stopImmediatePropagation();
-        showSkillRangePopup(card.getAttribute('data-skill-info'), card.getAttribute('data-skill-class'));
-      });
-    });
-  }
-  const oldShowSkillMenuFinalRange = typeof showSkillMenu === 'function' ? showSkillMenu : null;
-  if(oldShowSkillMenuFinalRange){
-    showSkillMenu = function(tab='job'){
-      const ret = oldShowSkillMenuFinalRange.apply(this, arguments);
-      finalBindSkillRangeCards();
-      setTimeout(finalBindSkillRangeCards, 0);
-      return ret;
-    };
-  }
+
+
   document.addEventListener('click', ev=>{
     const card = ev.target && ev.target.closest && ev.target.closest('[data-skill-info]');
     if(!card || !modalCard || !modalCard.contains(card)) return;
@@ -18970,7 +18670,6 @@ skillEnhanceDesc = function(k){
   }
 
 
-  /* USER REQUEST: closed-room door/fog normalization + skill menu gold header */
   const oldGenerateFloorClosedRoomWallFinal = typeof generateFloor === 'function' ? generateFloor : null;
   if(oldGenerateFloorClosedRoomWallFinal){
     generateFloor = function(){
@@ -18986,32 +18685,11 @@ skillEnhanceDesc = function(k){
       return oldRenderAllClosedRoomWallFinal.apply(this, arguments);
     };
   }
-  function installSkillGoldHeaderFinal(){
-    if(!modalCard || !S || !S.player) return;
-    const title = modalCard.querySelector('h2');
-    if(!title || title.textContent.trim() !== '스킬') return;
-    let box = modalCard.querySelector('#skillGoldHeader');
-    if(!box){
-      box = document.createElement('div');
-      box.id = 'skillGoldHeader';
-      box.style.cssText = 'display:flex;justify-content:flex-end;align-items:center;gap:6px;margin:-2px 0 8px;padding:6px 8px;border:1px solid rgba(250,204,21,.34);border-radius:10px;background:rgba(15,23,42,.22);font-size:12px;color:#fef3c7;';
-      title.insertAdjacentElement('afterend', box);
-    }
-    box.innerHTML = `남은 소지금 <b class="legend">${formatGold(S.player.gold||0)}</b>`;
-  }
-  const oldShowSkillMenuGoldHeaderFinal = typeof showSkillMenu === 'function' ? showSkillMenu : null;
-  if(oldShowSkillMenuGoldHeaderFinal){
-    showSkillMenu = function(){
-      const ret = oldShowSkillMenuGoldHeaderFinal.apply(this, arguments);
-      installSkillGoldHeaderFinal();
-      setTimeout(installSkillGoldHeaderFinal,0);
-      return ret;
-    };
-  }
+
+
 })();
 
 
-/* FINAL OVERRIDE: apply requested door image / closed-room wall fog / skill gold after all later overrides */
 function finalNormalizeClosedRoomsToWalls73(){
   if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
   S.lockedRooms.forEach(room=>{
@@ -19111,29 +18789,8 @@ generateFloor = function(){
   finalNormalizeClosedRoomsToWalls73();
   return ret;
 };
-function finalInstallSkillGoldHeader73(){
-  if(!modalCard || !S || !S.player) return;
-  const h2 = modalCard.querySelector('h2');
-  if(!h2 || h2.textContent.trim() !== '스킬') return;
-  let box = modalCard.querySelector('#skillGoldHeader');
-  if(!box){
-    box = document.createElement('div');
-    box.id = 'skillGoldHeader';
-    box.style.cssText = 'display:flex;justify-content:flex-end;align-items:center;gap:6px;margin:-2px 0 8px;padding:6px 8px;border:1px solid rgba(250,204,21,.42);border-radius:10px;background:rgba(15,23,42,.30);font-size:12px;color:#fef3c7;';
-    h2.insertAdjacentElement('afterend', box);
-  }
-  box.innerHTML = `남은 소지금 <b class="legend">${formatGold(S.player.gold||0)}</b>`;
-}
-const finalShowSkillMenuBeforeGold73 = showSkillMenu;
-showSkillMenu = function(){
-  const ret = finalShowSkillMenuBeforeGold73.apply(this, arguments);
-  finalInstallSkillGoldHeader73();
-  setTimeout(finalInstallSkillGoldHeader73, 0);
-  return ret;
-};
 
 
-/* PATCH 79: recommended MP cost display override */
 (function(){
   if(typeof actualSkillMpCost !== 'function') return;
   skillMpText = function(cls,k){
@@ -19144,7 +18801,6 @@ showSkillMenu = function(){
 })();
 
 
-/* PATCH 85: closed room solid-wall normalization + room-only black shroud */
 (function(){
   function roomCellSet(room){
     const s = new Set();
@@ -19243,7 +18899,6 @@ showSkillMenu = function(){
 })();
 
 
-/* PATCH 86: remove lock-symbol leftovers and force door asset as the final top render */
 (function(){
   function normalizeClosedRooms86(){
     if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
@@ -19360,7 +19015,6 @@ showSkillMenu = function(){
 })();
 
 
-/* PATCH 87: ranking online/offline text colors */
 (function(){
   const style = document.createElement('style');
   style.textContent = `
@@ -19433,7 +19087,6 @@ showSkillMenu = function(){
 })();
 
 
-/* PATCH 88: diagnose fixes - no yellow door outline, asset-only door render, real ranking row online/offline coloring */
 (function(){
   /* Door problem fix:
      - Old drawLockedDoorSprite still had yellow strokeStyle and could run in an earlier render wrapper.
