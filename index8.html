@@ -19808,6 +19808,308 @@ generateFloor = function(){
   normalizeLockedRoomsAllWall94();
 })();
 
+
+
+
+(function forceLockedRoomSolidBox95(){
+  function cells95(room){
+    return room && Array.isArray(room.cells)
+      ? room.cells.filter(c=>c && Number.isFinite(c.x) && Number.isFinite(c.y))
+      : [];
+  }
+
+  function bounds95(room){
+    const a = cells95(room);
+    if(!a.length) return null;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    a.forEach(c=>{
+      if(c.x < minX) minX = c.x;
+      if(c.y < minY) minY = c.y;
+      if(c.x > maxX) maxX = c.x;
+      if(c.y > maxY) maxY = c.y;
+    });
+
+    return {minX,minY,maxX,maxY};
+  }
+
+  function forRoomRect95(room, fn){
+    const b = bounds95(room);
+    if(!b) return;
+    for(let y=b.minY; y<=b.maxY; y++){
+      for(let x=b.minX; x<=b.maxX; x++){
+        fn(x,y,b);
+      }
+    }
+  }
+
+  function isBoundary95(room,x,y){
+    const b = bounds95(room);
+    if(!b) return false;
+    return x===b.minX || x===b.maxX || y===b.minY || y===b.maxY;
+  }
+
+  function doorInnerCell95(room){
+    if(!room || !room.door) return null;
+    const b = bounds95(room);
+    if(!b) return null;
+
+    const d = room.door;
+
+    if(d.x < b.minX) return {x:b.minX, y:Math.max(b.minY, Math.min(b.maxY, d.y))};
+    if(d.x > b.maxX) return {x:b.maxX, y:Math.max(b.minY, Math.min(b.maxY, d.y))};
+    if(d.y < b.minY) return {x:Math.max(b.minX, Math.min(b.maxX, d.x)), y:b.minY};
+    if(d.y > b.maxY) return {x:Math.max(b.minX, Math.min(b.maxX, d.x)), y:b.maxY};
+
+    return cells95(room).find(c=>Math.abs(c.x-d.x)+Math.abs(c.y-d.y)===1) || null;
+  }
+
+  function isDoorInnerCell95(room,x,y){
+    const c = doorInnerCell95(room);
+    return !!(c && c.x===x && c.y===y);
+  }
+
+  function openedCell95(room,x,y){
+    if(!room || !room.opened) return false;
+    if(isDoorInnerCell95(room,x,y)) return true;
+    return !isBoundary95(room,x,y);
+  }
+
+  function moveObjectsInside95(room){
+    if(!S || !room) return;
+    const b = bounds95(room);
+    if(!b) return;
+
+    const targets = [];
+    forRoomRect95(room,(x,y)=>{
+      if(openedCell95(room,x,y) || (!room.opened && !isBoundary95(room,x,y))) targets.push({x,y});
+    });
+    if(!targets.length){
+      const c = doorInnerCell95(room);
+      if(c) targets.push(c);
+    }
+    if(!targets.length) return;
+
+    let i=0;
+    function next(){
+      const t = targets[i % targets.length];
+      i++;
+      return t;
+    }
+
+    function inRect(x,y){
+      return x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY;
+    }
+
+    (S.items||[]).forEach(it=>{
+      if(!it || !inRect(it.x,it.y)) return;
+      if(!room.opened || !openedCell95(room,it.x,it.y)){
+        const t=next();
+        it.x=t.x; it.y=t.y;
+      }
+    });
+
+    (S.enemies||[]).forEach(e=>{
+      if(!e || e.hp<=0 || !inRect(e.x,e.y)) return;
+      if(!room.opened || !openedCell95(room,e.x,e.y)){
+        const t=next();
+        e.x=t.x; e.y=t.y;
+      }
+    });
+  }
+
+  function normalizeSolidRooms95(){
+    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
+
+    S.lockedRooms.forEach(room=>{
+      if(!room || !bounds95(room)) return;
+
+      moveObjectsInside95(room);
+
+      if(!room.opened){
+        // 닫힌 문방은 사각형 전체를 벽으로 만든다. 아래/위/좌/우 누락 없이 전부 벽.
+        forRoomRect95(room,(x,y)=>{
+          if(!inMap(x,y)) return;
+          S.map[y][x] = '#';
+          if(S.seen && S.seen[y]) S.seen[y][x] = false;
+        });
+
+        if(room.door && inMap(room.door.x,room.door.y)){
+          S.map[room.door.y][room.door.x] = 'D';
+        }
+        return;
+      }
+
+      // 열린 문방은 테두리 벽 유지.
+      // 문 바로 안쪽 칸과 내부 칸만 바닥이다.
+      forRoomRect95(room,(x,y)=>{
+        if(!inMap(x,y)) return;
+        const open = openedCell95(room,x,y);
+        S.map[y][x] = open ? '.' : '#';
+        if(S.seen && S.seen[y]) S.seen[y][x] = true;
+      });
+
+      if(room.door && inMap(room.door.x,room.door.y)){
+        S.map[room.door.y][room.door.x] = '.';
+        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = true;
+      }
+    });
+  }
+
+  function drawDoor95(px,py){
+    if(typeof drawLockedDoorAssetImage === 'function') return drawLockedDoorAssetImage(px,py);
+    if(typeof drawLockedDoorSprite === 'function') return drawLockedDoorSprite(px,py);
+    return false;
+  }
+
+  function drawSolidClosedRoom95(room,ox,oy){
+    forRoomRect95(room,(x,y)=>{
+      if(!inView(x,y,ox,oy)) return;
+      const px=(x-ox)*TILE;
+      const py=(y-oy)*TILE;
+      if(typeof drawTile === 'function') drawTile(px,py,'wall');
+    });
+
+    if(room.door && inView(room.door.x,room.door.y,ox,oy)){
+      const px=(room.door.x-ox)*TILE;
+      const py=(room.door.y-oy)*TILE;
+      if(typeof drawTile === 'function') drawTile(px,py,'wall');
+      drawDoor95(px,py);
+    }
+  }
+
+  window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
+    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+
+    normalizeSolidRooms95();
+
+    const p = S.player;
+    const ox = p.x - Math.floor(VIEW/2);
+    const oy = p.y - Math.floor(VIEW/2);
+
+    for(const room of S.lockedRooms){
+      if(!room || room.opened) continue;
+      drawSolidClosedRoom95(room,ox,oy);
+    }
+  };
+
+  if(typeof revealLockedRoom === 'function'){
+    const revealBefore95 = revealLockedRoom;
+    revealLockedRoom = function(room){
+      if(!S || !room || !bounds95(room)) return revealBefore95.apply(this, arguments);
+
+      room.opened = true;
+
+      forRoomRect95(room,(x,y)=>{
+        if(!inMap(x,y)) return;
+        const open = openedCell95(room,x,y);
+        S.map[y][x] = open ? '.' : '#';
+        if(S.seen && S.seen[y]) S.seen[y][x] = true;
+      });
+
+      if(room.door && inMap(room.door.x,room.door.y)){
+        S.map[room.door.y][room.door.x] = '.';
+        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = true;
+      }
+    };
+  }
+
+  if(typeof passable === 'function'){
+    const passableBefore95 = passable;
+    passable = function(x,y){
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return false;
+
+      const room = Array.isArray(S && S.lockedRooms)
+        ? S.lockedRooms.find(r=>{
+            const b=bounds95(r);
+            return b && x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY;
+          })
+        : null;
+
+      if(room){
+        if(!room.opened) return false;
+        if(!openedCell95(room,x,y)) return false;
+      }
+
+      return passableBefore95.apply(this, arguments);
+    };
+  }
+
+  if(typeof blocked === 'function'){
+    const blockedBefore95 = blocked;
+    blocked = function(x,y){
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return true;
+
+      const room = Array.isArray(S && S.lockedRooms)
+        ? S.lockedRooms.find(r=>{
+            const b=bounds95(r);
+            return b && x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY;
+          })
+        : null;
+
+      if(room){
+        if(!room.opened) return true;
+        if(!openedCell95(room,x,y)) return true;
+      }
+
+      return blockedBefore95.apply(this, arguments);
+    };
+  }
+
+  if(typeof mapCellClass === 'function'){
+    const mapCellClassBefore95 = mapCellClass;
+    mapCellClass = function(x,y){
+      const room = Array.isArray(S && S.lockedRooms)
+        ? S.lockedRooms.find(r=>{
+            const b=bounds95(r);
+            return b && x>=b.minX && x<=b.maxX && y>=b.minY && y<=b.maxY;
+          })
+        : null;
+
+      if(room){
+        if(!room.opened) return 'wall';
+        if(!openedCell95(room,x,y)) return 'wall';
+      }
+
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return 'wall';
+      return mapCellClassBefore95.apply(this, arguments);
+    };
+  }
+
+  if(typeof render === 'function'){
+    const renderBefore95 = render;
+    render = function(){
+      normalizeSolidRooms95();
+      const ret = renderBefore95.apply(this, arguments);
+
+      // 최종 레이어에서 다시 한 번 사각형 전체 벽을 덮어 그린다.
+      // 이전 패치의 검은 사각형/하단 누락을 이 단계에서 확실히 가린다.
+      if(typeof drawLockedDoorAndShroudOverlay === 'function') drawLockedDoorAndShroudOverlay();
+
+      return ret;
+    };
+  }
+
+  if(typeof renderAll === 'function'){
+    const renderAllBefore95 = renderAll;
+    renderAll = function(){
+      normalizeSolidRooms95();
+      return renderAllBefore95.apply(this, arguments);
+    };
+  }
+
+  if(typeof generateFloor === 'function'){
+    const generateBefore95 = generateFloor;
+    generateFloor = function(){
+      const ret = generateBefore95.apply(this, arguments);
+      normalizeSolidRooms95();
+      return ret;
+    };
+  }
+
+  normalizeSolidRooms95();
+})();
+
 </script>
 </body>
 </html>
