@@ -14934,26 +14934,26 @@ generateFloor = function(floor, first=false){
 };
 
 function drawLockedDoorSprite(px,py){
-  if(typeof finalDrawDoorImage73 === 'function'){
-    finalDrawDoorImage73(px,py);
-    return;
-  }
   ctx.save();
-  ctx.fillStyle = '#111827';
-  ctx.fillRect(px, py, TILE, TILE);
-  ctx.fillStyle = '#3f4a3e';
-  ctx.fillRect(px+2, py+2, TILE-4, TILE-4);
-  ctx.fillStyle = '#4a3122';
-  ctx.fillRect(px+7, py+6, TILE-14, TILE-10);
-  ctx.fillStyle = '#6b4a32';
-  ctx.fillRect(px+9, py+7, TILE-18, TILE-12);
-  ctx.strokeStyle = '#17110d';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(px+7, py+6, TILE-14, TILE-10);
-  ctx.fillStyle = '#09090b';
+  // 잠긴 방 입구: 자물쇠 문자가 아니라 픽셀 문 그림으로 표시
+  ctx.fillStyle='#1f1208';
+  ctx.fillRect(px+6,py+3,TILE-12,TILE-5);
+  ctx.fillStyle='#5b3419';
+  ctx.fillRect(px+8,py+5,TILE-16,TILE-8);
+  ctx.fillStyle='#7c4a22';
+  ctx.fillRect(px+10,py+7,TILE-20,TILE-12);
+  ctx.strokeStyle='#2b1608';
+  ctx.lineWidth=2;
+  ctx.strokeRect(px+8,py+5,TILE-16,TILE-8);
+  ctx.strokeStyle='rgba(251,191,36,.72)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(px+11,py+8,TILE-22,TILE-14);
+  ctx.fillStyle='#facc15';
   ctx.beginPath();
-  ctx.arc(px+TILE-9, py+Math.floor(TILE*0.58), 2.2, 0, Math.PI*2);
+  ctx.arc(px+TILE-13,py+TILE/2+1,2.2,0,Math.PI*2);
   ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.16)';
+  ctx.fillRect(px+11,py+7,3,TILE-13);
   ctx.restore();
 }
 function drawLockedRoomFogTile(px,py){
@@ -14977,7 +14977,25 @@ function normalizeClosedLockedRoomsToWalls(){
   });
 }
 function drawLockedDoorAndShroudOverlay(){
-  if(typeof finalDoorOverlay89 === 'function') return finalDoorOverlay89();
+  if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+  normalizeClosedLockedRoomsToWalls();
+  const p=S.player;
+  const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
+  for(const room of S.lockedRooms){
+    if(!room || room.opened) continue;
+    (room.cells||[]).forEach(c=>{
+      if(!inView(c.x,c.y,ox,oy)) return;
+      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+      drawTile(px,py,'wall');
+      drawLockedRoomFogTile(px,py);
+    });
+    const d=room.door;
+    if(d && inView(d.x,d.y,ox,oy) && S.seen[d.y] && S.seen[d.y][d.x]){
+      const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+      drawTile(px,py,'wall');
+      drawLockedDoorSprite(px,py);
+    }
+  }
 }
 const renderBeforeLockedRooms = render;
 render = function(){
@@ -15378,7 +15396,28 @@ generateFloor = function(floor, first=false){
 
 /* locked room must look like unexplored black fog, not darkened floor tiles */
 drawLockedDoorAndShroudOverlay = function(){
-  if(typeof finalDoorOverlay89 === 'function') return finalDoorOverlay89();
+  if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+  const p=S.player;
+  const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
+  for(const room of S.lockedRooms){
+    if(!room || room.opened) continue;
+    const d=room.door;
+    if(d && inView(d.x,d.y,ox,oy) && S.seen[d.y] && S.seen[d.y][d.x]){
+      const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+      ctx.save();
+      ctx.fillStyle='#3b2413';
+      ctx.fillRect(px+5,py+4,TILE-10,TILE-7);
+      ctx.strokeStyle='#facc15';
+      ctx.lineWidth=2;
+      ctx.strokeRect(px+7,py+6,TILE-14,TILE-11);
+      ctx.fillStyle='#facc15';
+      ctx.font='bold 14px system-ui';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.fillText('',px+TILE/2,py+TILE/2+1);
+      ctx.restore();
+    }
+  }
 };
 
 showQuickSlotSelect = function(skillKey){
@@ -19036,7 +19075,25 @@ function finalDrawClosedRoomBlackFog73(px,py){
   ctx.restore();
 }
 drawLockedDoorAndShroudOverlay = function(){
-  if(typeof finalDoorOverlay89 === 'function') return finalDoorOverlay89();
+  if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+  finalNormalizeClosedRoomsToWalls73();
+  const p = S.player;
+  const ox = p.x - Math.floor(VIEW/2), oy = p.y - Math.floor(VIEW/2);
+  for(const room of S.lockedRooms){
+    if(!room || room.opened) continue;
+    (room.cells||[]).forEach(c=>{
+      if(!inView(c.x,c.y,ox,oy)) return;
+      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+      if(typeof drawTile === 'function') drawTile(px,py,'wall');
+      finalDrawClosedRoomBlackFog73(px,py);
+    });
+    const d = room.door;
+    if(d && inView(d.x,d.y,ox,oy)){
+      // 자물쇠 문자 대신 문 이미지. 닫힌 방 경계의 문칸만 표시한다.
+      const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+      finalDrawDoorImage73(px,py);
+    }
+  }
 };
 const finalRenderBeforeDoorFog73 = render;
 render = function(){
@@ -19139,8 +19196,21 @@ showSkillMenu = function(){
   }
 
   drawLockedDoorAndShroudOverlay = function(){
-  if(typeof finalDoorOverlay89 === 'function') return finalDoorOverlay89();
-};
+    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+    normalizeClosedRooms85();
+    const p=S.player;
+    const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
+    for(const room of S.lockedRooms){
+      if(!room || room.opened) continue;
+      drawClosedRoomShroud85(room, ox, oy);
+      const d=room.door;
+      if(d && inView(d.x,d.y,ox,oy)){
+        const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+        if(typeof drawTile === 'function') drawTile(px,py,'wall');
+        finalDrawDoorImage73(px,py);
+      }
+    }
+  };
 
   const renderBefore85 = render;
   render = function(){
@@ -19237,8 +19307,30 @@ showSkillMenu = function(){
   }
 
   window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
-  if(typeof finalDoorOverlay89 === 'function') return finalDoorOverlay89();
-};
+    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+
+    normalizeClosedRooms86();
+
+    const p = S.player;
+    const ox = p.x - Math.floor(VIEW/2);
+    const oy = p.y - Math.floor(VIEW/2);
+
+    for(const room of S.lockedRooms){
+      if(!room || room.opened) continue;
+
+      drawRoomOnlyFog86(room, ox, oy);
+
+      const d = room.door;
+      if(d && inView(d.x,d.y,ox,oy)){
+        const px = (d.x-ox)*TILE;
+        const py = (d.y-oy)*TILE;
+
+        // final door layer: no lock symbol, no text, asset only
+        if(typeof drawTile === 'function') drawTile(px, py, 'wall');
+        drawDoorAssetOnly86(px, py);
+      }
+    }
+  };
 
   const renderBeforeDoorFinal86 = render;
   render = function(){
@@ -19513,208 +19605,6 @@ showSkillMenu = function(){
     }
   };
   if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
-})();
-
-
-/* PATCH 89: direct door overlay + actual ranking table DOM coloring */
-function finalDoorOverlay89(){
-  if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
-
-  if(Array.isArray(S.map)){
-    S.lockedRooms.forEach(room=>{
-      if(!room || room.opened) return;
-      (room.cells||[]).forEach(c=>{
-        if(c && inMap(c.x,c.y)){
-          S.map[c.y][c.x] = '#';
-          if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
-        }
-      });
-      if(room.door && inMap(room.door.x, room.door.y)) S.map[room.door.y][room.door.x] = 'D';
-    });
-  }
-
-  const p = S.player;
-  const ox = p.x - Math.floor(VIEW/2);
-  const oy = p.y - Math.floor(VIEW/2);
-
-  for(const room of S.lockedRooms){
-    if(!room || room.opened) continue;
-
-    const cellSet = new Set((room.cells||[]).map(c=>c.x+','+c.y));
-
-    (room.cells||[]).forEach(c=>{
-      if(!c || !inView(c.x,c.y,ox,oy)) return;
-      const px = (c.x-ox)*TILE;
-      const py = (c.y-oy)*TILE;
-
-      if(typeof drawTile === 'function') drawTile(px, py, 'wall');
-
-      const hasL = cellSet.has((c.x-1)+','+c.y);
-      const hasR = cellSet.has((c.x+1)+','+c.y);
-      const hasU = cellSet.has(c.x+','+(c.y-1));
-      const hasD = cellSet.has(c.x+','+(c.y+1));
-
-      ctx.save();
-      ctx.fillStyle = 'rgba(0,0,0,.97)';
-      ctx.fillRect(px, py, TILE, TILE);
-      ctx.fillStyle = 'rgba(2,6,23,.94)';
-      ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
-      ctx.fillStyle = 'rgba(15,23,42,.42)';
-      ctx.beginPath(); ctx.arc(px+9, py+10, 7, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(px+23, py+22, 8, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = 'rgba(0,0,0,1)';
-      if(!hasL) ctx.fillRect(px, py, 2, TILE);
-      if(!hasR) ctx.fillRect(px+TILE-2, py, 2, TILE);
-      if(!hasU) ctx.fillRect(px, py, TILE, 2);
-      if(!hasD) ctx.fillRect(px, py+TILE-2, TILE, 2);
-      ctx.restore();
-    });
-
-    const d = room.door;
-    if(d && inView(d.x,d.y,ox,oy)){
-      const px = (d.x-ox)*TILE;
-      const py = (d.y-oy)*TILE;
-
-      // Cover every old door/outline pass before drawing the asset.
-      if(typeof drawTile === 'function') drawTile(px, py, 'wall');
-
-      const img = typeof FINAL_DOOR_ASSET_83 !== 'undefined' ? FINAL_DOOR_ASSET_83 : null;
-      if(img && img.complete && img.naturalWidth){
-        ctx.save();
-        ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(img, px, py, TILE, TILE);
-        ctx.restore();
-      }else{
-        // No yellow fallback.
-        ctx.save();
-        ctx.fillStyle = '#111827';
-        ctx.fillRect(px, py, TILE, TILE);
-        ctx.fillStyle = '#4a3122';
-        ctx.fillRect(px+7, py+6, TILE-14, TILE-10);
-        ctx.fillStyle = '#6b4a32';
-        ctx.fillRect(px+9, py+7, TILE-18, TILE-12);
-        ctx.strokeStyle = '#17110d';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(px+7, py+6, TILE-14, TILE-10);
-        ctx.fillStyle = '#09090b';
-        ctx.beginPath();
-        ctx.arc(px+TILE-9, py+Math.floor(TILE*.58), 2.2, 0, Math.PI*2);
-        ctx.fill();
-        ctx.restore();
-      }
-    }
-  }
-}
-drawLockedDoorAndShroudOverlay = finalDoorOverlay89;
-if(typeof FINAL_DOOR_ASSET_83 !== 'undefined' && FINAL_DOOR_ASSET_83){
-  FINAL_DOOR_ASSET_83.onload = function(){ try{ renderAll(); }catch(e){} };
-}
-
-(function(){
-  const rankingStyle89 = document.createElement('style');
-  rankingStyle89.textContent = `
-    #modal #modalCard table.rankingTable tbody tr.rankingOnline td{color:#ffffff!important;}
-    #modal #modalCard table.rankingTable tbody tr.rankingOffline td{color:#94a3b8!important;}
-  `;
-  document.head.appendChild(rankingStyle89);
-
-  function setRowColor89(row, online){
-    row.classList.toggle('rankingOnline', !!online);
-    row.classList.toggle('rankingOffline', !online);
-    row.dataset.rankingOnline = online ? '1' : '0';
-    row.querySelectorAll('td,td *').forEach(el=>{
-      el.style.setProperty('color', online ? '#ffffff' : '#94a3b8', 'important');
-    });
-  }
-
-  function currentOnlineNicknames89(){
-    const names = new Set();
-    try{
-      if(typeof normalizeOnlineList === 'function'){
-        (normalizeOnlineList() || []).forEach(u=>{
-          const n = String(u && u.nickname || '').trim().toLowerCase();
-          if(n) names.add(n);
-        });
-      }
-    }catch(e){}
-    try{
-      const n = String(S && S.player && (S.player.nickname || S.player.name || S.player.nick || '') || '').trim().toLowerCase();
-      if(n) names.add(n);
-    }catch(e){}
-    return names;
-  }
-
-  async function fetchServerOnlineNicknames89(){
-    const names = currentOnlineNicknames89();
-    try{
-      const client = getCloudClient && getCloudClient();
-      if(client && typeof client.from === 'function'){
-        const since = new Date(Date.now() - 45000).toISOString();
-        const {data,error} = await client
-          .from('game_online_users')
-          .select('nickname,updated_at')
-          .gte('updated_at', since)
-          .limit(300);
-        if(!error && Array.isArray(data)){
-          data.forEach(row=>{
-            const n = String(row && row.nickname || '').trim().toLowerCase();
-            if(n) names.add(n);
-          });
-        }
-      }
-    }catch(e){}
-    return names;
-  }
-
-  async function applyRankingColors89(){
-    if(!modalCard) return;
-    const title = modalCard.querySelector('h1,h2,h3');
-    if(!title || !/랭킹/.test(title.textContent || '')) return;
-    const rows = Array.from(modalCard.querySelectorAll('table.rankingTable tbody tr'));
-    if(!rows.length) return;
-
-    // Default all data rows to offline gray immediately.
-    rows.forEach(row=>{
-      const cells = row.querySelectorAll('td');
-      if(cells.length >= 2) setRowColor89(row, false);
-    });
-
-    const names = await fetchServerOnlineNicknames89();
-
-    rows.forEach(row=>{
-      const cells = row.querySelectorAll('td');
-      if(cells.length < 2) return;
-      const nick = String(cells[1].textContent || '').trim().toLowerCase();
-      setRowColor89(row, nick && names.has(nick));
-    });
-  }
-
-  const showModalBeforeRankingColor89 = typeof showModal === 'function' ? showModal : null;
-  if(showModalBeforeRankingColor89){
-    showModal = function(){
-      const ret = showModalBeforeRankingColor89.apply(this, arguments);
-      applyRankingColors89();
-      setTimeout(applyRankingColors89, 0);
-      setTimeout(applyRankingColors89, 150);
-      setTimeout(applyRankingColors89, 600);
-      return ret;
-    };
-  }
-
-  const showRankingBeforeColor89 = typeof showRankingMenu === 'function' ? showRankingMenu : null;
-  if(showRankingBeforeColor89){
-    showRankingMenu = async function(){
-      const ret = await showRankingBeforeColor89.apply(this, arguments);
-      await applyRankingColors89();
-      setTimeout(applyRankingColors89, 150);
-      return ret;
-    };
-    if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
-  }
-
-  const mo = new MutationObserver(()=>{ applyRankingColors89(); });
-  try{ mo.observe(modalCard, {childList:true, subtree:true}); }catch(e){}
-  window.applyRankingColors89 = applyRankingColors89;
 })();
 
 </script>
