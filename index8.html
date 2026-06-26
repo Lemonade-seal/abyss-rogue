@@ -7771,6 +7771,11 @@ function playerMove(dx,dy){
   const p=S.player; const nx=p.x+dx, ny=p.y+dy;
   const e=enemyAt(nx,ny);
   if(e){ toast('적이 가로막고 있다. 공격 버튼을 눌러 공격.'); renderAll(); return; }
+  if(typeof lockedDoorAt === 'function' && lockedDoorAt(nx,ny,false)){
+    addLog('문이 잠겨있다.');
+    renderAll();
+    return;
+  }
   if(!passable(nx,ny)){addLog('벽에 막혔다.'); renderAll(); return;}
   p.x=nx; p.y=ny;
   if(S.map[ny][nx]==='>'){
@@ -19258,6 +19263,262 @@ generateFloor = function(){
     }
   };
   if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+})();
+
+
+
+
+(function installFinalLockedDoorRoomFix91(){
+  const FINAL_LOCKED_DOOR_DATA_91 = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' shape-rendering='crispEdges'><rect width='32' height='32' fill='#121820'/><rect x='1' y='1' width='30' height='30' fill='#53635b'/><rect x='3' y='4' width='26' height='25' fill='#26331f'/><rect x='5' y='5' width='22' height='22' fill='#37452c'/><rect x='7' y='6' width='18' height='20' fill='#4b3325'/><rect x='9' y='7' width='14' height='18' fill='#6a4931'/><rect x='11' y='7' width='2' height='18' fill='#8a6343'/><rect x='17' y='7' width='2' height='18' fill='#8a6343'/><rect x='8' y='11' width='16' height='2' fill='#211711'/><rect x='8' y='20' width='16' height='2' fill='#211711'/><rect x='22' y='17' width='3' height='3' fill='#0b0b0c'/><rect x='6' y='4' width='20' height='2' fill='#98a88c'/><rect x='4' y='4' width='2' height='24' fill='#1b2417'/><rect x='26' y='4' width='2' height='24' fill='#1b2417'/><rect x='3' y='28' width='26' height='2' fill='#111827'/></svg>`);
+
+  function setDoorAsset91(){
+    try{
+      if(typeof FINAL_DOOR_ASSET_83 !== 'undefined' && FINAL_DOOR_ASSET_83){
+        if(FINAL_DOOR_ASSET_83.src !== FINAL_LOCKED_DOOR_DATA_91){
+          FINAL_DOOR_ASSET_83.src = FINAL_LOCKED_DOOR_DATA_91;
+        }
+        FINAL_DOOR_ASSET_83.onload = function(){ try{ renderAll(); }catch(e){} };
+      }
+    }catch(e){}
+  }
+
+  function roomBounds91(room){
+    const cells = room && Array.isArray(room.cells) ? room.cells.filter(c=>c && Number.isFinite(c.x) && Number.isFinite(c.y)) : [];
+    if(!cells.length) return null;
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    cells.forEach(c=>{
+      if(c.x<minX) minX=c.x;
+      if(c.y<minY) minY=c.y;
+      if(c.x>maxX) maxX=c.x;
+      if(c.y>maxY) maxY=c.y;
+    });
+    return {minX,minY,maxX,maxY};
+  }
+
+  function isRoomBoundary91(room,x,y){
+    const b = roomBounds91(room);
+    if(!b) return false;
+    return x===b.minX || x===b.maxX || y===b.minY || y===b.maxY;
+  }
+
+  function innerCells91(room){
+    const cells = room && Array.isArray(room.cells) ? room.cells : [];
+    const inner = cells.filter(c=>c && !isRoomBoundary91(room,c.x,c.y));
+    return inner.length ? inner : cells.filter(c=>c);
+  }
+
+  function allRoomCells91(room){
+    return room && Array.isArray(room.cells) ? room.cells.filter(c=>c) : [];
+  }
+
+  function firstInnerCell91(room){
+    const inner = innerCells91(room);
+    return inner.length ? inner[0] : null;
+  }
+
+  function relocateClosedRoomContents91(room){
+    if(!S || !room || !Array.isArray(room.cells)) return;
+    const inner = innerCells91(room);
+    if(!inner.length) return;
+    let idx=0;
+    function nextCell(){
+      const c = inner[idx % inner.length];
+      idx++;
+      return c;
+    }
+    (S.items||[]).forEach(it=>{
+      if(!it) return;
+      if(room.cells.some(c=>c.x===it.x && c.y===it.y) && isRoomBoundary91(room,it.x,it.y)){
+        const c=nextCell();
+        it.x=c.x; it.y=c.y;
+      }
+    });
+    (S.enemies||[]).forEach(e=>{
+      if(!e || e.hp<=0) return;
+      if(room.cells.some(c=>c.x===e.x && c.y===e.y) && isRoomBoundary91(room,e.x,e.y)){
+        const c=nextCell();
+        e.x=c.x; e.y=c.y;
+      }
+    });
+  }
+
+  function normalizeLockedRooms91(){
+    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
+    S.lockedRooms.forEach(room=>{
+      if(!room || !Array.isArray(room.cells)) return;
+      relocateClosedRoomContents91(room);
+      const opened = !!room.opened;
+      allRoomCells91(room).forEach(c=>{
+        if(!inMap(c.x,c.y)) return;
+        if(opened){
+          S.map[c.y][c.x] = isRoomBoundary91(room,c.x,c.y) ? '#' : '.';
+          if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = true;
+        }else{
+          S.map[c.y][c.x] = '#';
+          if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
+        }
+      });
+      if(room.door && inMap(room.door.x, room.door.y)){
+        S.map[room.door.y][room.door.x] = opened ? '.' : 'D';
+        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x] = opened ? true : S.seen[room.door.y][room.door.x];
+      }
+    });
+  }
+
+  function drawDoorAsset91(px,py){
+    setDoorAsset91();
+    const img = typeof FINAL_DOOR_ASSET_83 !== 'undefined' ? FINAL_DOOR_ASSET_83 : null;
+    if(img && img.complete && img.naturalWidth){
+      ctx.save();
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, px, py, TILE, TILE);
+      ctx.restore();
+      return true;
+    }
+
+    ctx.save();
+    ctx.fillStyle='#121820';
+    ctx.fillRect(px,py,TILE,TILE);
+    ctx.fillStyle='#53635b';
+    ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
+    ctx.fillStyle='#26331f';
+    ctx.fillRect(px+3,py+4,TILE-6,TILE-5);
+    ctx.fillStyle='#4b3325';
+    ctx.fillRect(px+7,py+6,TILE-14,TILE-10);
+    ctx.fillStyle='#6a4931';
+    ctx.fillRect(px+9,py+7,TILE-18,TILE-12);
+    ctx.fillStyle='#8a6343';
+    ctx.fillRect(px+11,py+7,2,TILE-12);
+    ctx.fillRect(px+17,py+7,2,TILE-12);
+    ctx.fillStyle='#211711';
+    ctx.fillRect(px+8,py+11,TILE-16,2);
+    ctx.fillRect(px+8,py+20,TILE-16,2);
+    ctx.fillStyle='#0b0b0c';
+    ctx.fillRect(px+22,py+17,3,3);
+    ctx.restore();
+    return false;
+  }
+
+  function drawInnerFog91(px,py){
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,.94)';
+    ctx.fillRect(px,py,TILE,TILE);
+    ctx.fillStyle='rgba(2,6,23,.82)';
+    ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
+    ctx.fillStyle='rgba(15,23,42,.38)';
+    ctx.beginPath(); ctx.arc(px+9,py+10,7,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(px+23,py+22,8,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
+    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+    normalizeLockedRooms91();
+
+    const p=S.player;
+    const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
+
+    for(const room of S.lockedRooms){
+      if(!room || room.opened) continue;
+
+      allRoomCells91(room).forEach(c=>{
+        if(!c || !inView(c.x,c.y,ox,oy)) return;
+        const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+        if(isRoomBoundary91(room,c.x,c.y)){
+          if(typeof drawTile === 'function') drawTile(px,py,'wall');
+        }else{
+          if(typeof drawTile === 'function') drawTile(px,py,'floor');
+          drawInnerFog91(px,py);
+        }
+      });
+
+      const d=room.door;
+      if(d && inView(d.x,d.y,ox,oy)){
+        const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+        if(typeof drawTile === 'function') drawTile(px,py,'wall');
+        drawDoorAsset91(px,py);
+      }
+    }
+  };
+
+  if(typeof drawLockedDoorSprite === 'function'){
+    drawLockedDoorSprite = function(px,py){ drawDoorAsset91(px,py); };
+  }
+  if(typeof finalDrawDoorImage73 === 'function'){
+    finalDrawDoorImage73 = function(px,py){ drawDoorAsset91(px,py); };
+  }
+  if(typeof finalDrawDoorImageFallback82 === 'function'){
+    finalDrawDoorImageFallback82 = function(px,py){ drawDoorAsset91(px,py); };
+  }
+
+  if(typeof revealLockedRoom === 'function'){
+    const revealLockedRoomBefore91 = revealLockedRoom;
+    revealLockedRoom = function(room){
+      if(!S || !room) return revealLockedRoomBefore91.apply(this, arguments);
+      room.opened = true;
+      allRoomCells91(room).forEach(c=>{
+        if(!inMap(c.x,c.y)) return;
+        S.map[c.y][c.x] = isRoomBoundary91(room,c.x,c.y) ? '#' : '.';
+        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = true;
+      });
+      if(room.door && inMap(room.door.x, room.door.y)){
+        S.map[room.door.y][room.door.x]='.';
+        if(S.seen && S.seen[room.door.y]) S.seen[room.door.y][room.door.x]=true;
+      }
+    };
+  }
+
+  if(typeof passable === 'function'){
+    const passableBefore91 = passable;
+    passable = function(x,y){
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return false;
+      const room = Array.isArray(S && S.lockedRooms) ? S.lockedRooms.find(r=>r && r.opened && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y)) : null;
+      if(room && isRoomBoundary91(room,x,y)) return false;
+      return passableBefore91.apply(this, arguments);
+    };
+  }
+
+  if(typeof mapCellClass === 'function'){
+    const mapCellClassBefore91 = mapCellClass;
+    mapCellClass = function(x,y){
+      const room = Array.isArray(S && S.lockedRooms) ? S.lockedRooms.find(r=>r && Array.isArray(r.cells) && r.cells.some(c=>c.x===x && c.y===y)) : null;
+      if(room){
+        if(!room.opened) return 'wall';
+        if(isRoomBoundary91(room,x,y)) return 'wall';
+      }
+      if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return 'wall';
+      return mapCellClassBefore91.apply(this, arguments);
+    };
+  }
+
+  if(typeof render === 'function'){
+    const renderBefore91 = render;
+    render = function(){
+      normalizeLockedRooms91();
+      const ret = renderBefore91.apply(this, arguments);
+      if(typeof drawLockedDoorAndShroudOverlay === 'function') drawLockedDoorAndShroudOverlay();
+      return ret;
+    };
+  }
+
+  if(typeof renderAll === 'function'){
+    const renderAllBefore91 = renderAll;
+    renderAll = function(){
+      normalizeLockedRooms91();
+      return renderAllBefore91.apply(this, arguments);
+    };
+  }
+
+  if(typeof generateFloor === 'function'){
+    const generateFloorBefore91 = generateFloor;
+    generateFloor = function(){
+      const ret = generateFloorBefore91.apply(this, arguments);
+      normalizeLockedRooms91();
+      return ret;
+    };
+  }
+
+  setDoorAsset91();
 })();
 
 </script>
