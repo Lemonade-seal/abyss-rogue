@@ -15414,7 +15414,7 @@ drawLockedDoorAndShroudOverlay = function(){
       ctx.font='bold 14px system-ui';
       ctx.textAlign='center';
       ctx.textBaseline='middle';
-      ctx.fillText('🔒',px+TILE/2,py+TILE/2+1);
+      ctx.fillText('',px+TILE/2,py+TILE/2+1);
       ctx.restore();
     }
   }
@@ -19141,6 +19141,295 @@ showSkillMenu = function(){
     return String(actualSkillMpCost(cls,k));
   };
   window.skillMpText = skillMpText;
+})();
+
+
+/* PATCH 85: closed room solid-wall normalization + room-only black shroud */
+(function(){
+  function roomCellSet(room){
+    const s = new Set();
+    (room && room.cells || []).forEach(c=>{ if(c) s.add(c.x+','+c.y); });
+    return s;
+  }
+  function isClosedRoomCell(x,y){
+    return !!(typeof lockedRoomCellAt === 'function' && lockedRoomCellAt(x,y));
+  }
+  function normalizeClosedRooms85(){
+    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
+    S.lockedRooms.forEach(room=>{
+      if(!room || room.opened) return;
+      (room.cells||[]).forEach(c=>{
+        if(!inMap(c.x,c.y)) return;
+        S.map[c.y][c.x] = '#';
+        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
+      });
+      if(room.door && inMap(room.door.x, room.door.y)){
+        S.map[room.door.y][room.door.x] = 'D';
+      }
+    });
+  }
+  function drawClosedRoomShroud85(room, ox, oy){
+    const cells = roomCellSet(room);
+    (room.cells||[]).forEach(c=>{
+      if(!inView(c.x,c.y,ox,oy)) return;
+      const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
+      if(typeof drawTile === 'function') drawTile(px,py,'wall');
+      const hasL = cells.has((c.x-1)+','+c.y);
+      const hasR = cells.has((c.x+1)+','+c.y);
+      const hasU = cells.has(c.x+','+(c.y-1));
+      const hasD = cells.has(c.x+','+(c.y+1));
+      ctx.save();
+      ctx.fillStyle = 'rgba(2,6,23,.98)';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = 'rgba(0,0,0,.92)';
+      ctx.fillRect(px+2, py+2, TILE-4, TILE-4);
+      ctx.fillStyle = 'rgba(15,23,42,.58)';
+      ctx.beginPath(); ctx.arc(px+10, py+10, 7, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px+23, py+22, 8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(0,0,0,.98)';
+      if(!hasL) ctx.fillRect(px, py, 2, TILE);
+      if(!hasR) ctx.fillRect(px+TILE-2, py, 2, TILE);
+      if(!hasU) ctx.fillRect(px, py, TILE, 2);
+      if(!hasD) ctx.fillRect(px, py+TILE-2, TILE, 2);
+      ctx.restore();
+    });
+  }
+
+  drawLockedDoorAndShroudOverlay = function(){
+    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+    normalizeClosedRooms85();
+    const p=S.player;
+    const ox=p.x-Math.floor(VIEW/2), oy=p.y-Math.floor(VIEW/2);
+    for(const room of S.lockedRooms){
+      if(!room || room.opened) continue;
+      drawClosedRoomShroud85(room, ox, oy);
+      const d=room.door;
+      if(d && inView(d.x,d.y,ox,oy)){
+        const px=(d.x-ox)*TILE, py=(d.y-oy)*TILE;
+        if(typeof drawTile === 'function') drawTile(px,py,'wall');
+        finalDrawDoorImage73(px,py);
+      }
+    }
+  };
+
+  const renderBefore85 = render;
+  render = function(){
+    normalizeClosedRooms85();
+    return renderBefore85.apply(this, arguments);
+  };
+  const renderAllBefore85 = renderAll;
+  renderAll = function(){
+    normalizeClosedRooms85();
+    return renderAllBefore85.apply(this, arguments);
+  };
+  const generateFloorBefore85 = generateFloor;
+  generateFloor = function(){
+    const ret = generateFloorBefore85.apply(this, arguments);
+    normalizeClosedRooms85();
+    return ret;
+  };
+  const revealLockedRoomBefore85 = revealLockedRoom;
+  revealLockedRoom = function(room){
+    const ret = revealLockedRoomBefore85.apply(this, arguments);
+    normalizeClosedRooms85();
+    return ret;
+  };
+  const mapCellClassBefore85 = mapCellClass;
+  mapCellClass = function(x,y){
+    if(isClosedRoomCell(x,y)) return 'wall';
+    if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return 'wall';
+    return mapCellClassBefore85.apply(this, arguments);
+  };
+})();
+
+
+/* PATCH 86: remove lock-symbol leftovers and force door asset as the final top render */
+(function(){
+  function normalizeClosedRooms86(){
+    if(!S || !Array.isArray(S.lockedRooms) || !Array.isArray(S.map)) return;
+    S.lockedRooms.forEach(room=>{
+      if(!room || room.opened) return;
+      (room.cells||[]).forEach(c=>{
+        if(!c || !inMap(c.x,c.y)) return;
+        S.map[c.y][c.x] = '#';
+        if(S.seen && S.seen[c.y]) S.seen[c.y][c.x] = false;
+      });
+      if(room.door && inMap(room.door.x, room.door.y)){
+        S.map[room.door.y][room.door.x] = 'D';
+      }
+    });
+  }
+
+  function drawRoomOnlyFog86(room, ox, oy){
+    const set = new Set((room.cells||[]).map(c=>c.x+','+c.y));
+    (room.cells||[]).forEach(c=>{
+      if(!c || !inView(c.x,c.y,ox,oy)) return;
+
+      const px = (c.x-ox)*TILE;
+      const py = (c.y-oy)*TILE;
+
+      if(typeof drawTile === 'function') drawTile(px, py, 'wall');
+
+      const hasL = set.has((c.x-1)+','+c.y);
+      const hasR = set.has((c.x+1)+','+c.y);
+      const hasU = set.has(c.x+','+(c.y-1));
+      const hasD = set.has(c.x+','+(c.y+1));
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,.96)';
+      ctx.fillRect(px, py, TILE, TILE);
+      ctx.fillStyle = 'rgba(2,6,23,.92)';
+      ctx.fillRect(px+1, py+1, TILE-2, TILE-2);
+
+      // fog texture stays inside the closed room tile only
+      ctx.fillStyle = 'rgba(15,23,42,.45)';
+      ctx.beginPath(); ctx.arc(px+9, py+10, 7, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px+23, py+22, 8, 0, Math.PI*2); ctx.fill();
+
+      // darker boundary along the room edge
+      ctx.fillStyle = 'rgba(0,0,0,1)';
+      if(!hasL) ctx.fillRect(px, py, 2, TILE);
+      if(!hasR) ctx.fillRect(px+TILE-2, py, 2, TILE);
+      if(!hasU) ctx.fillRect(px, py, TILE, 2);
+      if(!hasD) ctx.fillRect(px, py+TILE-2, TILE, 2);
+      ctx.restore();
+    });
+  }
+
+  function drawDoorAssetOnly86(px, py){
+    if(typeof finalDrawDoorImage73 === 'function'){
+      finalDrawDoorImage73(px, py);
+      return;
+    }
+    if(typeof drawLockedDoorSprite === 'function'){
+      drawLockedDoorSprite(px, py);
+    }
+  }
+
+  window.drawLockedDoorAndShroudOverlay = drawLockedDoorAndShroudOverlay = function(){
+    if(!S || !S.player || !Array.isArray(S.lockedRooms)) return;
+
+    normalizeClosedRooms86();
+
+    const p = S.player;
+    const ox = p.x - Math.floor(VIEW/2);
+    const oy = p.y - Math.floor(VIEW/2);
+
+    for(const room of S.lockedRooms){
+      if(!room || room.opened) continue;
+
+      drawRoomOnlyFog86(room, ox, oy);
+
+      const d = room.door;
+      if(d && inView(d.x,d.y,ox,oy)){
+        const px = (d.x-ox)*TILE;
+        const py = (d.y-oy)*TILE;
+
+        // final door layer: no lock symbol, no text, asset only
+        if(typeof drawTile === 'function') drawTile(px, py, 'wall');
+        drawDoorAssetOnly86(px, py);
+      }
+    }
+  };
+
+  const renderBeforeDoorFinal86 = render;
+  render = function(){
+    normalizeClosedRooms86();
+    const ret = renderBeforeDoorFinal86.apply(this, arguments);
+
+    // Draw once more at the very end so no modal/range/tile pass can cover the door.
+    if(typeof drawLockedDoorAndShroudOverlay === 'function'){
+      drawLockedDoorAndShroudOverlay();
+    }
+
+    return ret;
+  };
+
+  const renderAllBeforeDoorFinal86 = renderAll;
+  renderAll = function(){
+    normalizeClosedRooms86();
+    return renderAllBeforeDoorFinal86.apply(this, arguments);
+  };
+
+  const generateFloorBeforeDoorFinal86 = generateFloor;
+  generateFloor = function(){
+    const ret = generateFloorBeforeDoorFinal86.apply(this, arguments);
+    normalizeClosedRooms86();
+    return ret;
+  };
+})();
+
+
+/* PATCH 87: ranking online/offline text colors */
+(function(){
+  const style = document.createElement('style');
+  style.textContent = `
+    #modal #modalCard .rankingOnline,
+    #modal #modalCard .rankingOnline *,
+    #modal #modalCard [data-ranking-online="1"],
+    #modal #modalCard [data-ranking-online="1"] *{
+      color:#ffffff!important;
+    }
+    #modal #modalCard .rankingOffline,
+    #modal #modalCard .rankingOffline *,
+    #modal #modalCard [data-ranking-online="0"],
+    #modal #modalCard [data-ranking-online="0"] *{
+      color:#94a3b8!important;
+    }
+  `;
+  document.head.appendChild(style);
+
+  function rankingTextLooksOnline(text){
+    text = String(text || '');
+    return /온라인|접속중|접속 중|online/i.test(text);
+  }
+  function rankingTextLooksOffline(text){
+    text = String(text || '');
+    return /오프라인|미접속|offline/i.test(text);
+  }
+
+  function normalizeRankingRowColors87(){
+    if(!modalCard) return;
+    const title = modalCard.querySelector('h1,h2,h3');
+    if(!title || !/랭킹/.test(title.textContent || '')) return;
+
+    const candidates = Array.from(modalCard.querySelectorAll('.choice,.metaRow,tr,li,.rankingRow,[data-ranking-row]'));
+    candidates.forEach(el=>{
+      const text = el.textContent || '';
+      if(rankingTextLooksOnline(text)){
+        el.classList.add('rankingOnline');
+        el.classList.remove('rankingOffline');
+        el.dataset.rankingOnline = '1';
+      }else if(rankingTextLooksOffline(text)){
+        el.classList.add('rankingOffline');
+        el.classList.remove('rankingOnline');
+        el.dataset.rankingOnline = '0';
+      }
+    });
+  }
+
+  const showRankingBeforeColor87 = typeof showRanking === 'function' ? showRanking : null;
+  if(showRankingBeforeColor87){
+    showRanking = function(){
+      const ret = showRankingBeforeColor87.apply(this, arguments);
+      normalizeRankingRowColors87();
+      setTimeout(normalizeRankingRowColors87, 0);
+      setTimeout(normalizeRankingRowColors87, 80);
+      return ret;
+    };
+  }
+
+  const showModalBeforeRankingColor87 = typeof showModal === 'function' ? showModal : null;
+  if(showModalBeforeRankingColor87){
+    showModal = function(){
+      const ret = showModalBeforeRankingColor87.apply(this, arguments);
+      normalizeRankingRowColors87();
+      setTimeout(normalizeRankingRowColors87, 0);
+      return ret;
+    };
+  }
+
+  window.normalizeRankingRowColors87 = normalizeRankingRowColors87;
 })();
 
 </script>
