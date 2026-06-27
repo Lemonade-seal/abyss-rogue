@@ -11465,7 +11465,7 @@ updateUi = function(){
   }
 };
 
-if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+{ const __rankBtnFix3 = document.getElementById('rankingMenuBtn'); if(__rankBtnFix3) __rankBtnFix3.onclick = showRankingMenu; }
 if($('menuMenuBtn')) $('menuMenuBtn').onclick = showSystemMenu;
 
 /* 시작 화면 전용: 뒤쪽 게임 UI 완전 숨김 */
@@ -14285,7 +14285,7 @@ showRankingMenu = async function(){
   setTimeout(enhanceRankingScroll, 0);
   return result;
 };
-if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+{ const __rankBtnFix3 = document.getElementById('rankingMenuBtn'); if(__rankBtnFix3) __rankBtnFix3.onclick = showRankingMenu; }
 
 const helpAccordionAndRankingScrollStyle = document.createElement('style');
 helpAccordionAndRankingScrollStyle.textContent = `
@@ -16126,7 +16126,7 @@ showQuickSlotSelect = function(skillKey){
     setTimeout(bindRankingRefreshButton, 0);
     return result;
   };
-  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+  { const __rankBtnFix3 = document.getElementById('rankingMenuBtn'); if(__rankBtnFix3) __rankBtnFix3.onclick = showRankingMenu; }
 })();
 
 
@@ -16292,7 +16292,7 @@ showQuickSlotSelect = function(skillKey){
     }
   };
 
-  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+  { const __rankBtnFix3 = document.getElementById('rankingMenuBtn'); if(__rankBtnFix3) __rankBtnFix3.onclick = showRankingMenu; }
 })();
 
 function fullAutoResetFloorState(){
@@ -17188,7 +17188,7 @@ function autoFullExplore(){
     return result;
   };
 
-  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+  { const __rankBtnFix3 = document.getElementById('rankingMenuBtn'); if(__rankBtnFix3) __rankBtnFix3.onclick = showRankingMenu; }
 
   ensureServerChatSubscription();
   ensureServerOnlineSubscription();
@@ -17464,7 +17464,7 @@ function autoFullExplore(){
       serverRankingRenderingV2 = false;
     }
   };
-  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+  { const __rankBtnFix3 = document.getElementById('rankingMenuBtn'); if(__rankBtnFix3) __rankBtnFix3.onclick = showRankingMenu; }
 
   function ensureRankingRealtimeV2(){
     if(!v2IsCloud()) return;
@@ -18910,6 +18910,278 @@ function showSkillRangePopupWithCooldownFinal(skillKey, clsArg){
 }
 showSkillRangePopupMaster = showSkillRangePopupWithCooldownFinal;
 
+
+
+/* === SKILL CORE FIX: master cards + breakWall inside main game scope === */
+(function installSkillCoreMasterBreakWallFix3(){
+  const SKILL_CORE_FIX_VERSION = 'skill-core-master-breakwall-fix3';
+  const CLASS_KEYS_FIX3 = ['smash','dash','heal'];
+  const COMMON_KEYS_FIX3 = ['openDoor','breakWall'];
+  const ALL_KEYS_FIX3 = ['smash','dash','heal','openDoor','breakWall'];
+  const DEFAULT_SLOTS_FIX3 = ['smash','dash','heal'];
+
+  function skillFixEsc(v){
+    if(typeof escapeText === 'function') return escapeText(v);
+    if(typeof escHtml === 'function') return escHtml(v);
+    return String(v == null ? '' : v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function skillFixClass(){ return (S && S.player && S.player.classId) || 'warrior'; }
+  function skillFixLv(k){ return typeof skillLv === 'function' ? clamp(Number(skillLv(k) || 0),0,20) : 0; }
+  function skillFixIsCommon(k){ return COMMON_KEYS_FIX3.includes(k); }
+  function skillFixInfo(cls,k){
+    try{ if(typeof masterSkillInfo === 'function'){ const info = masterSkillInfo(cls,k); if(info) return info; } }catch(e){}
+    const fallback = {
+      warrior:{smash:{name:'타이탄 브레이크',chance:35,base:'강타',trigger:'강타 명중 후 확률 연계',range:'대상 1명',effect:'추가 충격 피해'},dash:{name:'이지스실드',chance:30,base:'방패돌진',trigger:'방패돌진 충돌 성공 후 확률 연계',range:'충격 지점 기준 1~4칸',effect:'반사 피해'},heal:{name:'전장의 포효',chance:45,base:'전투함성',trigger:'전투함성 사용 후 확률 연계',range:'자기 자신',effect:'피해 감소'}} ,
+      rogue:{smash:{name:'사신의 낙인',chance:35,base:'급소찌르기',trigger:'급소찌르기 명중 후 확률 연계',range:'대상 1명',effect:'추가 피해'},dash:{name:'암영살',chance:40,base:'그림자도약',trigger:'그림자도약 성공 후 확률 연계',range:'자기 자신',effect:'다음 공격 강화'},heal:{name:'흑무장막',chance:45,base:'연막',trigger:'연막 사용 후 확률 연계',range:'자기 자신',effect:'회피/감쇄'}} ,
+      mage:{smash:{name:'아케인 파열',chance:35,base:'마력탄',trigger:'마력탄 명중 후 확률 연계',range:'대상 주변 1칸',effect:'확산 피해'},dash:{name:'지옥불 잔영',chance:30,base:'화염폭발',trigger:'화염폭발 명중 후 확률 연계',range:'명중 대상',effect:'화상 지속'},heal:{name:'생명의 문장',chance:45,base:'재생술',trigger:'재생술 사용 후 확률 연계',range:'자기 자신',effect:'추가 회복'}} ,
+      hunter:{smash:{name:'매의 심판',chance:35,base:'정밀사격',trigger:'정밀사격 명중 후 확률 연계',range:'조준 방향 직선 관통',effect:'관통 피해'},dash:{name:'야수의 반사신경',chance:45,base:'구르기',trigger:'구르기 성공 후 확률 연계',range:'자기 자신',effect:'회피/집중'},heal:{name:'폭풍 화살',chance:30,base:'다발 사격',trigger:'2명 이상 명중 후 확률 연계',range:'사거리 내 추가 대상',effect:'추가 사격'}}
+    };
+    return fallback[cls] && fallback[cls][k] || null;
+  }
+  function skillFixBaseDesc(cls,k){
+    const d={
+      warrior:{smash:'인접 적에게 큰 피해를 준다.',dash:'방향을 정해 돌진하고 적과 충돌하면 피해를 준다.',heal:'HP를 회복하고 잠시 공격력이 증가한다.'},
+      rogue:{smash:'인접 적에게 방어 무시 치명 공격을 한다.',dash:'방향을 정해 이동하고 다음 공격을 강화한다.',heal:'연막을 펼쳐 회피율이 오른다.'},
+      mage:{smash:'사거리 4칸 원거리 마법탄.',dash:'주변 2칸 전체 광역 공격. 벽 뒤 적은 제외.',heal:'자신의 HP를 크게 회복한다.'},
+      hunter:{smash:'직선 사거리 5칸의 강한 사격.',dash:'방향 지정 이동 후 다음 원거리 공격을 강화한다.',heal:'사거리 안의 여러 적에게 동시에 사격한다.'}
+    };
+    return d[cls] && d[cls][k] || '';
+  }
+
+  function ensureSkillCoreFix3(){
+    if(!S || !S.player) return null;
+    const p = S.player;
+    p.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0,breakWall:0}, p.cd || {});
+    p.skillTurnLock = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillTurnLock || {});
+    p.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillEnhance || {});
+    if(Array.isArray(SKILL_TURN_CD_KEYS)) ALL_KEYS_FIX3.forEach(k=>{ if(!SKILL_TURN_CD_KEYS.includes(k)) SKILL_TURN_CD_KEYS.push(k); });
+    const q = Array.isArray(p.skillQuickSlots) ? p.skillQuickSlots.slice(0,3) : DEFAULT_SLOTS_FIX3.slice();
+    while(q.length < 3) q.push(DEFAULT_SLOTS_FIX3[q.length] || 'smash');
+    p.skillQuickSlots = q.map((k,i)=>ALL_KEYS_FIX3.includes(k) ? k : (DEFAULT_SLOTS_FIX3[i] || 'smash'));
+    p.skillCoreFixVersion = SKILL_CORE_FIX_VERSION;
+    return p;
+  }
+
+  const ensureRunFieldsBeforeSkillCoreFix3 = typeof ensureRunFields === 'function' ? ensureRunFields : null;
+  if(ensureRunFieldsBeforeSkillCoreFix3){
+    ensureRunFields = function(){ ensureRunFieldsBeforeSkillCoreFix3.apply(this,arguments); ensureSkillCoreFix3(); };
+  }
+  const ensureCommonSkillFieldsBeforeSkillCoreFix3 = typeof ensureCommonSkillFields === 'function' ? ensureCommonSkillFields : null;
+  ensureCommonSkillFields = function(){ if(ensureCommonSkillFieldsBeforeSkillCoreFix3) ensureCommonSkillFieldsBeforeSkillCoreFix3.apply(this,arguments); ensureSkillCoreFix3(); };
+  ensureSkillQuickSlots = function(){ ensureSkillCoreFix3(); };
+
+  const actualSkillMpCostBeforeSkillCoreFix3 = typeof actualSkillMpCost === 'function' ? actualSkillMpCost : null;
+  actualSkillMpCost = function(cls,k){ if(k==='openDoor' || k==='breakWall' || cls==='common') return 0; return actualSkillMpCostBeforeSkillCoreFix3 ? actualSkillMpCostBeforeSkillCoreFix3(cls,k) : 0; };
+
+  const skillNameByKeyBeforeSkillCoreFix3 = typeof skillNameByKey === 'function' ? skillNameByKey : null;
+  skillNameByKey = function(k){
+    if(k==='openDoor') return '문열기';
+    if(k==='breakWall') return '벽뚫기';
+    return skillNameByKeyBeforeSkillCoreFix3 ? skillNameByKeyBeforeSkillCoreFix3(k) : String(k || '스킬');
+  };
+  skillSmallTextByKey = function(k){ return skillFixIsCommon(k) ? '공통 기술' : '직업 기술'; };
+
+  function commonCooldownLeftFix3(k){
+    const p=ensureSkillCoreFix3(); if(!p) return 0;
+    const turn=Math.floor(Number(p.turn)||0);
+    const lock=Math.max(0,Math.floor(Number(p.skillTurnLock && p.skillTurnLock[k])||0));
+    if(lock>turn){ p.cd[k]=lock-turn; return p.cd[k]; }
+    p.skillTurnLock[k]=0; p.cd[k]=0; return 0;
+  }
+  function setCommonCooldownFix3(k,turns){
+    const p=ensureSkillCoreFix3(); if(!p) return;
+    const cd=Math.max(0,Math.floor(Number(turns)||0));
+    p.skillTurnLock[k]=Math.floor(Number(p.turn)||0)+cd+1;
+    p.cd[k]=cd;
+  }
+  function blockCommonCooldownFix3(k){
+    const left=commonCooldownLeftFix3(k);
+    if(left>0){ toast(`${skillNameByKey(k)} 재사용 ${left}턴`); try{ renderAll(); }catch(e){} return true; }
+    return false;
+  }
+
+  openDoorCooldownTurns = function(){
+    const rogueBonus = S && S.player && S.player.classId === 'rogue' ? 5 : 0;
+    return Math.max(5,30-skillFixLv('openDoor')-rogueBonus);
+  };
+  function breakWallCooldownTurns(){
+    const warriorBonus = S && S.player && S.player.classId === 'warrior' ? 3 : 0;
+    return Math.max(4,16-Math.floor(skillFixLv('breakWall')/2)-warriorBonus);
+  }
+  function breakWallChance(){
+    const warriorBonus = S && S.player && S.player.classId === 'warrior' ? 20 : 0;
+    return clamp(35+skillFixLv('breakWall')*2+warriorBonus,35,95);
+  }
+
+  function dirDeltaFix3(dir){
+    if(dir==='left') return [-1,0]; if(dir==='right') return [1,0]; if(dir==='up') return [0,-1]; if(dir==='down') return [0,1]; return [0,0];
+  }
+  function protectedWallFix3(x,y){
+    try{ if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,true)) return true; }catch(e){}
+    try{ if(typeof lockedRoomAtRect === 'function' && lockedRoomAtRect(x,y,true)) return true; }catch(e){}
+    return false;
+  }
+  function canBreakWallFix3(x,y){
+    if(!S || !S.map || !inMap(x,y)) return false;
+    if(x<=0 || y<=0 || x>=MAPW-1 || y>=MAPH-1) return false;
+    if(S.map[y][x] !== '#') return false;
+    if(protectedWallFix3(x,y)) return false;
+    return true;
+  }
+  function adjacentBreakWallTargetFix3(){
+    const p=S && S.player; if(!p) return null;
+    const d=dirDeltaFix3(p.dir || 'down');
+    if(d[0] || d[1]){ const x=p.x+d[0], y=p.y+d[1]; if(canBreakWallFix3(x,y)) return {x,y}; }
+    for(const pair of DIRS){ const x=p.x+pair[0], y=p.y+pair[1]; if(canBreakWallFix3(x,y)) return {x,y}; }
+    return null;
+  }
+  function useBreakWallSkill(){
+    if(!S || !S.player) return;
+    if(typeof canAct === 'function' && !canAct()) return;
+    ensureSkillCoreFix3();
+    if(blockCommonCooldownFix3('breakWall')) return;
+    const target=adjacentBreakWallTargetFix3();
+    if(!target){ toast('뚫을 수 있는 일반 벽이 인접해 있지 않다.'); return; }
+    hideModal();
+    const pct=breakWallChance();
+    const ok=rand(100)<pct;
+    if(ok){
+      S.map[target.y][target.x]='.';
+      if(S.seen && S.seen[target.y]) S.seen[target.y][target.x]=true;
+      addFx({kind:'burst',x:target.x,y:target.y,color:'#94a3b8',spark:'#f8fafc',dur:300});
+      addLog(`<span class="legend">벽뚫기 성공</span>. 일반 벽을 길로 만들었다. (${pct}%)`);
+    }else{
+      addFx({kind:'hit',x:target.x,y:target.y,color:'#64748b',spark:'#cbd5e1',dur:220});
+      addLog(`벽뚫기 실패. 벽이 버텼다. (${pct}%)`);
+    }
+    setCommonCooldownFix3('breakWall',breakWallCooldownTurns());
+    if(typeof afterPlayerAction === 'function') afterPlayerAction(); else renderAll();
+  }
+
+  const skillFunctionByKeyBeforeSkillCoreFix3 = typeof skillFunctionByKey === 'function' ? skillFunctionByKey : null;
+  skillFunctionByKey = function(k){
+    if(k==='openDoor') return useOpenDoorSkill;
+    if(k==='breakWall') return useBreakWallSkill;
+    return skillFunctionByKeyBeforeSkillCoreFix3 ? skillFunctionByKeyBeforeSkillCoreFix3(k) : skillSmash;
+  };
+  skillCooldownByKey = function(k){
+    ensureSkillCoreFix3();
+    if(k==='openDoor' || k==='breakWall') return commonCooldownLeftFix3(k);
+    if(k==='smash' || k==='dash' || k==='heal') return typeof skillCooldownLeft === 'function' ? skillCooldownLeft(k) : Math.max(0,Number(S.player.cd && S.player.cd[k] || 0));
+    return Math.max(0,Number(S.player.cd && S.player.cd[k] || 0));
+  };
+  canUseQuickSlotSkillKey = function(k){
+    if(!S || !S.player) return false;
+    if(k==='openDoor' || k==='breakWall') return !blockCommonCooldownFix3(k);
+    if((k==='smash' || k==='dash' || k==='heal') && typeof blockSkillCooldown === 'function' && blockSkillCooldown(k,skillNameByKey(k))) return false;
+    return true;
+  };
+  previewQuickSlotSkillKey = function(k,duration){ setSkillRangePreview(k==='openDoor' || k==='breakWall' ? 'dash' : k, duration || 1200); };
+
+  const skillEnhanceDescBeforeSkillCoreFix3 = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
+  skillEnhanceDesc = function(k){
+    ensureSkillCoreFix3();
+    if(k==='openDoor'){
+      const lv=skillFixLv('openDoor');
+      const info=skillCostInfo(lv);
+      const cost=lv>=20?'MAX 강화 완료':`비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
+      const rogueText=S && S.player && S.player.classId==='rogue'?' · 도적 보너스 쿨타임 -5턴':'';
+      return `${cost} · 문열기 확률 ${openDoorChance()}% · 범위 1칸 · 쿨타임 ${openDoorCooldownTurns()}턴${rogueText}`;
+    }
+    if(k==='breakWall'){
+      const lv=skillFixLv('breakWall');
+      const info=skillCostInfo(lv);
+      const cost=lv>=20?'MAX 강화 완료':`비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
+      return `${cost} · 벽뚫기 확률 ${breakWallChance()}% · 범위 1칸 · 쿨타임 ${breakWallCooldownTurns()}턴`;
+    }
+    return skillEnhanceDescBeforeSkillCoreFix3 ? skillEnhanceDescBeforeSkillCoreFix3(k) : '';
+  };
+  cleanSkillMenuEnhanceDesc = function(k){
+    let txt = String(skillEnhanceDesc(k) || '');
+    txt = txt.replace(/\s*·\s*\+20\s*마스터\s*연계:[^·<]*/g,'').replace(/\s*·\s*마스터\s*연계:[^·<]*/g,'').replace(/\s*·\s*\+20\s*마스터명:[^·<]*/g,'').replace(/\s*·\s*마스터:[^·<]*/g,'');
+    return txt.replace(/\s*·\s*·\s*/g,' · ').replace(/^\s*·\s*/,'').replace(/\s*·\s*$/,'').trim();
+  };
+
+  jobSkillCardsQuickslot = function(){
+    const p=S && S.player; if(!p) return '';
+    return CLASS_KEYS_FIX3.map((k,i)=>{
+      const info=skillFixInfo(p.classId,k);
+      const lv=skillFixLv(k);
+      const base=info && info.base ? info.base : skillNameByKey(k);
+      const masterLine=info ? (lv>=20 ? `<p class="goodtxt">마스터 연계: ${skillFixEsc(info.name)} · 발동률 ${Number(info.chance||0)}%</p>` : `<p class="muted">+20 마스터 연계: ${skillFixEsc(info.name)} · 발동률 ${Number(info.chance||0)}%</p>`) : '';
+      return `<div class="choice skillChoice skillInfoChoice" data-skill-info="${skillFixEsc(k)}" data-skill-class="${skillFixEsc(p.classId)}"><h4>${i+1}. ${skillFixEsc(base)} <span class="legend">+${lv}</span></h4><p>${skillFixEsc(skillFixBaseDesc(p.classId,k))}</p>${masterLine}<p class="muted">${skillFixEsc(cleanSkillMenuEnhanceDesc(k))}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${skillFixEsc(k)}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton(k)}</div>`;
+    }).join('');
+  };
+
+  commonSkillCardsQuickslot = function(){
+    ensureSkillCoreFix3();
+    const openLv=skillFixLv('openDoor');
+    const wallLv=skillFixLv('breakWall');
+    const rogueText=S && S.player && S.player.classId==='rogue'?'<p class="goodtxt">도적 보너스: 문열기 쿨타임 -5턴</p>':'';
+    const warriorText=S && S.player && S.player.classId==='warrior'?'<p class="goodtxt">전사 보너스: 벽뚫기 확률 +20%, 쿨타임 -3턴</p>':'<p class="muted">전사는 벽뚫기 확률/쿨타임 보너스를 받는다.</p>';
+    return `<div class="choice skillChoice skillInfoChoice" data-skill-info="openDoor" data-skill-class="common"><h4>1. 문열기 <span class="legend">+${openLv}</span></h4><p>인접 1칸 안의 잠긴 문을 연다.</p>${rogueText}<p class="muted">${skillFixEsc(cleanSkillMenuEnhanceDesc('openDoor'))}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${openLv>=20?'disabled':''}>${openLv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton('openDoor')}</div>`+
+      `<div class="choice skillChoice skillInfoChoice" data-skill-info="breakWall" data-skill-class="common"><h4>2. 벽뚫기 <span class="legend">+${wallLv}</span></h4><p>인접 1칸 안의 일반 벽을 뚫어 길로 만든다. 잠긴 방 벽과 외곽 벽은 제외된다.</p>${warriorText}<p class="muted">${skillFixEsc(cleanSkillMenuEnhanceDesc('breakWall'))}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="breakWall" ${wallLv>=20?'disabled':''}>${wallLv>=20?'마스터 완료':'강화'}</button>${quickSlotAssignButton('breakWall')}</div>`+
+      `<div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
+  };
+
+  const enhanceSkillBeforeSkillCoreFix3 = typeof enhanceSkill === 'function' ? enhanceSkill : null;
+  enhanceSkill = function(k){
+    ensureSkillCoreFix3();
+    if(!S || !S.player) return;
+    if(!ALL_KEYS_FIX3.includes(k)){ if(enhanceSkillBeforeSkillCoreFix3) return enhanceSkillBeforeSkillCoreFix3(k); return; }
+    const p=S.player; const lv=skillFixLv(k);
+    if(lv>=20){ toast('이미 최대 강화다.'); return; }
+    const info=skillCostInfo(lv);
+    if(p.gold<info.cost){ toast('골드가 부족하다.'); return; }
+    p.gold-=info.cost;
+    const roll=rand(100)+1;
+    let result='유지';
+    if(roll<=info.s){ p.skillEnhance[k]=lv+1; result='성공'; }
+    else if(roll>info.s+info.k){ p.skillEnhance[k]=Math.max(0,lv-1); result='하락'; }
+    addLog(`${skillNameByKey(k)} 강화 ${result}. 현재 +${p.skillEnhance[k]}.`);
+    renderAll(); saveRun(); showSkillMenu(skillFixIsCommon(k)?'common':'job');
+  };
+
+  updateSkillButtonsFromQuickSlots = function(){
+    if(!S || !S.player) return;
+    ensureSkillCoreFix3();
+    ['skill1','skill2','skill3'].forEach((id,idx)=>{
+      const el=$(id); if(!el) return;
+      const key=quickSlotSkillKey(idx);
+      const b=el.querySelector('b'); const small=el.querySelector('small');
+      if(b) b.textContent=skillNameByKey(key);
+      if(small) small.textContent=skillSmallTextByKey(key);
+      updateCooldown(id,skillCooldownByKey(key));
+    });
+  };
+
+  const showSkillRangePopupBeforeSkillCoreFix3 = typeof showSkillRangePopup === 'function' ? showSkillRangePopup : null;
+  function commonRangeGridFix3(){
+    let cells='';
+    for(let y=-1;y<=1;y++) for(let x=-1;x<=1;x++){
+      const d=Math.abs(x)+Math.abs(y); let cls='',txt='';
+      if(x===0&&y===0){cls='me';txt='나';} else if(d===1){cls='range';}
+      cells += `<span class="skillRangeCell ${cls}">${txt}</span>`;
+    }
+    return `<div class="skillRangeGrid" style="--skill-range-grid-size:3">${cells}</div>`;
+  }
+  showSkillRangePopup = function(skillKey,clsArg){
+    const cls=clsArg || (skillFixIsCommon(skillKey)?'common':skillFixClass());
+    if(cls!=='common') return showSkillRangePopupBeforeSkillCoreFix3 ? showSkillRangePopupBeforeSkillCoreFix3(skillKey,clsArg) : undefined;
+    const lv=skillFixLv(skillKey);
+    const title=skillNameByKey(skillKey);
+    const desc=skillKey==='breakWall'?'인접 1칸 안의 일반 벽을 뚫어 길로 만든다. 잠긴 방 벽과 외곽 벽은 제외된다.':'인접 1칸 안의 잠긴 문을 연다.';
+    const cd=skillKey==='breakWall'?breakWallCooldownTurns():openDoorCooldownTurns();
+    const chanceText=skillKey==='breakWall'?`확률 <b>${breakWallChance()}%</b>`:`확률 <b>${openDoorChance()}%</b>`;
+    showModal(`<h2>${skillFixEsc(title)} <span class="legend">+${lv}</span></h2><p class="muted">${skillFixEsc(desc)}</p><div class="choice skillRangePopupBox"><h4>스킬 범위</h4>${commonRangeGridFix3()}<div class="stats skillRangeRows" style="margin-top:10px"><div>범위 <b>인접 1칸</b></div><div>판정 <b>상하좌우</b></div><div>${chanceText}</div><div>쿨타임 <b>${cd}턴</b></div></div></div><div class="grid2" style="margin-top:10px"><button class="btn" id="skillRangeBackBtn">스킬창</button><button class="btn bad" id="skillRangeCloseBtn">닫기</button></div>`,false);
+    const back=$('skillRangeBackBtn'); if(back) back.onclick=()=>showSkillMenu('common');
+    const close=$('skillRangeCloseBtn'); if(close) close.onclick=()=>hideModal();
+  };
+
+  if($('skillMenuBtn')) $('skillMenuBtn').onclick=()=>showSkillMenu('job');
+  try{ ensureSkillCoreFix3(); updateSkillButtonsFromQuickSlots(); }catch(e){}
+})();
+/* === /SKILL CORE FIX === */
 })();
 
 
@@ -19491,7 +19763,7 @@ skillCooldownText = function(cls,k){
       bindCloseOnly();
     }
   };
-  if($('rankingMenuBtn')) $('rankingMenuBtn').onclick = showRankingMenu;
+  { const __rankBtnFix3 = document.getElementById('rankingMenuBtn'); if(__rankBtnFix3) __rankBtnFix3.onclick = showRankingMenu; }
 })();
 
 
@@ -19981,13 +20253,13 @@ skillCooldownText = function(cls,k){
     return Math.max(5, 30 - lv - rogueBonus);
   };
 
-  breakWallCooldownTurns = function(){
+  function breakWallCooldownTurns(){
     const lv = typeof skillLv === 'function' ? clamp(Number(skillLv('breakWall') || 0),0,20) : 0;
     const warriorBonus = S && S.player && S.player.classId === 'warrior' ? 3 : 0;
     return Math.max(4, 16 - Math.floor(lv / 2) - warriorBonus);
   };
 
-  breakWallChance = function(){
+  function breakWallChance(){
     const lv = typeof skillLv === 'function' ? clamp(Number(skillLv('breakWall') || 0),0,20) : 0;
     const warriorBonus = S && S.player && S.player.classId === 'warrior' ? 20 : 0;
     return clamp(35 + lv * 2 + warriorBonus, 35, 95);
@@ -20035,7 +20307,7 @@ skillCooldownText = function(cls,k){
     return null;
   }
 
-  useBreakWallSkill = function(){
+  function useBreakWallSkill(){
     if(!S || !S.player) return;
     if(typeof canAct === 'function' && !canAct()) return;
 
@@ -20239,12 +20511,369 @@ skillCooldownText = function(cls,k){
     };
   }
 
+
+  /* === FIX5: final authoritative master-chain cards and popup for all classes === */
+  (function installAllClassMasterPopupFinalFix5(){
+    const MASTER_CHAIN_FIX5 = {
+      warrior:{
+        smash:{name:'타이탄 브레이크',chance:35,base:'강타',trigger:'강타 명중 후 확률 연계',range:'대상 1명',effect:'추가 충격 피해, 정예/보스 추가 보정'},
+        dash:{name:'이지스실드',chance:30,base:'방패돌진',trigger:'방패돌진 충돌 성공 후 확률 연계',range:'충격 지점 기준 1~4칸',effect:'다른 적 최대 6명에게 반사 피해'},
+        heal:{name:'전장의 포효',chance:45,base:'전투함성',trigger:'전투함성 사용 후 확률 연계',range:'자기 자신',effect:'1턴 피해 감소와 전투 안정성 증가'}
+      },
+      rogue:{
+        smash:{name:'사신의 낙인',chance:35,base:'급소찌르기',trigger:'급소찌르기 명중 후 확률 연계',range:'대상 1명',effect:'추가 피해, 낮은 HP 적에게 추가 보정'},
+        dash:{name:'암영살',chance:40,base:'그림자도약',trigger:'그림자도약 성공 후 확률 연계',range:'자기 자신',effect:'다음 공격 피해와 치명 보정 증가'},
+        heal:{name:'흑무장막',chance:45,base:'연막',trigger:'연막 사용 후 확률 연계',range:'자기 자신',effect:'회피 증가와 첫 피격 피해 감소'}
+      },
+      mage:{
+        smash:{name:'아케인 파열',chance:35,base:'마력탄',trigger:'마력탄 명중 후 확률 연계',range:'대상 주변 1칸',effect:'주변 적에게 확산 피해, MP 1 회복'},
+        dash:{name:'지옥불 잔영',chance:30,base:'화염폭발',trigger:'화염폭발 명중 후 확률 연계',range:'화염폭발 명중 대상',effect:'화상 지속시간 증가'},
+        heal:{name:'생명의 문장',chance:45,base:'재생술',trigger:'재생술 사용 후 확률 연계',range:'자기 자신',effect:'2턴 추가 회복, 저HP 보호 효과'}
+      },
+      hunter:{
+        smash:{name:'매의 심판',chance:35,base:'정밀사격',trigger:'정밀사격 명중 후 확률 연계',range:'조준 방향 직선 관통',effect:'첫 대상 추가 피해, 뒤쪽 적 최대 3명 감소 피해'},
+        dash:{name:'야수의 반사신경',chance:45,base:'구르기',trigger:'구르기 성공 후 확률 연계',range:'자기 자신',effect:'회피 증가, 다음 원거리 공격 강화'},
+        heal:{name:'폭풍 화살',chance:30,base:'다발 사격',trigger:'2명 이상 명중 후 확률 연계',range:'사거리 내 추가 대상',effect:'추가 대상 1명 공격, 기존 대상 추가 피해'}
+      }
+    };
+    const CLASS_KEYS_FIX5 = ['smash','dash','heal'];
+    const COMMON_KEYS_FIX5 = ['openDoor','breakWall'];
+    const ALL_KEYS_FIX5 = ['smash','dash','heal','openDoor','breakWall'];
+    function esc5(v){
+      if(typeof escapeText === 'function') return escapeText(v);
+      if(typeof escHtml === 'function') return escHtml(v);
+      return String(v == null ? '' : v).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function cls5(cls){ return MASTER_CHAIN_FIX5[cls] ? cls : ((S && S.player && MASTER_CHAIN_FIX5[S.player.classId]) ? S.player.classId : 'warrior'); }
+    function lv5(k){ return typeof skillLv === 'function' ? clamp(Number(skillLv(k)||0),0,20) : 0; }
+    function info5(cls,k){
+      cls = cls5(cls);
+      let info = null;
+      try{ if(typeof masterSkillInfo === 'function') info = masterSkillInfo(cls,k); }catch(e){}
+      return info || (MASTER_CHAIN_FIX5[cls] && MASTER_CHAIN_FIX5[cls][k]) || null;
+    }
+    const masterSkillInfoBeforeFix5 = typeof masterSkillInfo === 'function' ? masterSkillInfo : null;
+    masterSkillInfo = function(cls,k){
+      cls = cls5(cls);
+      let info = null;
+      try{ if(masterSkillInfoBeforeFix5) info = masterSkillInfoBeforeFix5(cls,k); }catch(e){}
+      return info || (MASTER_CHAIN_FIX5[cls] && MASTER_CHAIN_FIX5[cls][k]) || null;
+    };
+    function baseDesc5(cls,k){
+      const d={
+        warrior:{smash:'인접 적에게 큰 피해를 준다.',dash:'방향을 정해 돌진하고 적과 충돌하면 피해를 준다.',heal:'HP를 회복하고 잠시 공격력이 증가한다.'},
+        rogue:{smash:'인접 적에게 방어 무시 치명 공격을 한다.',dash:'방향을 정해 이동하고 다음 공격을 강화한다.',heal:'연막을 펼쳐 회피율이 오른다.'},
+        mage:{smash:'사거리 4칸 원거리 마법탄.',dash:'주변 2칸 전체 광역 공격. 벽 뒤 적은 제외된다.',heal:'자신의 HP를 크게 회복한다.'},
+        hunter:{smash:'직선 사거리 5칸의 강한 사격.',dash:'방향 지정 이동 후 다음 원거리 공격을 강화한다.',heal:'사거리 안의 여러 적에게 동시에 사격한다.'}
+      };
+      return (d[cls] && d[cls][k]) || '';
+    }
+    function rangeInfo5(cls,k){
+      cls = cls5(cls);
+      if(cls==='warrior'){
+        if(k==='smash') return {shape:'melee',range:1,title:'인접 1칸',detail:'상하좌우 1칸의 적 1명'};
+        if(k==='dash') return {shape:'line',range:2,title:'직선 2칸',detail:'선택 방향으로 최대 2칸 돌진'};
+        if(k==='heal') return {shape:'self',range:0,title:'자기 자신',detail:'자신 회복 + 공격 버프'};
+      }
+      if(cls==='rogue'){
+        if(k==='smash') return {shape:'melee',range:1,title:'인접 1칸',detail:'상하좌우 1칸의 적 1명'};
+        if(k==='dash') return {shape:'line',range:2,title:'직선 2칸',detail:'선택 방향으로 최대 2칸 이동'};
+        if(k==='heal') return {shape:'self',range:0,title:'자기 자신',detail:'연막 회피 버프'};
+      }
+      if(cls==='mage'){
+        if(k==='smash') return {shape:'radius',range:4+(typeof skillRangeBonus==='function'?skillRangeBonus('smash'):0),title:`사거리 ${4+(typeof skillRangeBonus==='function'?skillRangeBonus('smash'):0)}칸`,detail:'시야가 막히지 않은 적 1명'};
+        if(k==='dash') return {shape:'radius',range:2,title:'주변 2칸 전체',detail:'자신 중심 2칸. 벽 뒤 적 제외'};
+        if(k==='heal') return {shape:'self',range:0,title:'자기 자신',detail:'자신 HP 회복'};
+      }
+      if(cls==='hunter'){
+        if(k==='smash') return {shape:'line',range:5+(typeof skillRangeBonus==='function'?skillRangeBonus('smash'):0),title:`직선 ${5+(typeof skillRangeBonus==='function'?skillRangeBonus('smash'):0)}칸`,detail:'상하좌우 직선상 적 1명'};
+        if(k==='dash') return {shape:'line',range:2,title:'직선 2칸',detail:'선택 방향으로 최대 2칸 이동'};
+        if(k==='heal') return {shape:'radius',range:3+(typeof skillRangeBonus==='function'?skillRangeBonus('heal'):0),title:`사거리 ${3+(typeof skillRangeBonus==='function'?skillRangeBonus('heal'):0)}칸`,detail:`범위 안 적 최대 ${3+Math.floor(lv5('heal')/7)}명`};
+      }
+      return {shape:'self',range:0,title:'자기 자신',detail:'범위 정보 없음'};
+    }
+    function rangeGrid5(info, chainRange){
+      const r=Math.max(1, Math.min(5, Number(info.range)||0, /1~4/.test(chainRange||'') ? 4 : 5));
+      const size=r*2+1;
+      let cells='';
+      for(let y=-r;y<=r;y++) for(let x=-r;x<=r;x++){
+        const d=Math.abs(x)+Math.abs(y); let c='', t='';
+        if(x===0&&y===0){ c='me'; t='나'; }
+        else if(info.shape==='melee'&&d===1) c='range';
+        else if(info.shape==='line'&&((x===0||y===0)&&d>0&&d<=Math.min(info.range,r))) c='range';
+        else if(info.shape==='radius'&&d>0&&d<=Math.min(info.range,r)) c='range';
+        if(/1~4/.test(chainRange||'')&&d>=1&&d<=4) c=c?c+' chain':'chain';
+        cells += `<span class="skillRangeCell ${c}">${t}</span>`;
+      }
+      return `<div class="skillRangeGrid" style="--skill-range-grid-size:${size}">${cells}</div>`;
+    }
+    function mpText5(cls,k){
+      if(k==='openDoor'||k==='breakWall') return '0';
+      try{ if(typeof skillMpText === 'function') return String(skillMpText(cls,k)); }catch(e){}
+      try{ if(typeof actualSkillMpCost === 'function') return String(actualSkillMpCost(cls,k)); }catch(e){}
+      return '0';
+    }
+    function cdText5(cls,k){
+      if(k==='openDoor' && typeof openDoorCooldownTurns==='function') return `${openDoorCooldownTurns()}턴`;
+      if(k==='breakWall' && typeof breakWallCooldownTurns==='function') return `${breakWallCooldownTurns()}턴`;
+      try{ if(typeof skillCooldownText === 'function') return String(skillCooldownText(cls,k)); }catch(e){}
+      return '-';
+    }
+    const skillNameByKeyBeforeFix5 = typeof skillNameByKey === 'function' ? skillNameByKey : null;
+    skillNameByKey = function(k){
+      if(k==='openDoor') return '문열기';
+      if(k==='breakWall') return '벽뚫기';
+      return skillNameByKeyBeforeFix5 ? skillNameByKeyBeforeFix5(k) : String(k||'스킬');
+    };
+    skillSmallTextByKey = function(k){ return COMMON_KEYS_FIX5.includes(k) ? '공통 기술' : '직업 기술'; };
+
+    jobSkillCardsQuickslot = function(){
+      const p=S && S.player; if(!p) return '';
+      const c=cls5(p.classId);
+      return CLASS_KEYS_FIX5.map((k,i)=>{
+        const inf=info5(c,k);
+        const lv=lv5(k);
+        const base=(inf&&inf.base)||skillNameByKey(k);
+        const masterLine=inf ? (lv>=20 ? `<p class="goodtxt">마스터 연계: ${esc5(inf.name)} · 발동률 ${Number(inf.chance||0)}%</p>` : `<p class="muted">+20 마스터 연계: ${esc5(inf.name)} · 발동률 ${Number(inf.chance||0)}%</p>`) : '';
+        const desc = typeof cleanSkillMenuEnhanceDesc === 'function' ? cleanSkillMenuEnhanceDesc(k) : (typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc(k) : '');
+        return `<div class="choice skillChoice skillInfoChoice" data-skill-info="${esc5(k)}" data-skill-class="${esc5(c)}"><h4>${i+1}. ${esc5(base)} <span class="legend">+${lv}</span></h4><p>${esc5(baseDesc5(c,k))}</p>${masterLine}<p class="muted">${esc5(desc)}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="${esc5(k)}" ${lv>=20?'disabled':''}>${lv>=20?'마스터 완료':'강화'}</button>${typeof quickSlotAssignButton==='function'?quickSlotAssignButton(k):''}</div>`;
+      }).join('');
+    };
+
+    const commonSkillCardsQuickslotBeforeFix5 = typeof commonSkillCardsQuickslot === 'function' ? commonSkillCardsQuickslot : null;
+    commonSkillCardsQuickslot = function(){
+      const openLv=lv5('openDoor'), wallLv=lv5('breakWall');
+      const openDesc = typeof cleanSkillMenuEnhanceDesc === 'function' ? cleanSkillMenuEnhanceDesc('openDoor') : (typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc('openDoor') : '');
+      const wallDesc = typeof cleanSkillMenuEnhanceDesc === 'function' ? cleanSkillMenuEnhanceDesc('breakWall') : (typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc('breakWall') : '');
+      const warriorText=S && S.player && S.player.classId==='warrior' ? '<p class="goodtxt">전사 보너스: 벽뚫기 확률 +20%, 쿨타임 -3턴</p>' : '<p class="muted">전사는 벽뚫기 확률/쿨타임 보너스를 받습니다.</p>';
+      return `<div class="choice skillChoice skillInfoChoice" data-skill-info="openDoor" data-skill-class="common"><h4>1. 문열기 <span class="legend">+${openLv}</span></h4><p>인접 1칸 안의 잠긴 문을 엽니다.</p><p class="muted">${esc5(openDesc)}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="openDoor" ${openLv>=20?'disabled':''}>${openLv>=20?'마스터 완료':'강화'}</button>${typeof quickSlotAssignButton==='function'?quickSlotAssignButton('openDoor'):''}</div>`+
+        `<div class="choice skillChoice skillInfoChoice" data-skill-info="breakWall" data-skill-class="common"><h4>2. 벽뚫기 <span class="legend">+${wallLv}</span></h4><p>인접 1칸 안의 일반 벽을 뚫어 길로 만듭니다. 잠긴 방 벽과 외곽 벽은 제외됩니다.</p>${warriorText}<p class="muted">${esc5(wallDesc)}</p><button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="breakWall" ${wallLv>=20?'disabled':''}>${wallLv>=20?'마스터 완료':'강화'}</button>${typeof quickSlotAssignButton==='function'?quickSlotAssignButton('breakWall'):''}</div>`+
+        `<div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
+    };
+
+    showSkillRangePopup = function(skillKey, clsArg){
+      const key=String(skillKey||'');
+      const common = COMMON_KEYS_FIX5.includes(key);
+      const c = common ? 'common' : cls5(clsArg || (S && S.player && S.player.classId));
+      const lv=lv5(key);
+      if(common){
+        const isWall = key==='breakWall';
+        const title = isWall ? '벽뚫기' : '문열기';
+        const desc = isWall ? '인접 1칸 안의 일반 벽을 뚫어 길로 만듭니다. 잠긴 방 벽과 외곽 벽은 제외됩니다.' : '인접 1칸 안의 잠긴 문을 엽니다.';
+        const chance = isWall && typeof breakWallChance==='function' ? breakWallChance() : (!isWall && typeof openDoorChance==='function' ? openDoorChance() : 0);
+        const cd = isWall && typeof breakWallCooldownTurns==='function' ? breakWallCooldownTurns() : (!isWall && typeof openDoorCooldownTurns==='function' ? openDoorCooldownTurns() : 0);
+        showModal(`<h2>${esc5(title)} <span class="legend">+${lv}</span></h2><p class="muted">${esc5(desc)}</p><div class="choice skillRangePopupBox"><h4>스킬 범위</h4><div class="skillRangeGrid" style="--skill-range-grid-size:3"><span class="skillRangeCell"></span><span class="skillRangeCell range"></span><span class="skillRangeCell"></span><span class="skillRangeCell range"></span><span class="skillRangeCell me">나</span><span class="skillRangeCell range"></span><span class="skillRangeCell"></span><span class="skillRangeCell range"></span><span class="skillRangeCell"></span></div><div class="stats skillRangeRows" style="margin-top:10px"><div>범위 <b>인접 1칸</b></div><div>판정 <b>상하좌우</b></div><div>확률 <b>${chance}%</b></div><div>쿨타임 <b>${cd}턴</b></div></div></div><div class="grid2" style="margin-top:10px"><button class="btn" id="skillRangeBackBtn">스킬창</button><button class="btn bad" id="skillRangeCloseBtn">닫기</button></div>`,false);
+        const back=$('skillRangeBackBtn'); if(back) back.onclick=()=>showSkillMenu('common');
+        const close=$('skillRangeCloseBtn'); if(close) close.onclick=()=>hideModal();
+        return;
+      }
+      const inf=info5(c,key);
+      const range=rangeInfo5(c,key);
+      const base=(inf&&inf.base)||skillNameByKey(key);
+      const chainBlock=inf ? `<div class="choice skillRangeChainBox"><h4>마스터 연계: ${esc5(inf.name)} <span class="legend">${lv>=20?'활성':'20강 해금'}</span></h4><div class="stats skillRangeRows" style="margin-top:10px"><div>발동 <b>${esc5(inf.trigger)}</b></div><div>확률 <b>${Number(inf.chance||0)}%</b></div><div>연계 범위 <b>${esc5(inf.range)}</b></div><div>효과 <b>${esc5(inf.effect)}</b></div></div></div>` : `<div class="choice skillRangeChainBox"><h4>마스터 연계</h4><p class="muted">설정된 마스터 연계 정보가 없습니다.</p></div>`;
+      showModal(`<h2>${esc5(base)} <span class="legend">+${lv}</span></h2><p class="muted">${esc5(baseDesc5(c,key))}</p><div class="choice skillRangePopupBox"><h4>스킬 범위</h4>${rangeGrid5(range,inf&&inf.range)}<div class="stats skillRangeRows" style="margin-top:10px"><div>범위 <b>${esc5(range.title)}</b></div><div>판정 <b>${esc5(range.detail)}</b></div><div>MP <b>${esc5(mpText5(c,key))}</b></div><div>쿨타임 <b>${esc5(cdText5(c,key))}</b></div><div>마스터 <b>${esc5(inf ? inf.name : '-')}</b></div><div>확률 <b>${inf ? Number(inf.chance||0)+'%' : '-'}</b></div></div></div>${chainBlock}<div class="grid2" style="margin-top:10px"><button class="btn" id="skillRangeBackBtn">스킬창</button><button class="btn bad" id="skillRangeCloseBtn">닫기</button></div>`,false);
+      const back=$('skillRangeBackBtn'); if(back) back.onclick=()=>showSkillMenu('job');
+      const close=$('skillRangeCloseBtn'); if(close) close.onclick=()=>hideModal();
+    };
+    window.showSkillRangePopup = showSkillRangePopup;
+
+    const enhanceSkillBeforeFix5 = typeof enhanceSkill === 'function' ? enhanceSkill : null;
+    enhanceSkill = function(k){
+      const key=String(k||'');
+      if(!ALL_KEYS_FIX5.includes(key)){ return enhanceSkillBeforeFix5 ? enhanceSkillBeforeFix5.apply(this,arguments) : undefined; }
+      if(typeof ensureBreakWallSkillState === 'function') ensureBreakWallSkillState();
+      if(enhanceSkillBeforeFix5) return enhanceSkillBeforeFix5.apply(this,arguments);
+    };
+
+    try{
+      if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots();
+      if(typeof renderAll === 'function') renderAll();
+    }catch(e){}
+  })();
+  /* === /FIX5 === */
+
   try{
     ensureBreakWallSkillState();
     if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots();
     if(typeof renderAll === 'function') renderAll();
   }catch(e){}
 })();
+
+
+/* === FIX6: DOM-level skill card popup fallback, independent from inner game scope === */
+(function installSkillCardPopupDomFallbackFix6(){
+  function q(id){ return document.getElementById(id); }
+  window.$ = window.$ || q;
+  window.modalCard = window.modalCard || q('modalCard');
+  window.modal = window.modal || q('modal');
+  window.S = window.S || null;
+  window.clamp = window.clamp || function(v,min,max){ return Math.max(min, Math.min(max, v)); };
+
+  function esc(v){
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; });
+  }
+
+  const MASTER = {
+    warrior:{
+      smash:{base:'강타', name:'타이탄 브레이크', chance:35, trigger:'강타 명중 후 확률 연계', range:'대상 1명', effect:'추가 충격 피해, 정예/보스 추가 보정', baseDesc:'인접 적에게 큰 피해를 줍니다.', rangeTitle:'인접 1칸', rangeDetail:'상하좌우 1칸의 적 1명', shape:'melee', distance:1},
+      dash:{base:'방패돌진', name:'이지스실드', chance:30, trigger:'방패돌진 충돌 성공 후 확률 연계', range:'충격 지점 기준 1~4칸', effect:'다른 적 최대 6명에게 반사 피해', baseDesc:'방향을 정해 돌진하고 적과 충돌하면 피해를 줍니다.', rangeTitle:'직선 2칸', rangeDetail:'선택 방향으로 최대 2칸 돌진', shape:'line', distance:2},
+      heal:{base:'전투함성', name:'전장의 포효', chance:45, trigger:'전투함성 사용 후 확률 연계', range:'자기 자신', effect:'1턴 피해 감소와 전투 안정성 증가', baseDesc:'HP를 회복하고 잠시 공격력이 증가합니다.', rangeTitle:'자기 자신', rangeDetail:'자신 회복 + 공격 버프', shape:'self', distance:0}
+    },
+    rogue:{
+      smash:{base:'급소찌르기', name:'사신의 낙인', chance:35, trigger:'급소찌르기 명중 후 확률 연계', range:'대상 1명', effect:'추가 피해, 낮은 HP 적에게 추가 보정', baseDesc:'인접 적에게 방어 무시 치명 공격을 합니다.', rangeTitle:'인접 1칸', rangeDetail:'상하좌우 1칸의 적 1명', shape:'melee', distance:1},
+      dash:{base:'그림자도약', name:'암영살', chance:40, trigger:'그림자도약 성공 후 확률 연계', range:'자기 자신', effect:'다음 공격 피해와 치명 보정 증가', baseDesc:'방향을 정해 이동하고 다음 공격을 강화합니다.', rangeTitle:'직선 2칸', rangeDetail:'선택 방향으로 최대 2칸 이동', shape:'line', distance:2},
+      heal:{base:'연막', name:'흑무장막', chance:45, trigger:'연막 사용 후 확률 연계', range:'자기 자신', effect:'회피 증가와 첫 피격 피해 감소', baseDesc:'연막을 펼쳐 회피율이 오릅니다.', rangeTitle:'자기 자신', rangeDetail:'연막 회피 버프', shape:'self', distance:0}
+    },
+    mage:{
+      smash:{base:'마력탄', name:'아케인 파열', chance:35, trigger:'마력탄 명중 후 확률 연계', range:'대상 주변 1칸', effect:'주변 적에게 확산 피해, MP 1 회복', baseDesc:'사거리 4칸 원거리 마법탄입니다.', rangeTitle:'사거리 4칸', rangeDetail:'시야가 막히지 않은 적 1명', shape:'radius', distance:4},
+      dash:{base:'화염폭발', name:'지옥불 잔영', chance:30, trigger:'화염폭발 명중 후 확률 연계', range:'화염폭발 명중 대상', effect:'화상 지속시간 증가', baseDesc:'주변 2칸 전체 광역 공격입니다. 벽 뒤 적은 제외됩니다.', rangeTitle:'주변 2칸 전체', rangeDetail:'자신 중심 2칸. 벽 뒤 적 제외', shape:'radius', distance:2},
+      heal:{base:'재생술', name:'생명의 문장', chance:45, trigger:'재생술 사용 후 확률 연계', range:'자기 자신', effect:'2턴 추가 회복, 저HP 보호 효과', baseDesc:'자신의 HP를 크게 회복합니다.', rangeTitle:'자기 자신', rangeDetail:'자신 HP 회복', shape:'self', distance:0}
+    },
+    hunter:{
+      smash:{base:'정밀사격', name:'매의 심판', chance:35, trigger:'정밀사격 명중 후 확률 연계', range:'조준 방향 직선 관통', effect:'첫 대상 추가 피해, 뒤쪽 적 최대 3명 감소 피해', baseDesc:'직선 사거리 5칸의 강한 사격입니다.', rangeTitle:'직선 5칸', rangeDetail:'상하좌우 직선상 적 1명', shape:'line', distance:5},
+      dash:{base:'구르기', name:'야수의 반사신경', chance:45, trigger:'구르기 성공 후 확률 연계', range:'자기 자신', effect:'회피 증가, 다음 원거리 공격 강화', baseDesc:'방향 지정 이동 후 다음 원거리 공격을 강화합니다.', rangeTitle:'직선 2칸', rangeDetail:'선택 방향으로 최대 2칸 이동', shape:'line', distance:2},
+      heal:{base:'다발 사격', name:'폭풍 화살', chance:30, trigger:'2명 이상 명중 후 확률 연계', range:'사거리 내 추가 대상', effect:'추가 대상 1명 공격, 기존 대상 추가 피해', baseDesc:'사거리 안의 여러 적에게 동시에 사격합니다.', rangeTitle:'사거리 3칸', rangeDetail:'범위 안 적 여러 명', shape:'radius', distance:3}
+    }
+  };
+  const KEY_BY_BASE = {};
+  Object.keys(MASTER).forEach(function(cls){ Object.keys(MASTER[cls]).forEach(function(k){ KEY_BY_BASE[MASTER[cls][k].base] = {cls:cls,key:k,info:MASTER[cls][k]}; }); });
+
+  function levelFromCard(card){
+    const txt = (card && card.textContent) || '';
+    const m = txt.match(/\+(\d+)/);
+    return m ? Math.max(0, Math.min(20, Number(m[1])||0)) : 0;
+  }
+  function titleFromCard(card){
+    const h = card && card.querySelector ? card.querySelector('h4') : null;
+    return ((h ? h.textContent : (card && card.textContent) || '') || '').replace(/^\s*\d+\.\s*/,'').replace(/\+\d+.*$/,'').trim();
+  }
+  function inferSkill(card, skillKey, clsArg){
+    let key = skillKey || (card && card.getAttribute && card.getAttribute('data-skill-info')) || '';
+    let cls = clsArg || (card && card.getAttribute && card.getAttribute('data-skill-class')) || '';
+    const title = titleFromCard(card);
+    if(!key || !['smash','dash','heal','openDoor','breakWall'].includes(key)){
+      if(/문열기/.test(title)) key='openDoor';
+      else if(/벽뚫기|벽부수기/.test(title)) key='breakWall';
+      else if(KEY_BY_BASE[title]){ key=KEY_BY_BASE[title].key; cls=KEY_BY_BASE[title].cls; }
+    }
+    if((!cls || cls==='common') && KEY_BY_BASE[title]) cls=KEY_BY_BASE[title].cls;
+    if(key==='openDoor' || key==='breakWall') cls='common';
+    if(!cls || !MASTER[cls]) cls = 'warrior';
+    return {key:key, cls:cls, title:title, lv:levelFromCard(card)};
+  }
+  function grid(shape, distance){
+    const r = shape==='self' ? 1 : Math.max(1, Math.min(5, Number(distance)||1));
+    const size = r*2+1;
+    let out='';
+    for(let y=-r;y<=r;y++) for(let x=-r;x<=r;x++){
+      const d=Math.abs(x)+Math.abs(y); let c='', t='';
+      if(x===0 && y===0){ c='me'; t='나'; }
+      else if(shape==='melee' && d===1) c='range';
+      else if(shape==='line' && (x===0 || y===0) && d>0 && d<=r) c='range';
+      else if(shape==='radius' && d>0 && d<=r) c='range';
+      out += '<span class="skillRangeCell '+c+'">'+t+'</span>';
+    }
+    return '<div class="skillRangeGrid" style="--skill-range-grid-size:'+size+'">'+out+'</div>';
+  }
+  function ensureSkillRangeStyle(){
+    if(document.getElementById('skillPopupFix6Style')) return;
+    const st=document.createElement('style'); st.id='skillPopupFix6Style';
+    st.textContent='.skillInfoChoice,.skillChoice{cursor:pointer}.skillRangeGrid{display:grid;grid-template-columns:repeat(var(--skill-range-grid-size),12px);gap:3px;justify-content:center;margin:8px auto 10px;max-width:100%}.skillRangeCell{width:12px;height:12px;border-radius:3px;background:rgba(148,163,184,.14);border:1px solid rgba(148,163,184,.18);font-size:8px;line-height:12px;text-align:center;color:#fff;box-sizing:border-box}.skillRangeCell.me{background:rgba(59,130,246,.95);border-color:rgba(191,219,254,.95);font-size:7px;font-weight:900}.skillRangeCell.range{background:rgba(250,204,21,.42);border-color:rgba(250,204,21,.90)}';
+    document.head.appendChild(st);
+  }
+  function setModalHtml(html, savedHtml){
+    const modal=q('modal'), card=q('modalCard');
+    if(!modal || !card) return false;
+    ensureSkillRangeStyle();
+    window.modal = modal; window.modalCard = card;
+    modal.classList.remove('startPage');
+    modal.removeAttribute('data-start-mode');
+    card.innerHTML = '<button class="modalCloseX" id="modalCloseX" aria-label="닫기">×</button>' + html;
+    const close=q('modalCloseX'), close2=q('skillRangeCloseBtn');
+    const closeFn=function(){ modal.classList.remove('show','startPage'); modal.removeAttribute('data-start-mode'); };
+    if(close) close.onclick=closeFn;
+    if(close2) close2.onclick=closeFn;
+    const back=q('skillRangeBackBtn');
+    if(back) back.onclick=function(){ if(savedHtml){ card.innerHTML=savedHtml; bindCards(); } else closeFn(); };
+    modal.classList.add('show');
+    return true;
+  }
+  function currentSkillMenuHtml(){
+    const card=q('modalCard');
+    if(!card) return '';
+    const html=card.innerHTML || '';
+    if(/skillChoice|data-skill-info|data-skill-enhance/.test(html) && !/data-skill-popup-final6/.test(html)) return html;
+    return window.__skillPopupFix6LastMenuHtml || '';
+  }
+  function popupFor(skillKey, clsArg, sourceCard){
+    if(!sourceCard && skillKey){
+      try{
+        const cardRoot=q('modalCard') || document;
+        const keySel=String(skillKey).replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+        const clsSel=String(clsArg||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+        sourceCard = cardRoot.querySelector('[data-skill-info="'+keySel+'"][data-skill-class="'+clsSel+'"]') || cardRoot.querySelector('[data-skill-info="'+keySel+'"]');
+      }catch(e){}
+    }
+    const infd = inferSkill(sourceCard || null, skillKey, clsArg);
+    const saved = currentSkillMenuHtml();
+    if(saved) window.__skillPopupFix6LastMenuHtml = saved;
+    if(infd.key==='openDoor' || infd.key==='breakWall'){
+      const isWall=infd.key==='breakWall';
+      const title=isWall?'벽뚫기':'문열기';
+      const desc=isWall?'인접 1칸 안의 일반 벽을 뚫어 길로 만듭니다. 잠긴 방 벽과 외곽 벽은 제외됩니다.':'인접 1칸 안의 잠긴 문을 엽니다.';
+      const note=isWall?'전사는 벽뚫기 확률/쿨타임 보너스를 받습니다.':'도적은 문열기 확률/쿨타임 보너스를 받습니다.';
+      return setModalHtml('<div data-skill-popup-final6="1"><h2>'+esc(title)+' <span class="legend">+'+infd.lv+'</span></h2><p class="muted">'+esc(desc)+'</p><div class="choice skillRangePopupBox"><h4>스킬 범위</h4>'+grid('melee',1)+'<div class="stats skillRangeRows" style="margin-top:10px"><div>범위 <b>인접 1칸</b></div><div>판정 <b>상하좌우</b></div><div>MP <b>0</b></div><div>분류 <b>공통 기술</b></div></div><p class="muted" style="margin-top:8px">'+esc(note)+'</p></div><div class="grid2" style="margin-top:10px"><button class="btn" id="skillRangeBackBtn">스킬창</button><button class="btn bad" id="skillRangeCloseBtn">닫기</button></div></div>', saved);
+    }
+    const info=(MASTER[infd.cls] && MASTER[infd.cls][infd.key]) || KEY_BY_BASE[infd.title]?.info;
+    if(!info) return false;
+    const active = infd.lv>=20 ? '활성' : '20강 해금';
+    const html='<div data-skill-popup-final6="1"><h2>'+esc(info.base)+' <span class="legend">+'+infd.lv+'</span></h2><p class="muted">'+esc(info.baseDesc)+'</p><div class="choice skillRangePopupBox"><h4>스킬 범위</h4>'+grid(info.shape,info.distance)+'<div class="stats skillRangeRows" style="margin-top:10px"><div>범위 <b>'+esc(info.rangeTitle)+'</b></div><div>판정 <b>'+esc(info.rangeDetail)+'</b></div><div>마스터 <b>'+esc(info.name)+'</b></div><div>상태 <b>'+active+'</b></div></div></div><div class="choice skillRangeChainBox"><h4>마스터 연계: '+esc(info.name)+' <span class="legend">'+active+'</span></h4><div class="stats skillRangeRows" style="margin-top:10px"><div>발동 <b>'+esc(info.trigger)+'</b></div><div>확률 <b>'+Number(info.chance||0)+'%</b></div><div>연계 범위 <b>'+esc(info.range)+'</b></div><div>효과 <b>'+esc(info.effect)+'</b></div></div></div><div class="grid2" style="margin-top:10px"><button class="btn" id="skillRangeBackBtn">스킬창</button><button class="btn bad" id="skillRangeCloseBtn">닫기</button></div></div>';
+    return setModalHtml(html, saved);
+  }
+
+  window.showModal = window.showModal || function(html, locked){ return setModalHtml(html, ''); };
+  window.hideModal = window.hideModal || function(){ const m=q('modal'); if(m) m.classList.remove('show','startPage'); };
+  window.showSkillRangePopup = function(skillKey, clsArg){ return popupFor(skillKey, clsArg, null); };
+
+  let lastTouchAt=0;
+  function shouldIgnoreTarget(t){ return !!(t && t.closest && t.closest('button,input,select,textarea,a,[data-skill-enhance],[data-skill-quick]')); }
+  function findSkillCard(t){
+    if(!t || !t.closest) return null;
+    const card=t.closest('[data-skill-info],.skillChoice');
+    if(!card || card.classList.contains('commonSkillFiller')) return null;
+    const modalCard=q('modalCard');
+    if(modalCard && !modalCard.contains(card)) return null;
+    if(!card.getAttribute('data-skill-info') && !card.querySelector('[data-skill-enhance]') && !/강타|방패돌진|전투함성|급소찌르기|그림자도약|연막|마력탄|화염폭발|재생술|정밀사격|구르기|다발 사격|문열기|벽뚫기|벽부수기/.test(card.textContent||'')) return null;
+    return card;
+  }
+  function onSkillCardEvent(ev, isTouch){
+    if(shouldIgnoreTarget(ev.target)) return;
+    const card=findSkillCard(ev.target);
+    if(!card) return;
+    if(!isTouch && Date.now()-lastTouchAt<450) return;
+    if(isTouch) lastTouchAt=Date.now();
+    ev.preventDefault();
+    ev.stopPropagation();
+    if(ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+    popupFor(card.getAttribute('data-skill-info'), card.getAttribute('data-skill-class'), card);
+  }
+  document.addEventListener('click', function(ev){ onSkillCardEvent(ev,false); }, true);
+  document.addEventListener('touchend', function(ev){ onSkillCardEvent(ev,true); }, {capture:true, passive:false});
+
+  function bindCards(){
+    const modalCard=q('modalCard');
+    if(!modalCard) return;
+    modalCard.querySelectorAll('[data-skill-info],.skillChoice').forEach(function(card){
+      if(card.__skillPopupFix6Bound || card.classList.contains('commonSkillFiller')) return;
+      card.__skillPopupFix6Bound=true;
+      card.addEventListener('click', function(ev){ onSkillCardEvent(ev,false); }, true);
+      card.addEventListener('touchend', function(ev){ onSkillCardEvent(ev,true); }, {capture:true, passive:false});
+    });
+  }
+  try{ new MutationObserver(bindCards).observe(q('modalCard'), {childList:true, subtree:true}); }catch(e){}
+  bindCards();
+})();
+/* === /FIX6 === */
 
 </script>
 </body>
