@@ -7426,6 +7426,7 @@ function generateFloor(floor, first=false){
   p.floor = floor;
   S.map = Array.from({length:MAPH},()=>Array(MAPW).fill('#'));
   S.seen = Array.from({length:MAPH},()=>Array(MAPW).fill(false));
+  S.visible = Array.from({length:MAPH},()=>Array(MAPW).fill(false));
   S.rooms = []; S.enemies = []; S.items = []; S.merchants = []; S.fx = []; S.bounty = null; S.floorMod = chooseFloorMod(floor);
   const roomCount = clamp(9 + Math.floor(floor/2), 9, 18);
   for(let i=0;i<roomCount*8 && S.rooms.length<roomCount;i++){
@@ -7677,33 +7678,63 @@ function chatLineHtml(m){
 function renderMapPanel(logHtmlOverride, forceChatRender=false){
   const panel=$('mapLogPanel'), titleEl=document.querySelector('#mapLogPanel .mapLogTitle'), box=$('mapLogBox');
   if(!panel || !titleEl || !box) return;
+
   const mode = ['log','chat','off'].includes(mapPanelMode) ? mapPanelMode : 'log';
   panel.classList.toggle('chat', mode==='chat');
   panel.classList.toggle('off', mode==='off');
   updateLogChatButton();
-  if(mode==='off') return;
+
+  if(mode==='off'){
+    titleEl.textContent = '';
+    box.innerHTML = '';
+    delete box.dataset.chatRenderKey;
+    delete box.dataset.logRenderKey;
+    mapChatForceBottomOnce = false;
+    return;
+  }
+
   if(mode==='chat'){
     ensureRunFields();
     titleEl.textContent = '채팅';
+
     const activeInput = document.activeElement && document.activeElement.id==='mapChatInput' ? document.activeElement : null;
-    if(activeInput && !forceChatRender) return;
+
+    // 채팅 입력 중에는 다시 그리지 않되, 현재 내용이 실제 채팅 UI일 때만 유지한다.
+    // 로그 화면에서 채팅으로 순환될 때 예전 chatRenderKey 때문에 로그 HTML을 그대로 재사용하는 버그 방지.
+    const hasChatUi = !!box.querySelector('.mapChatMessages,.mapChatEmpty,.mapChatInputRow');
+    if(activeInput && !forceChatRender && hasChatUi) return;
+
     const scrollState = getMapChatScrollState();
     const activeDraft = activeInput ? activeInput.value : '';
     const msgs = (S.chat||[]).slice(-50).map(chatLineHtml).join('');
     const renderKey = msgs + '|draft:' + activeDraft;
-    if(!mapChatForceBottomOnce && box.dataset.chatRenderKey === renderKey){
+
+    if(!mapChatForceBottomOnce && hasChatUi && box.dataset.chatRenderKey === renderKey){
       bindMapChatInput();
       return;
     }
+
     box.innerHTML = `${msgs ? `<div class="mapChatMessages">${msgs}</div>` : '<div class="mapChatEmpty">채팅 내역 없음</div>'}<div class="mapChatInputRow"><input id="mapChatInput" type="text" maxlength="60" placeholder="채팅 입력" value="${escHtml(activeDraft)}"><button id="mapChatSend" type="button">전송</button></div>`;
     box.dataset.chatRenderKey = renderKey;
+    delete box.dataset.logRenderKey;
+
     bindMapChatInput();
     applyMapChatScrollState(scrollState, mapChatForceBottomOnce);
     mapChatForceBottomOnce = false;
     return;
   }
+
   titleEl.textContent = '로그';
-  box.innerHTML = logHtmlOverride ?? currentLogHtml();
+  const logHtml = logHtmlOverride ?? currentLogHtml();
+  const renderKey = logHtml;
+
+  if(box.dataset.logRenderKey !== renderKey || box.querySelector('.mapChatMessages,.mapChatEmpty,.mapChatInputRow')){
+    box.innerHTML = logHtml;
+    box.dataset.logRenderKey = renderKey;
+  }
+
+  delete box.dataset.chatRenderKey;
+  mapChatForceBottomOnce = false;
   scrollLogChatToBottom();
 }
 function bindMapChatInput(){
@@ -7738,11 +7769,76 @@ function sendMapChatMessage(){
   saveRun();
 }
 
+function ensurePowderVisibleGrid(){
+  if(!S) return;
+  if(!Array.isArray(S.visible) || S.visible.length !== MAPH){
+    S.visible = Array.from({length:MAPH},()=>Array(MAPW).fill(false));
+  }
+}
+
+function tileBlocksSight(x,y){
+  if(!inMap(x,y)) return true;
+  if(S.map[y][x] === '#') return true;
+  if(S.map[y][x] === 'D') return true;
+  if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,false)) return true;
+  if(typeof lockedRoomCellAt === 'function' && lockedRoomCellAt(x,y)) return true;
+  return false;
+}
+
+function powderLineVisible(x0,y0,x1,y1){
+  let x = x0;
+  let y = y0;
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  while(!(x === x1 && y === y1)){
+    const e2 = err * 2;
+    if(e2 > -dy){ err -= dy; x += sx; }
+    if(e2 < dx){ err += dx; y += sy; }
+
+    if(!inMap(x,y)) return false;
+    if(x === x1 && y === y1) return true;
+    if(tileBlocksSight(x,y)) return false;
+  }
+
+  return true;
+}
+
 function reveal(){
   const p = S.player;
-  const radius = clamp(7 + (S.floorMod?.vision||0), 4, 10);
-  for(let y=p.y-radius;y<=p.y+radius;y++) for(let x=p.x-radius;x<=p.x+radius;x++){
-    if(inMap(x,y) && Math.hypot(x-p.x,y-p.y)<=radius+.3) S.seen[y][x]=true;
+  const radius = clamp(8 + (S.floorMod?.vision||0), 6, 10);
+  S.visible = Array.from({length:MAPH},()=>Array(MAPW).fill(false));
+
+  for(let y=p.y-radius; y<=p.y+radius; y++){
+    for(let x=p.x-radius; x<=p.x+radius; x++){
+      if(!inMap(x,y)) continue;
+      if(Math.hypot(x-p.x, y-p.y) > radius + .25) continue;
+      if(!powderLineVisible(p.x,p.y,x,y)) continue;
+
+      S.visible[y][x] = true;
+      S.seen[y][x] = true;
+    }
+  }
+
+  for(let y=p.y-radius; y<=p.y+radius; y++){
+    for(let x=p.x-radius; x<=p.x+radius; x++){
+      if(!inMap(x,y) || !S.visible[y][x]) continue;
+      if(tileBlocksSight(x,y)) continue;
+
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
+        const nx=x+dx, ny=y+dy;
+        if(!inMap(nx,ny)) continue;
+        if(Math.hypot(nx-p.x, ny-p.y) > radius + 1.25) continue;
+
+        if(tileBlocksSight(nx,ny) && powderLineVisible(p.x,p.y,x,y)){
+          S.visible[ny][nx] = true;
+          S.seen[ny][nx] = true;
+        }
+      }
+    }
   }
 }
 
@@ -9058,7 +9154,7 @@ function renderSkillRangePreview(ox,oy){
   ctx.save();
   for(const c of cells){
     if(!inView(c.x,c.y,ox,oy)) continue;
-    if(S.seen && S.seen[c.y] && !S.seen[c.y][c.x]) continue;
+    if(S.visible && S.visible[c.y] && !S.visible[c.y][c.x]) continue;
     const px=(c.x-ox)*TILE, py=(c.y-oy)*TILE;
     let fill='rgba(96,165,250,.22)', stroke='rgba(147,197,253,.72)';
     if(c.kind==='melee') { fill='rgba(248,113,113,.22)'; stroke='rgba(248,113,113,.86)'; }
@@ -9086,24 +9182,37 @@ function renderSkillRangePreview(ox,oy){
 
 function render(){
   if(!S){ drawTitle(); return; }
+  ensurePowderVisibleGrid();
   const p=S.player;
   const ox = p.x - Math.floor(VIEW/2), oy = p.y - Math.floor(VIEW/2);
   ctx.fillStyle='#05070b'; ctx.fillRect(0,0,canvas.width,canvas.height);
   for(let vy=0;vy<VIEW;vy++) for(let vx=0;vx<VIEW;vx++){
     const x=ox+vx,y=oy+vy, px=vx*TILE, py=vy*TILE;
-    if(!inMap(x,y)){ drawTile(px,py,'void'); continue; }
-    const seen=S.seen[y][x];
-    if(!seen){ drawTile(px,py,'unknown'); continue; }
-    drawTile(px,py,S.map[y][x]==='#'?'wall':'floor');
+    if(!inMap(x,y)){ drawTile(px,py,'void',x,y); continue; }
+    const visible = !!(S.visible && S.visible[y] && S.visible[y][x]);
+    const explored = !!(S.seen && S.seen[y] && S.seen[y][x]);
+    if(!visible){
+      if(explored){
+        ctx.save();
+        ctx.globalAlpha = .28;
+        drawTile(px,py,S.map[y][x]==='#'?'wall':'floor',x,y);
+        if(S.map[y][x]==='>') drawSprite('exit',px,py);
+        ctx.restore();
+      }else{
+        drawTile(px,py,'unknown',x,y);
+      }
+      continue;
+    }
+    drawTile(px,py,S.map[y][x]==='#'?'wall':'floor',x,y);
     if(S.map[y][x]==='>') drawSprite('exit',px,py);
   }
   renderSkillRangePreview(ox,oy);
   for(const it of S.items){
-    if(!inView(it.x,it.y,ox,oy) || !S.seen[it.y][it.x]) continue;
+    if(!inView(it.x,it.y,ox,oy) || !(S.visible && S.visible[it.y] && S.visible[it.y][it.x])) continue;
     drawSprite(it.type,(it.x-ox)*TILE,(it.y-oy)*TILE);
   }
   for(const e of S.enemies){
-    if(e.hp<=0 || !inView(e.x,e.y,ox,oy) || !S.seen[e.y][e.x]) continue;
+    if(e.hp<=0 || !inView(e.x,e.y,ox,oy) || !(S.visible && S.visible[e.y] && S.visible[e.y][e.x])) continue;
     const px=(e.x-ox)*TILE, py=(e.y-oy)*TILE;
     drawSprite(e.sprite,px,py);
     if(e.boss || e.elite){
@@ -9141,16 +9250,219 @@ function drawTitle(){
   }
   ctx.fillStyle='#080a0f';ctx.fillRect(0,0,canvas.width,canvas.height);
 }
-function drawTile(px,py,type){
-  if(type==='unknown'){ctx.fillStyle='#05070b';ctx.fillRect(px,py,TILE,TILE);return;}
-  if(type==='void'){ctx.fillStyle='#030407';ctx.fillRect(px,py,TILE,TILE);return;}
+function tileHash(tx,ty,n=0){
+  let h = ((tx|0) * 374761393 + (ty|0) * 668265263 + (n|0) * 1442695041) >>> 0;
+  h = (h ^ (h >>> 13)) >>> 0;
+  h = Math.imul(h, 1274126177) >>> 0;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+function tileRand(tx,ty,n=0){
+  return (tileHash(tx,ty,n) % 1000) / 1000;
+}
+
+
+const EXTRACTED_FLOOR_TILE_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADgAAAA4CAYAAACohjseAAABWGlDQ1BJQ0MgUHJvZmlsZQAAeJx9kLFLw1AQxr9WpaB1EB0cHDKJQ5SSCro4tBVEcQhVweqUvqapkMZHkiIFN/+Bgv+BCs5uFoc6OjgIopPo5uSk4KLleS+JpCJ6j+N+fO+74zggOW5wbvcDqDu+W1zKK5ulLSX1jAS9IAzm8Zyur0r+rj/j/T703k7LWb///43Biukxqp+UGcZdH0ioxPqezyXvE4+5tBRxS7IV8onkcsjngWe9WCC+JlZYzagQvxCr5R7d6uG63WDRDnL7tOlsrMk5lBNYxA48cNgw0IQCHdk//LOBv4BdcjfhUp+FGnzqyZEiJ5jEy3DAMAOVWEOGUpN3ju53F91PjbWDJ2ChI4S4iLWVDnA2Rydrx9rUPDAyBFy1ueEagdRHmaxWgddTYLgEjN5Qz7ZXzWrh9uk8MPAoxNskkDoEui0hPo6E6B5T8wNw6XwBA6diE8HYWhMAAAIQSURBVHic7ZrJjoMwDIZtE1W8TTWXef9n6q0syZwcuZAUyA7DJ1Wlberkj+0sEHz+/Jq+70EpBYgIxhiQICJs8X6/QWttyz4ej9X/jPiIiGDE9bI+bsMwDPYaEa3dZYu4DL8rpYCIQGsNahxHeL1etoHGGPvaCyLalw8p0BgD2mMfEYGIAABAa/0hkIh2CZTfK9eXxpjNBjtFeCoCWHvQZ196kIg+BG51OtuT5dQ8zzBNE3RdB33fQ9d11r1H4Y6RlbkELhvhgz3J+NrkqnOeZxiGAZQMCe7VEHFb4ELPOtAc6M8/Ebg7zyKKd0gwjxOQu2QYPu/VJKnAFrkFnp1b4Nm5vEDFFzxJy/clcqVQayo4Wu//8WDrhEbMKTwYkw7NC4zN9eYFxtJsDqYapZv0YMopqEmBKWlOYOoFRDM5mGtl1JwHU1Pdg7nXtFU9WGLBXk1gqd3I9XNQ3mHeugUv94sxxNqRe9VvNhCxjgePPPeI5dQhuicCTi1wD1UFhobqnidf/Ps9D+Yipzhpu/hSrfTtxqIeLCFuWcc9iqYk9wTvipDbgymp8TyjyChaY3Bhsnuw9oGEy+Ygd6wzRH2jXcltzjeOREVWD9YMz68eTGW8BS6bg0wWgUePY+Yk6zwYcrg2NUW3SzUEX36QiRZYamceSpDA3B5KaT9IYO5ckue0Y0mSg6mmhNU57wi7bOsP0XzCol45x1sAAAAASUVORK5CYII=';
+const EXTRACTED_WALL_TILE_INTACT_SRC = 'data:image/png;base64,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';
+const EXTRACTED_WALL_TILE_CRACKED_SRC = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADgAAAA4CAYAAACohjseAAABWGlDQ1BJQ0MgUHJvZmlsZQAAeJx9kLFLw1AQxr9WpaB1EB0cHDKJQ5SSCro4tBVEcQhVweqUvqapkMZHkiIFN/+Bgv+BCs5uFoc6OjgIopPo5uSk4KLleS+JpCJ6j+N+fO+74zggOW5wbvcDqDu+W1zKK5ulLSX1jAS9IAzm8Zyur0r+rj/j/T703k7LWb///43Biukxqp+UGcZdH0ioxPqezyXvE4+5tBRxS7IV8onkcsjngWe9WCC+JlZYzagQvxCr5R7d6uG63WDRDnL7tOlsrMk5lBNYxA48cNgw0IQCHdk//LOBv4BdcjfhUp+FGnzqyZEiJ5jEy3DAMAOVWEOGUpN3ju53F91PjbWDJ2ChI4S4iLWVDnA2Rydrx9rUPDAyBFy1ueEagdRHmaxWgddTYLgEjN5Qz7ZXzWrh9uk8MPAoxNskkDoEui0hPo6E6B5T8wNw6XwBA6diE8HYWhMAAAYoSURBVHicxVrNbuM4DP4oydMgTZoABYqZl1hgb/sCe9jzvv9xrjPoptN0bIvcQ0KFlu3Edpz0A4omjkWKP+KPJPr7n3/l+fkZIgIRATODiOCcAxGhC33P+0BEYGa8v7+DmSEicM5huVzCOXc1/RzOOXjvISIIRAQRSULpDyqsMiR3YjyWv3ME5z1YIgQCFgbHCOepk9aV8kHAEBDqWCNYjT48PMB73z2KxExgvAWJCL9//4ZzLilwvV4nJeZ0r7EiM8M5h4+PDzjnXGLivT9Kf/gDyenvCjAzYoyo67rhFV3uOSdEBEGZibSFmGsN5uOUl+WpVp4Dlk9QwomZEEAyGzPLUDFGmVNgPSMADkT+yNSBiAEQIACR65nQ+MkQEQjuoEA50BQGIEfLCbUsPBVELtF3yvyWGGLBWyHYvFeWJUQEMUYAp2CQT2pqFN3v9/De9+bFIXTyz+eURUSHNahf6rpOOXEokSHQtGA/279bCKcI9ovmjwMBXZfcPXIEVAClbZU4Rjgr5FClO5EIEXVJBpGkz3MIpxPTyWketFYdizHjkvpUq3PmI4VazZZ/UzBUKVaOVhS9RYTTQJLzugfSGtTFfqsQfo1LTuGluG0x2MHw3ghvb28oiiJFM9W0Ld9sFLPh3oZrHc/MCCE00oBG591ul3IgAMQYEUJINCwPfc9+J6JGO2fH9QqoL1li+UD93OgPs3Wr4/U9Owl97r1HjDEpQSdrOwv73QYk/T3G2OB9Kc0ES7wvguZayvPSfr9PRQIzY7PZoCiK1rjVapXGWQ/IeTBzo9LReT0+PrYE6rKgfZa6iRhjoxnNBbLC5//VKrojYNOCiMB7D2ZOFtSxVVUhhNBSrPWE/J2KYyoY+tKaGMuH5XKF9XrT0KyNpnbNHPXb0phqXBltt9uGpq3FLmkcOLmdurDS2Gw2YAJEms1ynlutwKHLMjmaz9vvWBe3guYC9AWEsbnRCpe7eo7Q+8sIWLfWAHPLhD407RDRPAJq+LZr47Ohc5jNgvr/1ta7hJz3rC762Zbr4j9LqXbPOnMs7lKL3gN93jPJRff7PZxzqYbNk/Qld73llmSOSQLaetEWwvfCUF5pZ3ssfv78CWbGYrEAEeHLly+jmd8DqaOfOhhAqi3z55+JRrdxDSEtpFXIGCOqqkrrUmvUe6FrO3GSi768vCCEgB8/fkBE8Pr6irIssd1uEUJAXdcoiiJVN7mV58a5fdJJFtQzRA0wVVWl72VZpmMy3Uy+FWxw68vDkyyoRL9+/Yq6rpNAr6+vqd3y3uP5+RkhhEYPeAucKzJaAnblsbxdsg2ppgs917CNLTPj4+MjNcFD00lX+3Yaf8XW/Vgog4eHBywWC6zXawBAWZbw3uP79+8QEXz79g3OuUbfeE1pN6Zdmq0WtdbRnTJmRl3XyZqfgVm6CaC54F9eXlDXNXa7XWNvRt+7B5TPLBbM160NNLrhpO/13uKYEY09mbmI2k2lX79+HerAEOCcw+PjI4qiADOjLMu71q6zWdBCr4wURZF+Vyueu0F1C4TTmeDhhtFhrQh6Lxp03JkhpynDgRzw3+4VALB52mK1WrVceGgU7W+kzwcsOyQQBBA+hnA5CIlz16k6fmCBA0Eip3tDzjmQnKypZVuikuWyLqt25WI3IEO01qDuSufnAWOgJZueHcQYsdk+gdE+n8/3Yrsa5q4N6HzyQxCUmJZTU/ZXtKKpqiodrOi2e6OCEYBAEBYI2qmDiI7eQxBmSOTG2pXIoJHXv+iPP/+Sp6enVGJNsaBesivLEkVRYLFYJqGV5rl82GfF9/f3Bp/lcjnegkAzxE+Bdb38uNrS7EsPXVE4r13zs8Zz41sC2pemCtoU8DTBKS5vx+b0xyKkG5M4RTQ3Vkg+ECABhOUQRYngQIgYryxblCusRcfMreGi16DLFaduCNu7NNZFbck3FAHEiFwBZM7i0H0g2UukOGxLiAicBwQRLMfJHN+RjIT0fAYAckcFUZ0SskBA/hissvfPqTAAaBXFuTUuQduhvtx2eHiRTCeuPRJoXEJo3lUbt8GqnX3fGhmj9a7GuKG8Dv59aF0EsrcdhqIr2l1jwb6123V6fAn/A+rymhXi4lKTAAAAAElFTkSuQmCC';
+
+const extractedFloorTileImg = new Image();
+const extractedWallTileIntactImg = new Image();
+const extractedWallTileCrackedImg = new Image();
+let extractedTilesReady = false;
+let extractedTileReadyCount = 0;
+
+function markExtractedTileReady(){
+  extractedTileReadyCount++;
+  if(extractedTileReadyCount >= 3){
+    extractedTilesReady = true;
+    try{ renderAll(); }catch(e){}
+  }
+}
+extractedFloorTileImg.onload = markExtractedTileReady;
+extractedWallTileIntactImg.onload = markExtractedTileReady;
+extractedWallTileCrackedImg.onload = markExtractedTileReady;
+extractedFloorTileImg.src = EXTRACTED_FLOOR_TILE_SRC;
+extractedWallTileIntactImg.src = EXTRACTED_WALL_TILE_INTACT_SRC;
+extractedWallTileCrackedImg.src = EXTRACTED_WALL_TILE_CRACKED_SRC;
+
+function drawTileImageBase(img, px, py, fallbackColor){
+  if(img && img.complete && img.naturalWidth > 0){
+    ctx.drawImage(img, px, py, TILE, TILE);
+    return true;
+  }
+  ctx.fillStyle = fallbackColor || '#222';
+  ctx.fillRect(px, py, TILE, TILE);
+  return false;
+}
+
+
+function clearExtractedWallBaseCrack(px,py){
+  // 원본 추출 벽타일 자체에 금이 들어있어서, 멀쩡한 벽일 때는 그 금을 먼저 덮어쓴다.
+  // 추출본 색감과 최대한 비슷한 색으로 벽돌 부분을 다시 칠한다.
+  // upper brick area
+  ctx.fillStyle = '#7a828d';
+  ctx.fillRect(px+17, py+12, 8, 6);
+  ctx.fillStyle = 'rgba(255,255,255,.08)';
+  ctx.fillRect(px+17, py+12, 8, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.14)';
+  ctx.fillRect(px+17, py+17, 8, 1);
+
+  // lower brick area
+  ctx.fillStyle = '#6e7682';
+  ctx.fillRect(px+16, py+18, 8, 7);
+  ctx.fillStyle = 'rgba(255,255,255,.07)';
+  ctx.fillRect(px+16, py+18, 8, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.14)';
+  ctx.fillRect(px+16, py+24, 8, 1);
+
+  // restore mortar/seam around the repaired zone
+  ctx.fillStyle = '#59616d';
+  ctx.fillRect(px+15, py+18, 1, 7);
+  ctx.fillRect(px+24, py+18, 1, 7);
+  ctx.fillRect(px+16, py+17, 8, 1);
+
+  // subtle vertical center seam like the extracted tile style
+  ctx.fillStyle = 'rgba(0,0,0,.05)';
+  ctx.fillRect(px+20, py+19, 1, 5);
+}
+
+function drawCrackStroke(x1,y1,x2,y2,x3,y3,alpha='rgba(43,51,60,.52)'){
+  ctx.save();
+  ctx.strokeStyle = alpha;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x2,y2);
+  if(x3 !== null && y3 !== null) ctx.lineTo(x3,y3);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTinyCracks(px,py,tx,ty,count,color){
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  for(let i=0;i<count;i++){
+    const ax = px + 4 + Math.floor(tileRand(tx,ty,20+i) * (TILE-8));
+    const ay = py + 4 + Math.floor(tileRand(tx,ty,40+i) * (TILE-8));
+    const bx = ax + Math.floor((tileRand(tx,ty,60+i)-0.5) * 10);
+    const by = ay + Math.floor((tileRand(tx,ty,80+i)-0.5) * 10);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    if(tileRand(tx,ty,100+i) > .55){
+      ctx.lineTo(bx + Math.floor((tileRand(tx,ty,120+i)-0.5) * 6), by + Math.floor((tileRand(tx,ty,140+i)-0.5) * 6));
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawStoneFloorTile(px,py,tx,ty){
+  // extracted floor tile as the base, then add randomized shade / scratch variations
+  drawTileImageBase(extractedFloorTileImg, px, py, '#2f333b');
+
+  // whole-tile subtle tone variation
+  const toneMode = Math.floor(tileRand(tx,ty,1) * 5);
+  if(toneMode === 0){
+    ctx.fillStyle = 'rgba(255,255,255,.020)';
+    ctx.fillRect(px+2,py+2,TILE-4,TILE-4);
+  }else if(toneMode === 1){
+    ctx.fillStyle = 'rgba(0,0,0,.035)';
+    ctx.fillRect(px+2,py+2,TILE-4,TILE-4);
+  }
+
+  // random center smudge / color shade
+  const patchMode = Math.floor(tileRand(tx,ty,2) * 6);
+  if(patchMode === 0){
+    ctx.fillStyle = 'rgba(255,255,255,.028)';
+    ctx.fillRect(px+8, py+8, 10, 10);
+  }else if(patchMode === 1){
+    ctx.fillStyle = 'rgba(0,0,0,.055)';
+    ctx.fillRect(px+9, py+7, 11, 12);
+  }else if(patchMode === 2){
+    ctx.fillStyle = 'rgba(255,255,255,.02)';
+    ctx.fillRect(px+6, py+12, 13, 7);
+  }else if(patchMode === 3){
+    ctx.fillStyle = 'rgba(0,0,0,.04)';
+    ctx.fillRect(px+11, py+10, 8, 9);
+  }else if(patchMode === 4){
+    ctx.fillStyle = 'rgba(255,255,255,.015)';
+    ctx.fillRect(px+7, py+6, 14, 5);
+  }
+
+  // random tone strips / grime
+  if(tileRand(tx,ty,3) > .42){
+    ctx.fillStyle = tileRand(tx,ty,4) > .5 ? 'rgba(255,255,255,.018)' : 'rgba(0,0,0,.032)';
+    ctx.fillRect(px+5+Math.floor(tileRand(tx,ty,5)*8), py+5+Math.floor(tileRand(tx,ty,6)*8), 6+Math.floor(tileRand(tx,ty,7)*8), 2);
+  }
+  if(tileRand(tx,ty,8) > .50){
+    ctx.fillStyle = tileRand(tx,ty,9) > .5 ? 'rgba(255,255,255,.015)' : 'rgba(0,0,0,.03)';
+    ctx.fillRect(px+6+Math.floor(tileRand(tx,ty,10)*10), py+8+Math.floor(tileRand(tx,ty,11)*8), 2, 6+Math.floor(tileRand(tx,ty,12)*6));
+  }
+
+  // scratches / marks
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.05)';
+  ctx.lineWidth = 1;
+  const scratchCount = 1 + (tileRand(tx,ty,13) > .40 ? 1 : 0) + (tileRand(tx,ty,14) > .82 ? 1 : 0);
+  for(let i=0;i<scratchCount;i++){
+    const sx = px + 7 + Math.floor(tileRand(tx,ty,20+i) * 14);
+    const sy = py + 7 + Math.floor(tileRand(tx,ty,40+i) * 14);
+    const len = 3 + Math.floor(tileRand(tx,ty,60+i) * 5);
+    ctx.beginPath();
+    if(tileRand(tx,ty,80+i) > .5){
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx+len, sy);
+    }else{
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx, sy+len);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // dust pixels
+  for(let i=0;i<6;i++){
+    const dx = px + 4 + Math.floor(tileRand(tx,ty,100+i) * 24);
+    const dy = py + 4 + Math.floor(tileRand(tx,ty,120+i) * 24);
+    ctx.fillStyle = tileRand(tx,ty,140+i) > .5 ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.05)';
+    ctx.fillRect(dx,dy,1,1);
+  }
+}
+function drawStoneWallTile(px,py,tx,ty){
+  // 1번 멀쩡한 벽타일을 주로 사용하고, 중간중간만 2번 금간 벽타일을 섞는다.
+  const cracked = tileRand(tx,ty,900) > .88; // 대략 12%만 금간 벽
+
+  if(cracked){
+    drawTileImageBase(extractedWallTileCrackedImg, px, py, '#737b87');
+  }else{
+    drawTileImageBase(extractedWallTileIntactImg, px, py, '#737b87');
+  }
+
+  // 전체 벽이 완전히 똑같아 보이지 않게 아주 약한 밝기 차이만 준다.
+  if(tileRand(tx,ty,901) > .74){
+    ctx.fillStyle = 'rgba(255,255,255,.018)';
+    ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
+  }else if(tileRand(tx,ty,902) > .78){
+    ctx.fillStyle = 'rgba(0,0,0,.022)';
+    ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
+  }
+}
+function drawTile(px,py,type,tx=0,ty=0){
+  if(type==='unknown'){
+    ctx.fillStyle='#05070b';
+    ctx.fillRect(px,py,TILE,TILE);
+    return;
+  }
+  if(type==='void'){
+    ctx.fillStyle='#030407';
+    ctx.fillRect(px,py,TILE,TILE);
+    return;
+  }
   if(type==='wall'){
-    ctx.fillStyle='#182033'; ctx.fillRect(px,py,TILE,TILE);
-    for(let y=0;y<4;y++) for(let x=0;x<4;x++){ ctx.fillStyle=(x+y)%2===0?'#27344a':'#202b40'; ctx.fillRect(px+2+x*7,py+2+y*7,6,6); }
-    ctx.strokeStyle='#0b1020'; ctx.strokeRect(px+.5,py+.5,TILE-1,TILE-1);
+    drawStoneWallTile(px,py,tx,ty);
   } else {
-    ctx.fillStyle='#101827'; ctx.fillRect(px,py,TILE,TILE);
-    for(let y=0;y<4;y++) for(let x=0;x<4;x++){ ctx.fillStyle=(x+y)%2===0?'#0f1725':'#132033'; ctx.fillRect(px+1+x*8,py+1+y*8,7,7); }
+    drawStoneFloorTile(px,py,tx,ty);
   }
 }
 function drawSprite(id,px,py){
@@ -9687,7 +9999,7 @@ function safeAutoEnemyInCurrentView(e){
   const p=S.player;
   const ox = p.x - Math.floor(VIEW/2);
   const oy = p.y - Math.floor(VIEW/2);
-  return inView(e.x,e.y,ox,oy) && !!S.seen?.[e.y]?.[e.x];
+  return inView(e.x,e.y,ox,oy) && !!S.visible?.[e.y]?.[e.x];
 }
 function safeAutoEnemyLineBlocked(e){
   if(!S || !S.player || !e || e.hp<=0) return false;
@@ -19555,113 +19867,107 @@ skillCooldownText = function(cls,k){
 
 
 
-(function installWallBreakAndCommonCooldownFinal(){
-  const COMMON_SKILL_KEYS_FINAL = ['openDoor','breakWall'];
-  const ALL_SKILL_KEYS_FINAL = ['smash','dash','heal','openDoor','breakWall'];
 
-  function ensureCommonCooldownAndSkillsFinal(){
+
+
+
+
+
+
+
+
+(function installBreakWallSkillProperFinal(){
+  const BREAK_WALL_SKILL_VERSION = 'break-wall-skill-proper-1';
+  const VALID_SKILL_KEYS_BREAK_WALL = ['smash','dash','heal','openDoor','breakWall'];
+
+  function ensureBreakWallSkillState(){
     if(!S || !S.player) return null;
-
-    const p=S.player;
-
-    try{
-      if(Array.isArray(SKILL_TURN_CD_KEYS)){
-        ['openDoor','breakWall'].forEach(k=>{
-          if(!SKILL_TURN_CD_KEYS.includes(k)) SKILL_TURN_CD_KEYS.push(k);
-        });
-      }
-    }catch(e){}
+    const p = S.player;
 
     p.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0,breakWall:0}, p.cd || {});
     p.skillTurnLock = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillTurnLock || {});
     p.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillEnhance || {});
 
+    if(Array.isArray(SKILL_TURN_CD_KEYS)){
+      ['openDoor','breakWall'].forEach(k=>{
+        if(!SKILL_TURN_CD_KEYS.includes(k)) SKILL_TURN_CD_KEYS.push(k);
+      });
+    }
+
+    if(!Array.isArray(p.skillQuickSlots)) p.skillQuickSlots = ['smash','dash','heal'];
+    while(p.skillQuickSlots.length < 3) p.skillQuickSlots.push(['smash','dash','heal'][p.skillQuickSlots.length] || 'smash');
+
+    // 기존 슬롯은 건드리지 않는다. 잘못된 키만 기본값으로 복구한다.
+    p.skillQuickSlots = p.skillQuickSlots.slice(0,3).map((k,i)=>VALID_SKILL_KEYS_BREAK_WALL.includes(k) ? k : (['smash','dash','heal'][i] || 'smash'));
+
+    p.breakWallSkillVersion = BREAK_WALL_SKILL_VERSION;
     return p;
   }
 
-  const ensureRunFieldsBeforeWallBreakFinal = typeof ensureRunFields === 'function' ? ensureRunFields : null;
-  if(ensureRunFieldsBeforeWallBreakFinal){
+  const ensureRunFieldsBeforeBreakWallProper = typeof ensureRunFields === 'function' ? ensureRunFields : null;
+  if(ensureRunFieldsBeforeBreakWallProper){
     ensureRunFields = function(){
-      ensureRunFieldsBeforeWallBreakFinal.apply(this, arguments);
-      ensureCommonCooldownAndSkillsFinal();
+      ensureRunFieldsBeforeBreakWallProper.apply(this, arguments);
+      ensureBreakWallSkillState();
     };
   }
 
-  const ensureCommonSkillFieldsBeforeWallBreakFinal = typeof ensureCommonSkillFields === 'function' ? ensureCommonSkillFields : null;
+  const ensureCommonSkillFieldsBeforeBreakWallProper = typeof ensureCommonSkillFields === 'function' ? ensureCommonSkillFields : null;
   ensureCommonSkillFields = function(){
-    if(ensureCommonSkillFieldsBeforeWallBreakFinal) ensureCommonSkillFieldsBeforeWallBreakFinal.apply(this, arguments);
-    ensureCommonCooldownAndSkillsFinal();
+    if(ensureCommonSkillFieldsBeforeBreakWallProper) ensureCommonSkillFieldsBeforeBreakWallProper.apply(this, arguments);
+    ensureBreakWallSkillState();
   };
 
-  const skillNameByKeyBeforeWallBreakFinal = typeof skillNameByKey === 'function' ? skillNameByKey : null;
+  const ensureSkillQuickSlotsBeforeBreakWallProper = typeof ensureSkillQuickSlots === 'function' ? ensureSkillQuickSlots : null;
+  ensureSkillQuickSlots = function(){
+    if(ensureSkillQuickSlotsBeforeBreakWallProper) ensureSkillQuickSlotsBeforeBreakWallProper.apply(this, arguments);
+    ensureBreakWallSkillState();
+  };
+
+  const skillNameByKeyBeforeBreakWallProper = typeof skillNameByKey === 'function' ? skillNameByKey : null;
   skillNameByKey = function(k){
     if(k === 'openDoor') return '문열기';
     if(k === 'breakWall') return '벽부수기';
-    return skillNameByKeyBeforeWallBreakFinal ? skillNameByKeyBeforeWallBreakFinal(k) : String(k || '');
+    return skillNameByKeyBeforeBreakWallProper ? skillNameByKeyBeforeBreakWallProper(k) : String(k || '');
   };
 
-  const skillSmallTextByKeyBeforeWallBreakFinal = typeof skillSmallTextByKey === 'function' ? skillSmallTextByKey : null;
+  const skillSmallTextByKeyBeforeBreakWallProper = typeof skillSmallTextByKey === 'function' ? skillSmallTextByKey : null;
   skillSmallTextByKey = function(k){
     if(k === 'openDoor' || k === 'breakWall') return '공통 기술';
-    return skillSmallTextByKeyBeforeWallBreakFinal ? skillSmallTextByKeyBeforeWallBreakFinal(k) : '스킬';
+    return skillSmallTextByKeyBeforeBreakWallProper ? skillSmallTextByKeyBeforeBreakWallProper(k) : '스킬';
   };
 
-  const ensureSkillQuickSlotsBeforeWallBreakFinal = typeof ensureSkillQuickSlots === 'function' ? ensureSkillQuickSlots : null;
-  ensureSkillQuickSlots = function(){
-    ensureCommonCooldownAndSkillsFinal();
-
-    const p=S && S.player;
-    if(!p) return;
-
-    let q = Array.isArray(p.skillQuickSlots) ? p.skillQuickSlots.slice(0,3) : ['smash','dash','heal'];
-    while(q.length < 3) q.push(['smash','dash','heal'][q.length] || 'smash');
-
-    p.skillQuickSlots = q.map(k=>ALL_SKILL_KEYS_FINAL.includes(k) ? k : 'smash');
-  };
-
-  function commonSkillCooldownLeftFinal(k){
-    const p=ensureCommonCooldownAndSkillsFinal();
+  function commonCooldownLeftBreakWallProper(k){
+    const p = ensureBreakWallSkillState();
     if(!p) return 0;
 
-    const turn=Math.floor(Number(p.turn)||0);
-    const lock=Math.max(0,Math.floor(Number(p.skillTurnLock && p.skillTurnLock[k])||0));
-    let left=0;
+    const turn = Math.floor(Number(p.turn) || 0);
+    const lock = Math.max(0, Math.floor(Number(p.skillTurnLock && p.skillTurnLock[k]) || 0));
 
-    if(lock>turn){
-      left=lock-turn;
-    }else{
-      left=Math.max(0,Math.floor(Number(p.cd && p.cd[k])||0));
-      if(left>0){
-        p.skillTurnLock[k]=turn+left;
-      }else{
-        p.skillTurnLock[k]=0;
-      }
+    if(lock > turn){
+      p.cd[k] = lock - turn;
+      return p.cd[k];
     }
 
-    p.cd[k]=left;
-    return left;
+    p.skillTurnLock[k] = 0;
+    p.cd[k] = 0;
+    return 0;
   }
 
-  function setCommonSkillCooldownFinal(k,turns){
-    ensureCommonCooldownAndSkillsFinal();
+  function setCommonCooldownBreakWallProper(k, turns){
+    const p = ensureBreakWallSkillState();
+    if(!p) return;
 
-    if(typeof setSkillCooldownTurn === 'function'){
-      setSkillCooldownTurn(k,turns);
-      return;
-    }
-
-    const p=S.player;
-    const cd=Math.max(0,Math.floor(Number(turns)||0));
-    p.skillTurnLock[k]=Math.floor(Number(p.turn)||0)+cd+1;
-    p.cd[k]=cd;
+    const cd = Math.max(0, Math.floor(Number(turns) || 0));
+    p.skillTurnLock[k] = Math.floor(Number(p.turn) || 0) + cd + 1;
+    p.cd[k] = cd;
   }
 
-  function blockCommonSkillCooldownFinal(k,label){
-    const left=commonSkillCooldownLeftFinal(k);
+  function blockCommonCooldownBreakWallProper(k){
+    const left = commonCooldownLeftBreakWallProper(k);
 
-    if(left>0){
-      if(typeof clearSkillPreviewNow === 'function') clearSkillPreviewNow();
-      toast(`${label || skillNameByKey(k)} 재사용 ${left}턴`);
+    if(left > 0){
+      toast(`${skillNameByKey(k)} 재사용 ${left}턴`);
       try{ renderAll(); }catch(e){}
       return true;
     }
@@ -19669,45 +19975,33 @@ skillCooldownText = function(cls,k){
     return false;
   }
 
-  function openDoorCooldownTurnsFinal(){
-    const lv=clamp(Number(skillLv('openDoor')||0),0,20);
-    const rogueBonus=S && S.player && S.player.classId==='rogue' ? 5 : 0;
-    return Math.max(5,30-lv-rogueBonus);
-  }
-
   openDoorCooldownTurns = function(){
-    return openDoorCooldownTurnsFinal();
+    const lv = typeof skillLv === 'function' ? clamp(Number(skillLv('openDoor') || 0),0,20) : 0;
+    const rogueBonus = S && S.player && S.player.classId === 'rogue' ? 5 : 0;
+    return Math.max(5, 30 - lv - rogueBonus);
   };
 
-  function breakWallCooldownTurnsFinal(){
-    const lv=clamp(Number(skillLv('breakWall')||0),0,20);
-    const warriorBonus=S && S.player && S.player.classId==='warrior' ? 3 : 0;
-    return Math.max(4,16-Math.floor(lv/2)-warriorBonus);
-  }
-
-  function breakWallChanceFinal(){
-    const lv=clamp(Number(skillLv('breakWall')||0),0,20);
-    const warriorBonus=S && S.player && S.player.classId==='warrior' ? 20 : 0;
-    return clamp(35 + lv*2 + warriorBonus, 35, 95);
-  }
-
   breakWallCooldownTurns = function(){
-    return breakWallCooldownTurnsFinal();
+    const lv = typeof skillLv === 'function' ? clamp(Number(skillLv('breakWall') || 0),0,20) : 0;
+    const warriorBonus = S && S.player && S.player.classId === 'warrior' ? 3 : 0;
+    return Math.max(4, 16 - Math.floor(lv / 2) - warriorBonus);
   };
 
   breakWallChance = function(){
-    return breakWallChanceFinal();
+    const lv = typeof skillLv === 'function' ? clamp(Number(skillLv('breakWall') || 0),0,20) : 0;
+    const warriorBonus = S && S.player && S.player.classId === 'warrior' ? 20 : 0;
+    return clamp(35 + lv * 2 + warriorBonus, 35, 95);
   };
 
-  function dirDeltaFinal(dir){
-    if(dir==='left') return [-1,0];
-    if(dir==='right') return [1,0];
-    if(dir==='up') return [0,-1];
-    if(dir==='down') return [0,1];
+  function dirDeltaBreakWallProper(dir){
+    if(dir === 'left') return [-1,0];
+    if(dir === 'right') return [1,0];
+    if(dir === 'up') return [0,-1];
+    if(dir === 'down') return [0,1];
     return [0,0];
   }
 
-  function protectedLockedRoomWallFinal(x,y){
+  function protectedWallCellBreakWallProper(x,y){
     try{
       if(typeof lockedDoorAt === 'function' && lockedDoorAt(x,y,true)) return true;
       if(typeof lockedRoomAtRect === 'function' && lockedRoomAtRect(x,y,true)) return true;
@@ -19715,110 +20009,95 @@ skillCooldownText = function(cls,k){
     return false;
   }
 
-  function canBreakWallCellFinal(x,y){
+  function canBreakWallCellBreakWallProper(x,y){
     if(!S || !S.map || !inMap(x,y)) return false;
-    if(x<=0 || y<=0 || x>=MAPW-1 || y>=MAPH-1) return false;
+    if(x <= 0 || y <= 0 || x >= MAPW-1 || y >= MAPH-1) return false;
     if(S.map[y][x] !== '#') return false;
-    if(protectedLockedRoomWallFinal(x,y)) return false;
+    if(protectedWallCellBreakWallProper(x,y)) return false;
     return true;
   }
 
-  function adjacentBreakWallTargetFinal(){
-    const p=S && S.player;
+  function adjacentBreakWallTargetBreakWallProper(){
+    const p = S && S.player;
     if(!p) return null;
 
-    const first=dirDeltaFinal(p.dir || 'down');
-
-    if(first[0] || first[1]){
-      const tx=p.x+first[0], ty=p.y+first[1];
-      if(canBreakWallCellFinal(tx,ty)) return {x:tx,y:ty};
+    const d = dirDeltaBreakWallProper(p.dir || 'down');
+    if(d[0] || d[1]){
+      const x = p.x + d[0], y = p.y + d[1];
+      if(canBreakWallCellBreakWallProper(x,y)) return {x,y};
     }
 
     for(const [dx,dy] of DIRS){
-      const x=p.x+dx, y=p.y+dy;
-      if(canBreakWallCellFinal(x,y)) return {x,y};
+      const x = p.x + dx, y = p.y + dy;
+      if(canBreakWallCellBreakWallProper(x,y)) return {x,y};
     }
 
     return null;
   }
 
-  function useBreakWallSkillFinal(){
+  useBreakWallSkill = function(){
     if(!S || !S.player) return;
     if(typeof canAct === 'function' && !canAct()) return;
 
-    ensureCommonCooldownAndSkillsFinal();
+    ensureBreakWallSkillState();
 
-    if(blockCommonSkillCooldownFinal('breakWall','벽부수기')) return;
+    if(blockCommonCooldownBreakWallProper('breakWall')) return;
 
-    const target=adjacentBreakWallTargetFinal();
-
+    const target = adjacentBreakWallTargetBreakWallProper();
     if(!target){
-      toast('부술 수 있는 벽이 인접해 있지 않습니다.');
+      toast('부술 수 있는 일반 벽이 인접해 있지 않습니다.');
       return;
     }
 
     hideModal();
 
-    const p=S.player;
-    const pct=breakWallChanceFinal();
-    const ok=rand(100)<pct;
+    const pct = breakWallChance();
+    const ok = rand(100) < pct;
 
     if(ok){
-      S.map[target.y][target.x]='.';
+      S.map[target.y][target.x] = '.';
 
-      if(S.seen && S.seen[target.y]) S.seen[target.y][target.x]=true;
+      if(S.seen && S.seen[target.y]) S.seen[target.y][target.x] = true;
 
-      if(typeof addFx === 'function'){
-        addFx({kind:'burst',x:target.x,y:target.y,color:'#94a3b8',spark:'#f8fafc',dur:300});
-      }
-
+      addFx({kind:'burst',x:target.x,y:target.y,color:'#94a3b8',spark:'#f8fafc',dur:300});
       addLog(`<span class="legend">벽부수기 성공</span>. 벽을 부쉈다. (${pct}%)`);
     }else{
-      if(typeof addFx === 'function'){
-        addFx({kind:'hit',x:target.x,y:target.y,color:'#64748b',spark:'#cbd5e1',dur:220});
-      }
-
+      addFx({kind:'hit',x:target.x,y:target.y,color:'#64748b',spark:'#cbd5e1',dur:220});
       addLog(`벽부수기 실패. 벽이 버텼다. (${pct}%)`);
     }
 
-    setCommonSkillCooldownFinal('breakWall',breakWallCooldownTurnsFinal());
+    setCommonCooldownBreakWallProper('breakWall', breakWallCooldownTurns());
 
     if(typeof afterPlayerAction === 'function') afterPlayerAction();
     else renderAll();
-  }
-
-  useBreakWallSkill = function(){
-    return useBreakWallSkillFinal();
   };
 
-  const adjacentLockedDoorFinal = typeof adjacentLockedDoor === 'function' ? adjacentLockedDoor : null;
+  const adjacentLockedDoorBeforeBreakWallProper = typeof adjacentLockedDoor === 'function' ? adjacentLockedDoor : null;
   useOpenDoorSkill = function(){
     if(!S || !S.player) return;
     if(typeof canAct === 'function' && !canAct()) return;
 
-    ensureCommonCooldownAndSkillsFinal();
+    ensureBreakWallSkillState();
 
-    if(blockCommonSkillCooldownFinal('openDoor','문열기')) return;
+    if(blockCommonCooldownBreakWallProper('openDoor')) return;
 
-    const room=adjacentLockedDoorFinal ? adjacentLockedDoorFinal() : (typeof adjacentLockedDoor === 'function' ? adjacentLockedDoor() : null);
+    const room = adjacentLockedDoorBeforeBreakWallProper ? adjacentLockedDoorBeforeBreakWallProper() : null;
 
     if(!room || !room.door){
       toast('사거리 1칸 안에 잠긴 문이 없습니다.');
       return;
     }
 
-    const p=S.player;
-    const doorDistance=Math.abs(p.x-room.door.x)+Math.abs(p.y-room.door.y);
-
-    if(doorDistance!==1){
+    const p = S.player;
+    if(Math.abs(p.x-room.door.x)+Math.abs(p.y-room.door.y) !== 1){
       toast('문열기 사거리는 1칸입니다.');
       return;
     }
 
     hideModal();
 
-    const pct=typeof openDoorChance === 'function' ? openDoorChance() : 0;
-    const ok=rand(100)<pct;
+    const pct = typeof openDoorChance === 'function' ? openDoorChance() : 0;
+    const ok = rand(100) < pct;
 
     if(ok){
       if(typeof revealLockedRoom === 'function') revealLockedRoom(room);
@@ -19829,24 +20108,24 @@ skillCooldownText = function(cls,k){
       addLog(`문열기 실패. 잠긴 문이 버텼다. (${pct}%)`);
     }
 
-    setCommonSkillCooldownFinal('openDoor',openDoorCooldownTurnsFinal());
+    setCommonCooldownBreakWallProper('openDoor', openDoorCooldownTurns());
 
     if(typeof afterPlayerAction === 'function') afterPlayerAction();
     else renderAll();
   };
 
-  const skillFunctionByKeyBeforeWallBreakFinal = typeof skillFunctionByKey === 'function' ? skillFunctionByKey : null;
+  const skillFunctionByKeyBeforeBreakWallProper = typeof skillFunctionByKey === 'function' ? skillFunctionByKey : null;
   skillFunctionByKey = function(k){
-    if(k==='openDoor') return useOpenDoorSkill;
-    if(k==='breakWall') return useBreakWallSkill;
-    return skillFunctionByKeyBeforeWallBreakFinal ? skillFunctionByKeyBeforeWallBreakFinal(k) : skillSmash;
+    if(k === 'openDoor') return useOpenDoorSkill;
+    if(k === 'breakWall') return useBreakWallSkill;
+    return skillFunctionByKeyBeforeBreakWallProper ? skillFunctionByKeyBeforeBreakWallProper(k) : skillSmash;
   };
 
   skillCooldownByKey = function(k){
-    ensureCommonCooldownAndSkillsFinal();
+    ensureBreakWallSkillState();
 
-    if(k==='openDoor' || k==='breakWall') return commonSkillCooldownLeftFinal(k);
-    if(k==='smash' || k==='dash' || k==='heal') return typeof skillCooldownLeft === 'function' ? skillCooldownLeft(k) : Math.max(0,Number(S.player.cd && S.player.cd[k] || 0));
+    if(k === 'openDoor' || k === 'breakWall') return commonCooldownLeftBreakWallProper(k);
+    if(k === 'smash' || k === 'dash' || k === 'heal') return typeof skillCooldownLeft === 'function' ? skillCooldownLeft(k) : Math.max(0,Number(S.player.cd && S.player.cd[k] || 0));
 
     return Math.max(0,Number(S.player.cd && S.player.cd[k] || 0));
   };
@@ -19854,60 +20133,44 @@ skillCooldownText = function(cls,k){
   canUseQuickSlotSkillKey = function(key){
     if(!S || !S.player) return false;
 
-    if(key==='openDoor' || key==='breakWall'){
-      return !blockCommonSkillCooldownFinal(key,skillNameByKey(key));
-    }
+    if(key === 'openDoor' || key === 'breakWall') return !blockCommonCooldownBreakWallProper(key);
 
-    if((key==='smash' || key==='dash' || key==='heal') && typeof blockSkillCooldown === 'function'){
+    if((key === 'smash' || key === 'dash' || key === 'heal') && typeof blockSkillCooldown === 'function'){
       if(blockSkillCooldown(key,skillNameByKey(key))) return false;
     }
 
     return true;
   };
 
-  const actualSkillMpCostBeforeWallBreakFinal = typeof actualSkillMpCost === 'function' ? actualSkillMpCost : null;
-  actualSkillMpCost = function(cls,k){
-    if(k==='openDoor' || k==='breakWall') return 0;
-    return actualSkillMpCostBeforeWallBreakFinal ? actualSkillMpCostBeforeWallBreakFinal(cls,k) : 0;
-  };
-
-  if(typeof skillMpText === 'function'){
-    skillMpText = function(cls,k){
-      if(k==='openDoor' || k==='breakWall') return '0';
-      return String(actualSkillMpCost(cls,k));
-    };
-    window.skillMpText = skillMpText;
-  }
-
-  const skillEnhanceDescBeforeWallBreakFinal = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
+  const skillEnhanceDescBeforeBreakWallProper = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
   skillEnhanceDesc = function(k){
-    ensureCommonCooldownAndSkillsFinal();
+    ensureBreakWallSkillState();
 
-    if(k==='openDoor'){
-      const lv=skillLv('openDoor');
-      const info=skillCostInfo(lv);
-      const cost=lv>=20 ? 'MAX 강화 완료' : `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
-      const rogueText=S && S.player && S.player.classId==='rogue' ? ' · 도적 쿨타임 -5턴' : '';
-      return `${cost} · 문 열기 확률 ${openDoorChance()}% · 사거리 1칸 · 쿨타임 ${openDoorCooldownTurnsFinal()}턴${rogueText}`;
+    if(k === 'openDoor'){
+      const lv = skillLv('openDoor');
+      const info = skillCostInfo(lv);
+      const cost = lv >= 20 ? 'MAX 강화 완료' : `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
+      const rogueText = S && S.player && S.player.classId === 'rogue' ? ' · 도적 쿨타임 -5턴' : '';
+      return `${cost} · 문 열기 확률 ${openDoorChance()}% · 사거리 1칸 · 쿨타임 ${openDoorCooldownTurns()}턴${rogueText}`;
     }
 
-    if(k==='breakWall'){
-      const lv=skillLv('breakWall');
-      const info=skillCostInfo(lv);
-      const cost=lv>=20 ? 'MAX 강화 완료' : `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
-      const warriorText=S && S.player && S.player.classId==='warrior' ? ' · 전사 보너스: 확률 +20% / 쿨타임 -3턴' : ' · 전사 선택 시 보너스 적용';
-      return `${cost} · 벽 파괴 확률 ${breakWallChanceFinal()}% · 사거리 1칸 · 쿨타임 ${breakWallCooldownTurnsFinal()}턴${warriorText}`;
+    if(k === 'breakWall'){
+      const lv = skillLv('breakWall');
+      const info = skillCostInfo(lv);
+      const cost = lv >= 20 ? 'MAX 강화 완료' : `비용 ${formatGold(info.cost)} · 성공 ${info.s}% · 유지 ${info.k}% · 하락 ${info.d}%`;
+      const warriorText = S && S.player && S.player.classId === 'warrior' ? ' · 전사 보너스: 확률 +20% / 쿨타임 -3턴' : ' · 전사 선택 시 보너스 적용';
+      return `${cost} · 벽 파괴 확률 ${breakWallChance()}% · 사거리 1칸 · 쿨타임 ${breakWallCooldownTurns()}턴${warriorText}`;
     }
 
-    return skillEnhanceDescBeforeWallBreakFinal ? skillEnhanceDescBeforeWallBreakFinal(k) : '';
+    return skillEnhanceDescBeforeBreakWallProper ? skillEnhanceDescBeforeBreakWallProper(k) : '';
   };
 
   commonSkillCardsQuickslot = function(){
-    ensureCommonCooldownAndSkillsFinal();
+    ensureBreakWallSkillState();
 
-    const openLv=skillLv('openDoor');
-    const wallLv=skillLv('breakWall');
-    const warriorText=S && S.player && S.player.classId==='warrior' ? '<p class="goodtxt">전사 보너스: 벽부수기 확률 +20%, 쿨타임 -3턴</p>' : '';
+    const openLv = skillLv('openDoor');
+    const wallLv = skillLv('breakWall');
+    const warriorText = S && S.player && S.player.classId === 'warrior' ? '<p class="goodtxt">전사 보너스: 벽부수기 확률 +20%, 쿨타임 -3턴</p>' : '';
 
     return `<div class="choice skillChoice">
       <h4>1. 문열기 <span class="legend">+${openLv}</span></h4>
@@ -19917,7 +20180,7 @@ skillCooldownText = function(cls,k){
     </div>
     <div class="choice skillChoice">
       <h4>2. 벽부수기 <span class="legend">+${wallLv}</span></h4>
-      <p>인접 1칸 안의 일반 벽을 일정 확률로 부숩니다. 잠긴 방의 벽은 부술 수 없습니다.</p>
+      <p>인접 1칸 안의 일반 벽을 일정 확률로 부숩니다. 잠긴 방 벽은 부술 수 없습니다.</p>
       ${warriorText}
       <p class="muted">${skillEnhanceDesc('breakWall')}</p>
       <button class="btn good smallbtn skillEnhanceBtn" data-skill-enhance="breakWall" ${wallLv>=20?'disabled':''}>강화</button>${quickSlotAssignButton('breakWall')}
@@ -19925,26 +20188,28 @@ skillCooldownText = function(cls,k){
     <div class="choice skillChoice commonSkillFiller" aria-hidden="true"></div>`;
   };
 
-  const updateSkillButtonsFromQuickSlotsBeforeWallBreakFinal = typeof updateSkillButtonsFromQuickSlots === 'function' ? updateSkillButtonsFromQuickSlots : null;
+  // 슬롯을 강제로 바꾸지 않는다. 지정된 슬롯에 벽부수기를 넣었을 때만 버튼에 표시된다.
+  const updateSkillButtonsFromQuickSlotsBeforeBreakWallProper = typeof updateSkillButtonsFromQuickSlots === 'function' ? updateSkillButtonsFromQuickSlots : null;
   updateSkillButtonsFromQuickSlots = function(){
-    ensureSkillQuickSlots();
+    ensureBreakWallStateSafe:
+    ensureBreakWallSkillState();
 
     ['skill1','skill2','skill3'].forEach((id,idx)=>{
       const el=$(id);
       if(!el) return;
 
-      const key=quickSlotSkillKey(idx);
-      const b=el.querySelector('b');
-      const small=el.querySelector('small');
+      const key = quickSlotSkillKey(idx);
+      const b = el.querySelector('b');
+      const small = el.querySelector('small');
 
-      if(b) b.textContent=skillNameByKey(key);
-      if(small) small.textContent=skillSmallTextByKey(key);
+      if(b) b.textContent = skillNameByKey(key);
+      if(small) small.textContent = skillSmallTextByKey(key);
 
       updateCooldown(id,skillCooldownByKey(key));
     });
   };
 
-  function enemyInClosedLockedRoomForAutoFinal(e){
+  function enemyInClosedLockedRoomForAutoBreakWallProper(e){
     try{
       return !!(e && e.hp>0 && typeof lockedRoomAtRect === 'function' && lockedRoomAtRect(e.x,e.y,false));
     }catch(err){
@@ -19953,30 +20218,31 @@ skillCooldownText = function(cls,k){
   }
 
   if(typeof fullAutoVisibleEnemies === 'function'){
-    const fullAutoVisibleEnemiesBeforeWallBreakFinal = fullAutoVisibleEnemies;
+    const before = fullAutoVisibleEnemies;
     fullAutoVisibleEnemies = function(){
-      const list=fullAutoVisibleEnemiesBeforeWallBreakFinal.apply(this,arguments) || [];
-      return list.filter(e=>!enemyInClosedLockedRoomForAutoFinal(e));
+      const list = before.apply(this,arguments) || [];
+      return list.filter(e=>!enemyInClosedLockedRoomForAutoBreakWallProper(e));
     };
   }
 
   if(typeof fullAutoSelectEnemyTarget === 'function'){
-    const fullAutoSelectEnemyTargetBeforeWallBreakFinal = fullAutoSelectEnemyTarget;
+    const before = fullAutoSelectEnemyTarget;
     fullAutoSelectEnemyTarget = function(enemies){
-      return fullAutoSelectEnemyTargetBeforeWallBreakFinal.call(this,(enemies||[]).filter(e=>!enemyInClosedLockedRoomForAutoFinal(e)));
+      return before.call(this,(enemies||[]).filter(e=>!enemyInClosedLockedRoomForAutoBreakWallProper(e)));
     };
   }
 
   if(typeof autoSelectEnemy === 'function'){
-    const autoSelectEnemyBeforeWallBreakFinal = autoSelectEnemy;
+    const before = autoSelectEnemy;
     autoSelectEnemy = function(enemies,opts){
-      return autoSelectEnemyBeforeWallBreakFinal.call(this,(enemies||[]).filter(e=>!enemyInClosedLockedRoomForAutoFinal(e)),opts);
+      return before.call(this,(enemies||[]).filter(e=>!enemyInClosedLockedRoomForAutoBreakWallProper(e)),opts);
     };
   }
 
   try{
-    ensureCommonCooldownAndSkillsFinal();
+    ensureBreakWallSkillState();
     if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots();
+    if(typeof renderAll === 'function') renderAll();
   }catch(e){}
 })();
 
