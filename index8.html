@@ -19643,10 +19643,14 @@ skillCooldownText = function(cls,k){
 })();
 
 
-(function(){
-  /* Ranking problem fix:
-     - Existing ranking rows had no online/offline text, so text-scanning could not classify rows.
-     - Re-render ranking rows with row classes based on active online table/list. */
+(function installFinalRankingSystem(){
+  /* 랭킹 시스템 정리본: 저장/조회/화면/새로고침 경로를 하나로 통일한다. */
+  const RANK_TABLE = (typeof PUBLIC_RANKING_TABLE !== 'undefined' && PUBLIC_RANKING_TABLE) ? PUBLIC_RANKING_TABLE : 'game_rankings';
+  const ONLINE_TABLE = (typeof SERVER_ONLINE_TABLE !== 'undefined' && SERVER_ONLINE_TABLE) ? SERVER_ONLINE_TABLE : 'game_online_users';
+  const RANK_LIMIT = 100;
+  let rankingSyncTimer = null;
+  let rankingRendering = false;
+
   const style = document.createElement('style');
   style.textContent = `
     #modal #modalCard .rankingTable tr.rankingOnline td,
@@ -19655,29 +19659,471 @@ skillCooldownText = function(cls,k){
     #modal #modalCard .rankingTable tr.rankingOffline td,
     #modal #modalCard .rankingTable tr.rankingOffline td *,
     #modal #modalCard .rankingTable tr.rankingOffline .rankTop{color:#94a3b8!important;}
+    #modal #modalCard .rankingTable .rankingState{font-size:11px;}
   `;
   document.head.appendChild(style);
 
-  function onlineKeyCandidates88(obj){
+  function rankNum(v, def=0){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : def;
+  }
+  function rankInt(v, def=0){
+    return Math.max(def, Math.floor(rankNum(v, def)));
+  }
+  function rankDateMs(v){
+    const t = Date.parse(v || '');
+    return Number.isFinite(t) ? t : 0;
+  }
+  function rankMode(){
+    try{ return cloudProviderModeKey(activeLoginMode || (S && S.loginMode) || 'kakao'); }
+    catch(e){ return (activeLoginMode === 'naver') ? 'naver' : 'kakao'; }
+  }
+  function rankIsCloud(mode){
+    try{ return isCloudLoginMode(mode || activeLoginMode || (S && S.loginMode)); }
+    catch(e){ return false; }
+  }
+  function rankScoreFromFields(floor, level, combatPower, extras={}){
+    try{
+      if(window.finalRankingScoreFromFields) return Number(window.finalRankingScoreFromFields(floor, level, combatPower, extras)) || 0;
+    }catch(e){}
+    return Math.max(0, Math.floor(
+      rankInt(floor,1) * 10000 +
+      rankInt(level,1) * 100 +
+      Math.max(0, rankInt(combatPower,0)) * 0.01 +
+      rankInt(extras.kills,0) * 2 +
+      rankInt(extras.souls,0) +
+      rankInt(extras.opened,0) * 0.5 +
+      rankInt(extras.relics,0) * 25 +
+      rankInt(extras.skillTotal,0) * 5
+    ));
+  }
+  function rankSumObject(obj){
+    if(!obj || typeof obj !== 'object') return 0;
+    return Object.values(obj).reduce((a,b)=>a+rankInt(b,0),0);
+  }
+  function rankIdFor(userId, slotIndex, mode){
+    const provider = rankModeKey(mode);
+    return `${userId}_${provider}_${rankInt(slotIndex,0)}`;
+  }
+  function rankModeKey(mode){
+    try{ return cloudProviderModeKey(mode || rankMode()); }
+    catch(e){ return (mode === 'naver') ? 'naver' : 'kakao'; }
+  }
+  function rankClassNameFromRun(p, fallback){
+    if(!p) return fallback || '-';
+    return p.className || (classes[p.classId] ? classes[p.classId].name : fallback) || '-';
+  }
+  function makeRankRecord(raw, fallbackNick){
+    if(!raw || typeof raw !== 'object') return null;
+    const nickname = String(raw.nickname || raw.nick || raw.name || fallbackNick || '이름 없음');
+    const className = String(raw.className || raw.class_name || raw.jobName || raw.job || '-');
+    const level = rankInt(raw.level || raw.lv, 1);
+    const floor = rankInt(raw.floor || raw.stage, 1);
+    const combatPower = rankInt(raw.combatPower != null ? raw.combatPower : raw.combat_power, 0);
+    let score = raw.score != null ? rankNum(raw.score, NaN) : NaN;
+    if(!Number.isFinite(score)) score = rankScoreFromFields(floor, level, combatPower);
+    return {
+      nickname,
+      className,
+      level,
+      floor,
+      combatPower,
+      score:Math.max(0, Math.floor(score)),
+      updatedAt:raw.updatedAt || raw.updated_at || new Date().toISOString(),
+      rankId:raw.rankId || raw.rank_id || '',
+      userId:raw.userId || raw.user_id || '',
+      provider:raw.provider || raw.mode || '',
+      slotIndex:raw.slotIndex != null ? rankInt(raw.slotIndex,0) : (raw.slot_index != null ? rankInt(raw.slot_index,0) : null)
+    };
+  }
+
+  normalizeStoredRankRecord = function(rec, fallbackNick){
+    return makeRankRecord(rec, fallbackNick);
+  };
+  compareRankRecords = function(a,b){
+    const ar = makeRankRecord(a) || {floor:0,level:0,combatPower:0,score:0,updatedAt:''};
+    const br = makeRankRecord(b) || {floor:0,level:0,combatPower:0,score:0,updatedAt:''};
+    return (ar.floor - br.floor)
+      || (ar.level - br.level)
+      || (ar.combatPower - br.combatPower)
+      || (ar.score - br.score)
+      || (rankDateMs(ar.updatedAt) - rankDateMs(br.updatedAt));
+  };
+  chooseBestRankRecord = function(prev, current){
+    const p = makeRankRecord(prev);
+    const c = makeRankRecord(current);
+    if(!p) return c;
+    if(!c) return p;
+    return compareRankRecords(c,p) > 0 ? c : p;
+  };
+  rankingScoreForRun = function(run, metaObj){
+    const p = run && run.player ? run.player : null;
+    if(!p) return 0;
+    const power = combatPowerForRun(run, metaObj || meta || {});
+    const skillTotal = rankSumObject(p.skillEnhance) + rankSumObject(p.skillLv);
+    return rankScoreFromFields(p.floor || 1, p.level || 1, power, {
+      kills:p.kills || 0,
+      souls:p.soulsRun || 0,
+      opened:p.opened || 0,
+      relics:Array.isArray(p.relics) ? p.relics.length : 0,
+      skillTotal
+    });
+  };
+  currentRankingScore = function(){
+    return S && S.player ? rankingScoreForRun(S, meta) : 0;
+  };
+  rankRecordFromRun = function(run, metaObj, fallbackNick){
+    const p = run && run.player ? run.player : null;
+    if(!p) return null;
+    const power = combatPowerForRun(run, metaObj || meta || {});
+    return makeRankRecord({
+      nickname:fallbackNick || p.name || p.nickname || p.className || '이름 없음',
+      className:rankClassNameFromRun(p, '-'),
+      level:clamp(rankInt(p.level,1), 1, MAX_LEVEL),
+      floor:rankInt(p.floor,1),
+      combatPower:power,
+      score:rankingScoreForRun(run, metaObj || meta || {}),
+      updatedAt:new Date().toISOString()
+    });
+  };
+  buildRankRecordFromCharacter = function(ch, metaObj, fallbackNick){
+    if(!ch || typeof ch !== 'object') return null;
+    const run = ch.run || null;
+    const p = run && run.player ? run.player : null;
+    const nickname = ch.nickname || fallbackNick || (p && (p.name || p.nickname)) || '이름 없음';
+    const savedBest = makeRankRecord(ch.bestRank || ch.rankRecord, nickname);
+    const current = p ? rankRecordFromRun(run, metaObj || meta || {}, nickname) : null;
+    const slotRecord = (ch.score || ch.combatPower || ch.floor || ch.level) ? makeRankRecord({
+      nickname,
+      className:ch.className || (p && rankClassNameFromRun(p)) || (savedBest && savedBest.className) || '-',
+      level:ch.level || (p && p.level) || (savedBest && savedBest.level) || 1,
+      floor:ch.floor || (p && p.floor) || (savedBest && savedBest.floor) || 1,
+      combatPower:ch.combatPower || (current && current.combatPower) || (savedBest && savedBest.combatPower) || 0,
+      score:ch.score || (current && current.score) || (savedBest && savedBest.score) || 0,
+      updatedAt:ch.updatedAt || (savedBest && savedBest.updatedAt) || new Date().toISOString()
+    }, nickname) : null;
+    return chooseBestRankRecord(chooseBestRankRecord(savedBest, current), slotRecord);
+  };
+  rankRecordFromPublicRow = function(row){
+    if(!row) return null;
+    return makeRankRecord({
+      rankId:row.rank_id,
+      userId:row.user_id,
+      provider:row.provider || '',
+      slotIndex:row.slot_index,
+      nickname:row.nickname || '이름 없음',
+      className:row.class_name || row.className || '-',
+      level:row.level || 1,
+      floor:row.floor || 1,
+      combatPower:row.combat_power || row.combatPower || 0,
+      score:row.score,
+      updatedAt:row.updated_at || row.updatedAt || new Date().toISOString()
+    }, row.nickname || '이름 없음');
+  };
+  publicRankIdFor = function(userId, slotIndex, mode){
+    return rankIdFor(userId, slotIndex, mode);
+  };
+
+  const normalizeCharacterSlotsBeforeFinalRanking = normalizeCharacterSlots;
+  normalizeCharacterSlots = function(slots, count){
+    const arr = Array.isArray(slots) ? slots.slice(0,count) : [];
+    while(arr.length < count) arr.push(null);
+    return arr.map(ch=>{
+      if(!ch || typeof ch !== 'object') return null;
+      const run = ch.run || null;
+      const p = run && run.player ? run.player : null;
+      if(!p && !(ch.bestRank || ch.rankRecord || ch.score || ch.combatPower)) return null;
+      const clsId = ch.classId || (p && p.classId) || 'warrior';
+      const cls = classes[clsId] || classes.warrior;
+      const nickname = ch.nickname || (p && (p.name || p.nickname)) || (ch.bestRank && ch.bestRank.nickname) || cls.name || '이름 없음';
+      const current = p ? rankRecordFromRun(run, meta || {}, nickname) : null;
+      const bestRank = buildRankRecordFromCharacter(Object.assign({}, ch, {nickname}), meta || {}, nickname);
+      return {
+        nickname,
+        classId:clsId,
+        className:ch.className || (p && p.className) || cls.name,
+        level:rankInt((p && p.level) || ch.level || (bestRank && bestRank.level), 1),
+        floor:rankInt((p && p.floor) || ch.floor || (bestRank && bestRank.floor), 1),
+        combatPower:rankInt((current && current.combatPower) || ch.combatPower || (bestRank && bestRank.combatPower), 0),
+        score:rankInt((current && current.score) || ch.score || (bestRank && bestRank.score), 0),
+        updatedAt:ch.updatedAt || (bestRank && bestRank.updatedAt) || new Date().toISOString(),
+        bestRank,
+        rankRecord:bestRank,
+        run
+      };
+    });
+  };
+
+  syncActiveCharacterFromRun = function(){
+    if(!S || !S.player || activeCharacterSlot == null) return;
+    const mode = S.loginMode || activeLoginMode || 'guest';
+    const limit = currentSlotLimit(mode);
+    const slots = normalizeCharacterSlots(getSlotsForMode(mode), limit);
+    const prev = slots[activeCharacterSlot] || null;
+    const p = S.player;
+    const nickname = mode === 'guest' ? '게스트' : (p.name || S.characterNickname || p.className || '이름 없음');
+    const currentRank = rankRecordFromRun(S, meta || {}, nickname);
+    const bestRank = chooseBestRankRecord(prev && (prev.bestRank || prev.rankRecord), currentRank);
+    slots[activeCharacterSlot] = {
+      nickname,
+      classId:p.classId || S.characterClassId || 'warrior',
+      className:p.className || (classes[p.classId]||classes.warrior).name,
+      level:clamp(rankInt(p.level,1), 1, MAX_LEVEL),
+      floor:rankInt(p.floor,1),
+      combatPower:rankInt(currentRank && currentRank.combatPower,0),
+      score:rankInt(currentRank && currentRank.score,0),
+      updatedAt:new Date().toISOString(),
+      bestRank,
+      rankRecord:bestRank,
+      run:deepClone(S)
+    };
+    setSlotsForMode(mode, slots);
+  };
+
+  function rankRecordToRow(userId, provider, slotIndex, rec){
+    const r = makeRankRecord(rec);
+    if(!r) return null;
+    return {
+      rank_id:rankIdFor(userId, slotIndex, provider),
+      user_id:userId,
+      provider:rankModeKey(provider),
+      slot_index:rankInt(slotIndex,0),
+      nickname:String(r.nickname || '이름 없음').slice(0,32),
+      class_name:String(r.className || '-').slice(0,32),
+      level:rankInt(r.level,1),
+      floor:rankInt(r.floor,1),
+      combat_power:rankInt(r.combatPower,0),
+      score:rankInt(r.score,0),
+      updated_at:new Date().toISOString()
+    };
+  }
+  function rowsForCurrentUser(userId, provider){
+    const mode = rankModeKey(provider || rankMode());
+    try{ if(S && S.player && typeof syncActiveCharacterFromRun === 'function') syncActiveCharacterFromRun(); }catch(e){}
+    const slots = normalizeCharacterSlots(getSlotsForMode(mode), 3);
+    const rows = [];
+    slots.forEach((ch,i)=>{
+      const rec = buildRankRecordFromCharacter(ch, meta || {}, ch && ch.nickname);
+      const row = rankRecordToRow(userId, mode, i, rec);
+      if(row) rows.push(row);
+    });
+    return rows;
+  }
+  async function safeCurrentUser(){
+    try{ return await currentCloudUser(); }
+    catch(e){ return null; }
+  }
+  async function tryRpcUpsert(client, row){
+    try{
+      const {error} = await client.rpc('upsert_game_ranking', {
+        p_provider:row.provider,
+        p_slot_index:row.slot_index,
+        p_nickname:row.nickname,
+        p_class_name:row.class_name,
+        p_level:row.level,
+        p_floor:row.floor,
+        p_combat_power:row.combat_power,
+        p_score:row.score
+      });
+      return !error;
+    }catch(e){ return false; }
+  }
+  async function directUpsertRows(client, rows){
+    if(!rows.length) return true;
+    try{
+      const {error} = await client.from(RANK_TABLE).upsert(rows, {onConflict:'rank_id'});
+      if(!error) return true;
+      throw error;
+    }catch(e){
+      const legacyRows = rows.map(r=>({
+        rank_id:`${r.user_id}_${r.slot_index}`,
+        user_id:r.user_id,
+        slot_index:r.slot_index,
+        nickname:r.nickname,
+        class_name:r.class_name,
+        level:r.level,
+        floor:r.floor,
+        combat_power:r.combat_power,
+        score:r.score,
+        updated_at:r.updated_at
+      }));
+      const {error} = await client.from(RANK_TABLE).upsert(legacyRows, {onConflict:'rank_id'});
+      if(error) throw error;
+      return true;
+    }
+  }
+  syncPublicRankingRowsForCurrentUser = async function(){
+    if(!rankIsCloud()) return false;
+    const client = getCloudClient && getCloudClient();
+    const user = await safeCurrentUser();
+    if(!client || !user) return false;
+    const mode = rankMode();
+    const rows = rowsForCurrentUser(user.id, mode);
+    try{
+      let allRpcOk = rows.length > 0;
+      for(const row of rows){
+        const ok = await tryRpcUpsert(client, row);
+        allRpcOk = allRpcOk && ok;
+      }
+      if(!allRpcOk) await directUpsertRows(client, rows);
+      for(let i=0;i<3;i++){
+        if(rows.some(r=>r.slot_index === i)) continue;
+        try{ await client.from(RANK_TABLE).delete().eq('rank_id', rankIdFor(user.id, i, mode)); }catch(e){}
+        try{ await client.from(RANK_TABLE).delete().eq('rank_id', `${user.id}_${i}`); }catch(e){}
+      }
+      return true;
+    }catch(e){
+      console.warn('ranking sync failed:', e && e.message ? e.message : e);
+      return false;
+    }
+  };
+
+  async function fetchRankTableRows(client){
+    const rows = [];
+    try{
+      const {data,error} = await client.rpc('get_game_rankings', {p_limit:500});
+      if(!error && Array.isArray(data)) rows.push(...data);
+    }catch(e){}
+    try{
+      const {data,error} = await client
+        .from(RANK_TABLE)
+        .select('rank_id,user_id,provider,slot_index,nickname,class_name,level,floor,combat_power,score,updated_at')
+        .order('floor', {ascending:false})
+        .order('level', {ascending:false})
+        .order('combat_power', {ascending:false})
+        .order('score', {ascending:false})
+        .limit(1000);
+      if(!error && Array.isArray(data)) rows.push(...data);
+      else if(error) throw error;
+    }catch(e){
+      try{
+        const {data,error} = await client
+          .from(RANK_TABLE)
+          .select('rank_id,user_id,slot_index,nickname,class_name,level,floor,combat_power,score,updated_at')
+          .order('floor', {ascending:false})
+          .order('level', {ascending:false})
+          .order('combat_power', {ascending:false})
+          .order('score', {ascending:false})
+          .limit(1000);
+        if(!error && Array.isArray(data)) rows.push(...data);
+      }catch(e2){}
+    }
+    return rows;
+  }
+  async function fetchSaveRows(client){
+    try{
+      const {data,error} = await client.from('game_saves').select('user_id,nickname,save_data,meta_data,updated_at').limit(1000);
+      if(!error && Array.isArray(data)) return data;
+    }catch(e){}
+    try{
+      const {data,error} = await client.from('game_saves').select('nickname,save_data,meta_data,updated_at').limit(1000);
+      if(!error && Array.isArray(data)) return data;
+    }catch(e){}
+    return [];
+  }
+  function pushSaveRowRecords(out, row){
+    const save = row && row.save_data && typeof row.save_data === 'object' ? row.save_data : {};
+    const rowMeta = normalizeMeta(row && row.meta_data || {});
+    const userId = row && row.user_id || '';
+    const add = (rec, provider, slotIndex)=>{
+      const r = makeRankRecord(rec, row && row.nickname);
+      if(!r) return;
+      if(userId) r.userId = userId;
+      if(provider) r.provider = rankModeKey(provider);
+      if(slotIndex != null) r.slotIndex = rankInt(slotIndex,0);
+      if(userId && provider && slotIndex != null) r.rankId = rankIdFor(userId, slotIndex, provider);
+      out.push(r);
+    };
+    const profiles = (typeof readProviderProfilesFromSave === 'function') ? readProviderProfilesFromSave(save) : (save.provider_profiles || save.providerProfiles || {});
+    if(profiles && typeof profiles === 'object'){
+      Object.entries(profiles).forEach(([provider, profile])=>{
+        const profileMeta = normalizeMeta((profile && (profile.meta_data || profile.metaData || profile.meta)) || rowMeta || {});
+        if(profile && Array.isArray(profile.characters)){
+          profile.characters.forEach((ch,i)=>add(buildRankRecordFromCharacter(ch, profileMeta, row && row.nickname), provider, i));
+        }
+        if(profile && Array.isArray(profile.rankings)){
+          profile.rankings.forEach((r,i)=>add(r, provider, r.slotIndex != null ? r.slotIndex : i));
+        }
+      });
+    }
+    const provider = save.active_provider || save.provider || 'kakao';
+    if(Array.isArray(save.characters)) save.characters.forEach((ch,i)=>add(buildRankRecordFromCharacter(ch, rowMeta, row && row.nickname), provider, i));
+    if(Array.isArray(save.rankings)) save.rankings.forEach((r,i)=>add(r, provider, r.slotIndex != null ? r.slotIndex : i));
+    if(save.player) add(rankRecordFromRun(save, rowMeta, (row && row.nickname) || save.player.name || save.player.className), provider, 0);
+  }
+  function recordKey(r){
+    if(r.rankId) return `rank:${r.rankId}`;
+    if(r.userId && r.provider && r.slotIndex != null) return `user:${r.userId}|${r.provider}|${r.slotIndex}`;
+    return `nick:${String(r.nickname).toLowerCase()}|${String(r.className).toLowerCase()}`;
+  }
+  function sortAndDedupeRankRecords(records){
+    const dedup = new Map();
+    records.forEach(raw=>{
+      const r = makeRankRecord(raw);
+      if(!r) return;
+      const key = recordKey(r);
+      const prev = dedup.get(key);
+      if(!prev || compareRankRecords(r, prev) > 0) dedup.set(key, r);
+    });
+    return Array.from(dedup.values())
+      .sort((a,b)=>compareRankRecords(b,a))
+      .slice(0, RANK_LIMIT);
+  }
+
+  collectRankingRecords = async function(){
+    const records = [];
+    const mode = activeLoginMode || (S && S.loginMode) || 'guest';
+    if(S && S.player){
+      try{ syncActiveCharacterFromRun(); }catch(e){}
+    }
+    if(rankIsCloud(mode)){
+      const client = getCloudClient && getCloudClient();
+      const user = await safeCurrentUser();
+      if(client && user){
+        await syncPublicRankingRowsForCurrentUser();
+        const publicRows = await fetchRankTableRows(client);
+        publicRows.forEach(row=>{
+          const rec = rankRecordFromPublicRow(row);
+          if(rec) records.push(rec);
+        });
+        const saveRows = await fetchSaveRows(client);
+        saveRows.forEach(row=>pushSaveRowRecords(records, row));
+      }
+    }
+    const localLimit = currentSlotLimit(mode);
+    normalizeCharacterSlots(getSlotsForMode(mode), localLimit).forEach((ch,i)=>{
+      const rec = buildRankRecordFromCharacter(ch, meta || {}, ch && ch.nickname);
+      if(rec){
+        rec.provider = rankIsCloud(mode) ? rankModeKey(mode) : 'guest';
+        rec.slotIndex = i;
+        if(rankIsCloud(mode)) rec.rankId = `local_${rec.provider}_${i}`;
+        records.push(rec);
+      }
+    });
+    const result = sortAndDedupeRankRecords(records);
+    result._usedPublicTable = rankIsCloud(mode);
+    return result;
+  };
+
+  function onlineKeyCandidates(obj){
     const keys=[];
-    const userId = String(obj.userId || obj.user_id || '').trim();
-    const provider = String(obj.provider || obj.mode || '').trim();
-    const slotRaw = obj.slotIndex != null ? obj.slotIndex : (obj.slot_index != null ? obj.slot_index : null);
-    const slot0 = slotRaw == null || slotRaw === '-' ? '' : String(Number(slotRaw));
-    const nick = String(obj.nickname || '').trim().toLowerCase();
-    if(userId && provider && slot0 !== 'NaN' && slot0 !== '') keys.push(`u:${userId}|p:${provider}|s:${slot0}`);
+    const userId = String(obj && (obj.userId || obj.user_id) || '').trim();
+    const provider = String(obj && (obj.provider || obj.mode) || '').trim();
+    const slotRaw = obj && (obj.slotIndex != null ? obj.slotIndex : obj.slot_index);
+    const slot = slotRaw == null || slotRaw === '' || slotRaw === '-' ? '' : String(rankInt(slotRaw,0));
+    const nick = String(obj && obj.nickname || '').trim().toLowerCase();
+    if(userId && provider && slot !== '') keys.push(`u:${userId}|p:${provider}|s:${slot}`);
     if(userId) keys.push(`u:${userId}`);
     if(nick) keys.push(`n:${nick}`);
     return keys;
   }
-
-  async function fetchOnlineKeys88(){
+  async function fetchOnlineKeys(){
     const keys = new Set();
     try{
       if(typeof normalizeOnlineList === 'function'){
         (normalizeOnlineList() || []).forEach(u=>{
           const slotNum = u.slot == null || u.slot === '-' ? null : Math.max(0, Number(u.slot)-1);
-          onlineKeyCandidates88({userId:u.userId, provider:u.mode, slotIndex:slotNum, nickname:u.nickname}).forEach(k=>keys.add(k));
+          onlineKeyCandidates({userId:u.userId, provider:u.mode, slotIndex:slotNum, nickname:u.nickname}).forEach(k=>keys.add(k));
         });
       }
     }catch(e){}
@@ -19686,84 +20132,121 @@ skillCooldownText = function(cls,k){
       if(client && typeof client.from === 'function'){
         const since = new Date(Date.now() - 45000).toISOString();
         const {data,error} = await client
-          .from('game_online_users')
+          .from(ONLINE_TABLE)
           .select('user_id,provider,nickname,slot_index,updated_at')
           .gte('updated_at', since)
           .limit(300);
-        if(!error && Array.isArray(data)){
-          data.forEach(row=>onlineKeyCandidates88(row).forEach(k=>keys.add(k)));
-        }
+        if(!error && Array.isArray(data)) data.forEach(row=>onlineKeyCandidates(row).forEach(k=>keys.add(k)));
       }
-    }catch(e){ console.warn('ranking online color fetch failed:', e && e.message ? e.message : e); }
+    }catch(e){}
     return keys;
   }
-
-  function rankingRecordOnline88(r, onlineKeys){
-    return onlineKeyCandidates88(r).some(k=>onlineKeys.has(k));
+  function recordIsOnline(r, onlineKeys){
+    return onlineKeyCandidates(r).some(k=>onlineKeys.has(k));
   }
-
-  showRankingMenu = async function(){
-    pauseAutoForChoice();
-    const client = getCloudClient && getCloudClient();
-    const user = await currentCloudUser();
-    if(!client || !user){
-      showModal(`<h2>랭킹</h2>
-        <p class="muted">게스트 로그인은 서버 랭킹에 등록되지 않습니다. 카카오/네이버 로그인 후 이용하세요.</p>
-        ${makeCloseBar()}`, false);
-      bindCloseOnly();
-      return;
+  function rankRowsHtml(records, onlineKeys){
+    return records.map((r,i)=>{
+      const online = recordIsOnline(r, onlineKeys);
+      const rowClass = online ? 'rankingOnline' : 'rankingOffline';
+      return `<tr class="${rowClass}" data-ranking-online="${online?1:0}">
+        <td class="${i<3?'rankTop':''}">${i+1}</td>
+        <td>${escapeText(r.nickname)}</td>
+        <td>${escapeText(r.className)}</td>
+        <td>${rankInt(r.level,1)}</td>
+        <td>${rankInt(r.floor,1)}</td>
+        <td>${rankInt(r.combatPower,0).toLocaleString()}</td>
+        <td>${rankInt(r.score,0).toLocaleString()}</td>
+        <td class="rankingState">${online?'온라인':'오프라인'}</td>
+      </tr>`;
+    }).join('');
+  }
+  function renderRankingModal(records, onlineKeys, note){
+    const rows = rankRowsHtml(records, onlineKeys);
+    showModal(`<h2>랭킹</h2>
+      <p class="muted">${escapeText(note)}</p>
+      <p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>
+      <div class="grid2" style="margin:8px 0 4px">
+        <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
+        <span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">최고기록 기준</span>
+      </div>
+      <table class="rankingTable">
+        <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th><th>상태</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="8" style="text-align:center" class="muted">등록된 랭킹이 없습니다.</td></tr>'}</tbody>
+      </table>
+      ${makeCloseBar()}`, false);
+    const btn = $('rankingRefreshBtn');
+    if(btn){
+      btn.onclick = async ()=>{
+        btn.disabled = true;
+        btn.textContent = '새로고침 중...';
+        rankingRendering = false;
+        await showRankingMenu();
+      };
     }
-
-    showModal(`<h2>랭킹</h2><p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>`, false);
+    bindCloseOnly();
+    try{ wrapRankingTableIfNeeded(); }catch(e){}
+  }
+  showRankingMenu = async function(){
+    if(rankingRendering) return;
+    rankingRendering = true;
+    try{ if(S) pauseAutoForChoice(); }catch(e){}
+    const mode = activeLoginMode || (S && S.loginMode) || 'guest';
+    const cloud = rankIsCloud(mode);
+    showModal(`<h2>랭킹</h2><p class="muted">랭킹 정보를 불러오는 중입니다.</p>`, false);
     try{
-      if(typeof syncPublicRankingRowsForCurrentUser === 'function'){
-        try{ await syncPublicRankingRowsForCurrentUser(); }catch(e){}
+      if(S && S.player){
+        try{ syncActiveCharacterFromRun(); saveRun(); }catch(e){}
+      }
+      if(cloud){
+        try{ await saveCloudCharacterProfile(); }catch(e){ console.warn('ranking save fallback:', e && e.message ? e.message : e); }
+        await syncPublicRankingRowsForCurrentUser();
       }
       const records = await collectRankingRecords();
-      const onlineKeys = await fetchOnlineKeys88();
-      const rows = records.map((r,i)=>{
-        const online = rankingRecordOnline88(r, onlineKeys);
-        const rowClass = online ? 'rankingOnline' : 'rankingOffline';
-        return `<tr class="${rowClass}" data-ranking-online="${online?1:0}">
-          <td class="${i<3?'rankTop':''}">${i+1}</td>
-          <td>${escapeText(r.nickname)}</td>
-          <td>${escapeText(r.className)}</td>
-          <td>${Number(r.level || 1)}</td>
-          <td>${Number(r.floor || 1)}</td>
-          <td>${Number(r.combatPower || 0).toLocaleString()}</td>
-          <td>${Number(r.score || 0).toLocaleString()}</td>
-        </tr>`;
-      }).join('');
-      showModal(`<h2>랭킹</h2>
-        <p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>
-        <div class="grid2" style="margin:8px 0 4px">
-          <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
-          <span></span>
-        </div>
-        <table class="rankingTable">
-          <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="7" style="text-align:center" class="muted">서버에 등록된 랭킹이 없습니다.</td></tr>'}</tbody>
-        </table>
-        ${makeCloseBar()}`, false);
-      const btn = $('rankingRefreshBtn');
-      if(btn){
-        btn.onclick = async ()=>{
-          btn.disabled = true;
-          btn.textContent = '새로고침 중...';
-          await showRankingMenu();
-        };
-      }
-      bindCloseOnly();
-      try{ wrapRankingTableIfNeeded(); }catch(e){}
+      const onlineKeys = await fetchOnlineKeys();
+      const note = cloud
+        ? '서버 랭킹과 저장 슬롯의 최고기록을 병합해 표시합니다. 서버 테이블 권한이 막혀도 저장 데이터 기준으로 복구됩니다.'
+        : '게스트는 서버 등록 대상이 아니며, 현재 기기의 기록만 표시합니다.';
+      renderRankingModal(records, onlineKeys, note);
     }catch(e){
       showModal(`<h2>랭킹</h2>
-        <p class="muted">랭킹은 서버 테이블 기준으로만 표시합니다.</p>
-        <p class="muted badtxt">${escapeText(e && e.message ? e.message : String(e))}</p>
+        <p class="muted badtxt">랭킹을 불러오지 못했습니다: ${escapeText(e && e.message ? e.message : String(e))}</p>
+        <p class="muted">서버 테이블이 막힌 경우에도 game_saves와 로컬 슬롯 기준으로 재시도하도록 정리했습니다.</p>
         ${makeCloseBar()}`, false);
       bindCloseOnly();
+    }finally{
+      rankingRendering = false;
     }
   };
-  { const __rankBtnFix3 = document.getElementById('rankingMenuBtn'); if(__rankBtnFix3) __rankBtnFix3.onclick = showRankingMenu; }
+
+  const saveRunBeforeFinalRanking = saveRun;
+  saveRun = function(){
+    const result = saveRunBeforeFinalRanking.apply(this, arguments);
+    queueRankingSync('saveRun');
+    return result;
+  };
+  const saveMetaBeforeFinalRanking = saveMeta;
+  saveMeta = function(){
+    const result = saveMetaBeforeFinalRanking.apply(this, arguments);
+    queueRankingSync('saveMeta');
+    return result;
+  };
+  const saveCloudCharacterProfileBeforeFinalRanking = saveCloudCharacterProfile;
+  saveCloudCharacterProfile = async function(){
+    const result = await saveCloudCharacterProfileBeforeFinalRanking.apply(this, arguments);
+    await syncPublicRankingRowsForCurrentUser();
+    return result;
+  };
+  function queueRankingSync(reason){
+    if(!rankIsCloud()) return;
+    clearTimeout(rankingSyncTimer);
+    rankingSyncTimer = setTimeout(()=>{
+      syncPublicRankingRowsForCurrentUser().catch(e=>console.warn('ranking queued sync failed:', e && e.message ? e.message : e));
+    }, 700);
+  }
+
+  const rankBtn = document.getElementById('rankingMenuBtn');
+  if(rankBtn) rankBtn.onclick = showRankingMenu;
+  try{ queueRankingSync('init'); }catch(e){}
 })();
 
 
