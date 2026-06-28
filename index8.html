@@ -6076,7 +6076,109 @@ html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLogi
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+
+/* === FIX: stat window category ordering === */
+function statCategoryTitleHtml(title){
+  return `<div style="grid-column:1/-1;margin-top:8px;padding:6px 8px;border-radius:9px;background:rgba(96,165,250,.12)!important;border:1px solid rgba(147,197,253,.24)!important;color:#dbeafe;font-weight:900;text-align:left">${title}</div>`;
+}
+function statCellHtml(label, value){
+  return `<div>${label} <b>${value}</b></div>`;
+}
+function statWideCellHtml(label, value){
+  return `<div style="grid-column:1/-1">${label} <b>${value}</b></div>`;
+}
+function currentEffectTextForStats(p){
+  const arr=[];
+  if(p.effects.guard>0) arr.push('방어 태세 '+p.effects.guard+'턴');
+  if(p.effects.fury>0) arr.push('전투함성 '+p.effects.fury+'턴');
+  if(p.effects.smoke>0) arr.push('연막 '+p.effects.smoke+'턴');
+  if(p.effects.shadow>0) arr.push('그림자 기습 '+p.effects.shadow+'턴');
+  if(p.effects.focus>0) arr.push('집중 '+p.effects.focus+'턴');
+  return arr.length ? arr.join(' · ') : '없음';
+}
+function soulUpgradeBonusOrderedStatsHtml(){
+  if(typeof soulUpgradeBonusInfo !== 'function') return '';
+  const b=soulUpgradeBonusInfo();
+  return statCategoryTitleHtml('영혼 강화 보정') +
+    statCellHtml('최대 HP', '+'+b.hp) + statCellHtml('공격', '+'+b.atk) +
+    statCellHtml('방어', '+'+b.def) + statCellHtml('치명타', '+'+b.crit+'%');
+}
+function showCategoryOrderedStatsMenu(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const p=S.player, st=calcStats();
+  const power=typeof currentCombatPower === 'function' ? currentCombatPower() : 0;
+  const score=typeof currentRankingScore === 'function' ? currentRankingScore() : 0;
+  const nick=typeof playerNickname === 'function' ? playerNickname(p) : (p.name || p.nickname || p.className || '-');
+  const hpMax=5+(st.potionCap||0);
+  showModal(`<h2>스탯</h2><div class="stats" style="margin-top:10px">
+    ${statCategoryTitleHtml('기본 정보')}
+    ${statCellHtml('닉네임', escapeText(nick))}${statCellHtml('직업', escapeText(p.className))}
+    ${statCellHtml('레벨', p.level)}${statCellHtml('경험치', xpDisplayText(p))}
+
+    ${statCategoryTitleHtml('진행 / 랭킹')}
+    ${statCellHtml('전투력', Number(power||0).toLocaleString())}${statCellHtml('점수', Number(score||0).toLocaleString())}
+    ${statCellHtml('층 / 턴', p.floor+' / '+p.turn)}${statCellHtml('처치 수', p.kills)}
+
+    ${statCategoryTitleHtml('생존 / 자원')}
+    ${statCellHtml('HP', p.hp+'/'+st.maxHp)}${statCellHtml('MP', p.mp+'/'+st.maxMp)}
+    ${statCellHtml('물약', p.potions+'/'+hpMax)}${statCellHtml('영혼', p.soulsRun)}
+    ${statCellHtml('골드', Number(p.gold||0).toLocaleString())}
+
+    ${statCategoryTitleHtml('전투 능력')}
+    ${statCellHtml('공격', st.atk)}${statCellHtml('방어', st.def)}
+    ${statCellHtml('치명타', st.crit+'%')}${statCellHtml('회피', st.eva+'%')}
+
+    ${statCategoryTitleHtml('획득률')}
+    ${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}
+
+    ${soulUpgradeBonusOrderedStatsHtml()}
+
+    ${statCategoryTitleHtml('상태')}
+    ${statWideCellHtml('효과', currentEffectTextForStats(p))}
+  </div>
+  ${makeCloseBar()}`, false);
+  bindCloseOnly();
+}
+showStatsMenu = showCategoryOrderedStatsMenu;
+function updateStatsBoxCategoryOrdered(){
+  if(!S || !S.player) return;
+  const p=S.player, st=calcStats();
+  const statsBox=$('statsBox');
+  if(!statsBox) return;
+  const power=typeof currentCombatPower === 'function' ? currentCombatPower() : 0;
+  const score=typeof currentRankingScore === 'function' ? currentRankingScore() : 0;
+  statsBox.innerHTML = `${statCategoryTitleHtml('전투')}${statCellHtml('전투력', Number(power||0).toLocaleString())}${statCellHtml('점수', Number(score||0).toLocaleString())}${statCellHtml('공격', st.atk)}${statCellHtml('방어', st.def)}${statCellHtml('치명', st.crit+'%')}${statCellHtml('회피', st.eva+'%')}${statCategoryTitleHtml('획득')}${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}${statCategoryTitleHtml('진행')}${statCellHtml('처치', p.kills)}${statCellHtml('영혼', p.soulsRun)}${statCellHtml('층 효과', S.floorMod?.name||'없음')}${statCellHtml('현상금', S.bounty?S.bounty.count+'/'+S.bounty.need:'없음')}`;
+}
+const updateUiBeforeCategoryOrderedStats = updateUi;
+updateUi = function(){
+  updateUiBeforeCategoryOrderedStats();
+  updateStatsBoxCategoryOrdered();
+};
+function bindCategoryOrderedStatsButton(){
+  const btn=$('statMenuBtn');
+  if(!btn) return;
+  btn.onclick = showCategoryOrderedStatsMenu;
+  if(btn.dataset.categoryOrderedStatsCaptureBound !== '1'){
+    btn.dataset.categoryOrderedStatsCaptureBound = '1';
+    btn.addEventListener('click', function(e){
+      if(document.body.classList.contains('liveKeymapMode')) return;
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      showCategoryOrderedStatsMenu();
+    }, true);
+    btn.addEventListener('touchend', function(e){
+      if(document.body.classList.contains('liveKeymapMode')) return;
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      showCategoryOrderedStatsMenu();
+    }, {capture:true, passive:false});
+  }
+}
+bindCategoryOrderedStatsButton();
+try{ updateStatsBoxCategoryOrdered(); }catch(e){}
+/* === /FIX: stat window category ordering === */
+
+</script>
 <script>
 (() => {
 'use strict';
@@ -7614,7 +7716,7 @@ function rewardRateTotalText(rate){
   return n + '%';
 }
 function rewardRateCellHtml(label, rate){
-  return `<div>${label} <b>${rewardRateBonusText(rate)}</b> <span class="muted">총 ${rewardRateTotalText(rate)}</span></div>`;
+  return `<div>${label} <b>${rewardRateTotalText(rate)}</b></div>`;
 }
 function hasRelic(id){return S.player.relics.some(r=>r.id===id);}
 
