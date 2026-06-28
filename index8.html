@@ -7604,6 +7604,18 @@ function calcStats(){
 }
 function goldRate(){return 1 + calcStats().goldRate;}
 function xpRate(){return 1 + calcStats().xpRate;}
+
+function rewardRateBonusText(rate){
+  const n = Math.round((Number(rate) || 0) * 100);
+  return (n >= 0 ? '+' : '') + n + '%';
+}
+function rewardRateTotalText(rate){
+  const n = Math.max(0, Math.round((1 + (Number(rate) || 0)) * 100));
+  return n + '%';
+}
+function rewardRateCellHtml(label, rate){
+  return `<div>${label} <b>${rewardRateBonusText(rate)}</b> <span class="muted">총 ${rewardRateTotalText(rate)}</span></div>`;
+}
 function hasRelic(id){return S.player.relics.some(r=>r.id===id);}
 
 function addLog(msg){
@@ -8655,11 +8667,11 @@ function showStatsMenu(){
   const p=S.player, st=calcStats();
   showModal(`<h2>스탯</h2><div class="stats" style="margin-top:10px">
     <div>직업 <b>${p.className}</b></div><div>층 / 턴 <b>${p.floor} / ${p.turn}</b></div>
-    <div>레벨 <b>${p.level}</b></div><div>경험치 <b>${xpDisplayText(p)}</b></div>
+    <div>레벨 <b>${p.level}</b></div><div>경험치 <b>${xpDisplayText(p)}</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}
     <div>HP <b>${p.hp}/${st.maxHp}</b></div><div>MP <b>${p.mp}/${st.maxMp}</b></div>
     <div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div>
     <div>치명타 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>
-    <div>골드 <b>${p.gold}</b></div><div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div>
+    <div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}<div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div>
     <div>처치 수 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div>
   </div>
   <p class="muted" style="margin-top:10px">효과: ${p.effects.guard>0?'방어 태세 '+p.effects.guard+'턴 · ':''}${p.effects.fury>0?'전투함성 '+p.effects.fury+'턴 · ':''}${p.effects.smoke>0?'연막 '+p.effects.smoke+'턴 · ':''}${p.effects.shadow>0?'그림자 기습 '+p.effects.shadow+'턴 · ':''}${p.effects.focus>0?'집중 '+p.effects.focus+'턴':''||'없음'}</p>
@@ -9717,7 +9729,7 @@ function updateUi(){
   $('potionText').textContent = `${p.potions}/${5+(st.potionCap||0)}개`;
   const danger = S.enemies.filter(e=>e.hp>0&&dist(e,p)<=5).length;
   $('dangerText').innerHTML = danger?`<span class="badtxt">위험 ${danger}</span>`:'';
-  $('statsBox').innerHTML = `<div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div><div>치명 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div><div>처치 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div><div>층 효과 <b>${S.floorMod?.name||'없음'}</b></div><div>현상금 <b>${S.bounty?S.bounty.count+'/'+S.bounty.need:'없음'}</b></div>`;
+  $('statsBox').innerHTML = `<div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div><div>치명 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}<div>처치 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div><div>층 효과 <b>${S.floorMod?.name||'없음'}</b></div><div>현상금 <b>${S.bounty?S.bounty.count+'/'+S.bounty.need:'없음'}</b></div>`;
   $('equipBox').innerHTML = EQUIP_SLOTS.map(slot=>{ const it=p.equip[slot]; return `${SLOT_ICON[slot]} <b class="${RARITY_CLASS[it.rarity]}">${it.name}</b><br><span>${statLine(it)}</span>`; }).join('<hr style="border-color:#2d3850;border-style:solid none none;margin:5px 0">');
   $('relicBox').innerHTML = p.relics.length ? p.relics.map(r=>`<span class="tag" title="${r.desc}">${r.name}</span>`).join('') : '<span class="muted">없음</span>';
   const logHtml = currentLogHtml();
@@ -11437,10 +11449,10 @@ showStatsMenu = function(){
     <div>닉네임 <b>${escapeText(playerNickname(p))}</b></div><div>전투력 <b>${power.toLocaleString()}</b></div>
     <div>점수 <b>${score.toLocaleString()}</b></div><div>직업 <b>${p.className}</b></div>
     <div>층 / 턴 <b>${p.floor} / ${p.turn}</b></div><div>레벨 <b>${p.level}</b></div>
-    <div>경험치 <b>${xpDisplayText(p)}</b></div><div>HP <b>${p.hp}/${st.maxHp}</b></div>
+    <div>경험치 <b>${xpDisplayText(p)}</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}<div>HP <b>${p.hp}/${st.maxHp}</b></div>
     <div>MP <b>${p.mp}/${st.maxMp}</b></div><div>공격 <b>${st.atk}</b></div>
     <div>방어 <b>${st.def}</b></div><div>치명타 <b>${st.crit}%</b></div>
-    <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>
+    <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}
     <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
     <div>영혼 <b>${p.soulsRun}</b></div>
   </div>
@@ -11461,7 +11473,7 @@ updateUi = function(){
   const score=currentRankingScore();
   const statsBox=$('statsBox');
   if(statsBox){
-    statsBox.innerHTML = `<div>닉네임 <b>${escapeText(playerNickname(p))}</b></div><div>전투력 <b>${power.toLocaleString()}</b></div><div>점수 <b>${score.toLocaleString()}</b></div><div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div><div>치명 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div><div>처치 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div><div>층 효과 <b>${S.floorMod?.name||'없음'}</b></div><div>현상금 <b>${S.bounty?S.bounty.count+'/'+S.bounty.need:'없음'}</b></div>`;
+    statsBox.innerHTML = `<div>닉네임 <b>${escapeText(playerNickname(p))}</b></div><div>전투력 <b>${power.toLocaleString()}</b></div><div>점수 <b>${score.toLocaleString()}</b></div><div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div><div>치명 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}<div>처치 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div><div>층 효과 <b>${S.floorMod?.name||'없음'}</b></div><div>현상금 <b>${S.bounty?S.bounty.count+'/'+S.bounty.need:'없음'}</b></div>`;
   }
 };
 
@@ -12426,10 +12438,10 @@ showStatsMenu = function(){
     <div>닉네임 <b>${escapeText(playerNickname(p))}</b></div><div>전투력 <b>${power.toLocaleString()}</b></div>
     <div>점수 <b>${score.toLocaleString()}</b></div><div>직업 <b>${escapeText(p.className)}</b></div>
     <div>층 / 턴 <b>${p.floor} / ${p.turn}</b></div><div>레벨 <b>${p.level}</b></div>
-    <div>경험치 <b>${xpDisplayText(p)}</b></div><div>HP <b>${p.hp}/${st.maxHp}</b></div>
+    <div>경험치 <b>${xpDisplayText(p)}</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}<div>HP <b>${p.hp}/${st.maxHp}</b></div>
     <div>MP <b>${p.mp}/${st.maxMp}</b></div><div>공격 <b>${st.atk}</b></div>
     <div>방어 <b>${st.def}</b></div><div>치명타 <b>${st.crit}%</b></div>
-    <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>
+    <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}
     <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
     <div>영혼 <b>${p.soulsRun}</b></div>
   </div>
@@ -12450,9 +12462,7 @@ updateUi = function(){
       <div>영혼 HP <b>+${b.hp}</b></div>
       <div>영혼 공격 <b>+${b.atk}</b></div>
       <div>영혼 방어 <b>+${b.def}</b></div>
-      <div>영혼 치명 <b>+${b.crit}%</b></div>
-      <div>영혼 경험치 <b>+${b.xp}%</b></div>
-      <div>영혼 골드 <b>+${b.gold}%</b></div>`;
+      <div>영혼 치명 <b>+${b.crit}%</b></div>`;
   }
 };
 
@@ -12462,8 +12472,7 @@ function soulUpgradeBonusStatsGridHtml(){
   return `
     <div class="soulStatTitle" style="grid-column:1/-1;margin-top:6px;color:#c084fc;font-weight:900">영혼 강화 보정</div>
     <div>영혼 HP <b>+${b.hp}</b></div><div>영혼 공격 <b>+${b.atk}</b></div>
-    <div>영혼 방어 <b>+${b.def}</b></div><div>영혼 치명 <b>+${b.crit}%</b></div>
-    <div>영혼 경험치 <b>+${b.xp}%</b></div><div>영혼 골드 <b>+${b.gold}%</b></div>`;
+    <div>영혼 방어 <b>+${b.def}</b></div><div>영혼 치명 <b>+${b.crit}%</b></div>`;
 }
 showStatsMenu = function(){
   if(!S) return;
@@ -12475,10 +12484,10 @@ showStatsMenu = function(){
     <div>닉네임 <b>${escapeText(playerNickname(p))}</b></div><div>전투력 <b>${power.toLocaleString()}</b></div>
     <div>점수 <b>${score.toLocaleString()}</b></div><div>직업 <b>${escapeText(p.className)}</b></div>
     <div>층 / 턴 <b>${p.floor} / ${p.turn}</b></div><div>레벨 <b>${p.level}</b></div>
-    <div>경험치 <b>${xpDisplayText(p)}</b></div><div>HP <b>${p.hp}/${st.maxHp}</b></div>
+    <div>경험치 <b>${xpDisplayText(p)}</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}<div>HP <b>${p.hp}/${st.maxHp}</b></div>
     <div>MP <b>${p.mp}/${st.maxMp}</b></div><div>공격 <b>${st.atk}</b></div>
     <div>방어 <b>${st.def}</b></div><div>치명타 <b>${st.crit}%</b></div>
-    <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>
+    <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}
     <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
     <div>영혼 <b>${p.soulsRun}</b></div>
     ${soulUpgradeBonusStatsGridHtml()}
@@ -21357,6 +21366,75 @@ skillCooldownText = function(cls,k){
   bindCards();
 })();
 /* === /FIX6 === */
+
+
+
+/* === FIX: stat window character reward rates - direct final binding === */
+function showCharacterRewardRateStatsMenu(){
+  if(!S) return;
+  pauseAutoForChoice();
+  const p=S.player, st=calcStats();
+  const power=typeof currentCombatPower === 'function' ? currentCombatPower() : 0;
+  const score=typeof currentRankingScore === 'function' ? currentRankingScore() : 0;
+  const nick=typeof playerNickname === 'function' ? playerNickname(p) : (p.name || p.nickname || p.className || '-');
+  showModal(`<h2>스탯</h2><div class="stats" style="margin-top:10px">
+    <div>닉네임 <b>${escapeText(nick)}</b></div><div>전투력 <b>${Number(power||0).toLocaleString()}</b></div>
+    <div>점수 <b>${Number(score||0).toLocaleString()}</b></div><div>직업 <b>${escapeText(p.className)}</b></div>
+    <div>층 / 턴 <b>${p.floor} / ${p.turn}</b></div><div>레벨 <b>${p.level}</b></div>
+    <div>경험치 <b>${xpDisplayText(p)}</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}
+    <div>HP <b>${p.hp}/${st.maxHp}</b></div><div>MP <b>${p.mp}/${st.maxMp}</b></div>
+    <div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div>
+    <div>치명타 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>
+    <div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}
+    <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
+    <div>영혼 <b>${p.soulsRun}</b></div>
+    ${typeof soulUpgradeBonusStatsGridHtml === 'function' ? soulUpgradeBonusStatsGridHtml() : ''}
+  </div>
+  <p class="muted" style="margin-top:10px">효과: ${p.effects.guard>0?'방어 태세 '+p.effects.guard+'턴 · ':''}${p.effects.fury>0?'전투함성 '+p.effects.fury+'턴 · ':''}${p.effects.smoke>0?'연막 '+p.effects.smoke+'턴 · ':''}${p.effects.shadow>0?'그림자 기습 '+p.effects.shadow+'턴 · ':''}${p.effects.focus>0?'집중 '+p.effects.focus+'턴':''||'없음'}</p>
+  ${makeCloseBar()}`, false);
+  bindCloseOnly();
+}
+showStatsMenu = showCharacterRewardRateStatsMenu;
+function updateStatsBoxCharacterRewardRates(){
+  if(!S || !S.player) return;
+  const p=S.player, st=calcStats();
+  const statsBox=$('statsBox');
+  if(!statsBox) return;
+  const power=typeof currentCombatPower === 'function' ? currentCombatPower() : 0;
+  const score=typeof currentRankingScore === 'function' ? currentRankingScore() : 0;
+  const nick=typeof playerNickname === 'function' ? playerNickname(p) : (p.name || p.nickname || p.className || '-');
+  statsBox.innerHTML = `<div>닉네임 <b>${escapeText(nick)}</b></div><div>전투력 <b>${Number(power||0).toLocaleString()}</b></div><div>점수 <b>${Number(score||0).toLocaleString()}</b></div><div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div><div>치명 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}<div>처치 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div><div>층 효과 <b>${S.floorMod?.name||'없음'}</b></div><div>현상금 <b>${S.bounty?S.bounty.count+'/'+S.bounty.need:'없음'}</b></div>`;
+}
+const updateUiBeforeCharacterRewardRateStatsFinal = updateUi;
+updateUi = function(){
+  updateUiBeforeCharacterRewardRateStatsFinal();
+  updateStatsBoxCharacterRewardRates();
+};
+function bindCharacterRewardRateStatsButtonFinal(){
+  const btn=$('statMenuBtn');
+  if(!btn) return;
+  btn.onclick = showCharacterRewardRateStatsMenu;
+  if(btn.dataset.rewardRateStatsCaptureBound !== '1'){
+    btn.dataset.rewardRateStatsCaptureBound = '1';
+    btn.addEventListener('click', function(e){
+      if(document.body.classList.contains('liveKeymapMode')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      showCharacterRewardRateStatsMenu();
+    }, true);
+    btn.addEventListener('touchend', function(e){
+      if(document.body.classList.contains('liveKeymapMode')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      showCharacterRewardRateStatsMenu();
+    }, {capture:true, passive:false});
+  }
+}
+bindCharacterRewardRateStatsButtonFinal();
+try{ updateStatsBoxCharacterRewardRates(); }catch(e){}
+/* === /FIX: stat window character reward rates === */
 
 </script>
 </body>
