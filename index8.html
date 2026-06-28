@@ -6102,7 +6102,8 @@ function soulUpgradeBonusOrderedStatsHtml(){
   const b=soulUpgradeBonusInfo();
   return statCategoryTitleHtml('영혼 강화 보정') +
     statCellHtml('최대 HP', '+'+b.hp) + statCellHtml('공격', '+'+b.atk) +
-    statCellHtml('방어', '+'+b.def) + statCellHtml('치명타', '+'+b.crit+'%');
+    statCellHtml('방어', '+'+b.def) + statCellHtml('치명타', '+'+b.crit+'%') +
+    statCellHtml('영혼 경험치', '+'+Number(b.xp||0)+'%') + statCellHtml('영혼 골드', '+'+Number(b.gold||0)+'%');
 }
 function showCategoryOrderedStatsMenu(){
   if(!S) return;
@@ -6123,7 +6124,7 @@ function showCategoryOrderedStatsMenu(){
 
     ${statCategoryTitleHtml('생존 / 자원')}
     ${statCellHtml('HP', p.hp+'/'+st.maxHp)}${statCellHtml('MP', p.mp+'/'+st.maxMp)}
-    ${statCellHtml('물약', p.potions+'/'+hpMax)}${statCellHtml('영혼', p.soulsRun)}
+    ${statCellHtml('물약', Math.min(p.potions,hpMax)+'/'+hpMax)}${statCellHtml('영혼', p.soulsRun)}
     ${statCellHtml('골드', Number(p.gold||0).toLocaleString())}
 
     ${statCategoryTitleHtml('전투 능력')}
@@ -6177,6 +6178,205 @@ function bindCategoryOrderedStatsButton(){
 bindCategoryOrderedStatsButton();
 try{ updateStatsBoxCategoryOrdered(); }catch(e){}
 /* === /FIX: stat window category ordering === */
+
+
+
+/* === OPEN DOOR COOLDOWN EFFECT FINAL FIX === */
+(function(){
+  function odClamp(n,min,max){
+    n = Math.floor(Number(n) || 0);
+    if(typeof clamp === 'function') return clamp(n,min,max);
+    return Math.max(min, Math.min(max, n));
+  }
+  function odPlayer(){ return (typeof S !== 'undefined' && S && S.player) ? S.player : null; }
+  function odLevel(){
+    try{ if(typeof skillLv === 'function') return odClamp(skillLv('openDoor'),0,20); }catch(e){}
+    var p = odPlayer();
+    return odClamp(p && p.skillEnhance ? p.skillEnhance.openDoor : 0,0,20);
+  }
+  function odRogueBonus(){
+    var p = odPlayer();
+    return p && p.classId === 'rogue' ? 5 : 0;
+  }
+  function odCurrentCooldown(){
+    return Math.max(5, 30 - odLevel() - odRogueBonus());
+  }
+  function odEnsureState(){
+    var p = odPlayer();
+    if(!p) return null;
+    p.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0,breakWall:0}, p.cd || {});
+    p.skillTurnLock = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillTurnLock || {});
+    p.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillEnhance || {});
+    try{
+      if(Array.isArray(SKILL_TURN_CD_KEYS) && !SKILL_TURN_CD_KEYS.includes('openDoor')) SKILL_TURN_CD_KEYS.push('openDoor');
+    }catch(e){}
+    return p;
+  }
+  function odCooldownLeft(){
+    var p = odEnsureState();
+    if(!p) return 0;
+    var turn = Math.floor(Number(p.turn) || 0);
+    var maxNow = odCurrentCooldown();
+    var lock = Math.max(0, Math.floor(Number(p.skillTurnLock && p.skillTurnLock.openDoor) || 0));
+    var raw = Math.max(0, Math.floor(Number(p.cd && p.cd.openDoor) || 0));
+    var left = 0;
+
+    if(lock > turn) left = lock - turn;
+    else if(raw > 0) left = raw;
+
+    // 핵심: 강화/직업 보너스로 현재 쿨타임이 줄어들면 남은 쿨도 새 최대 쿨턴보다 길게 남지 않게 보정한다.
+    left = Math.min(Math.max(0, left), maxNow);
+
+    if(left > 0){
+      p.skillTurnLock.openDoor = turn + left;
+      p.cd.openDoor = left;
+    }else{
+      p.skillTurnLock.openDoor = 0;
+      p.cd.openDoor = 0;
+    }
+    return left;
+  }
+  function odSetCooldown(turns){
+    var p = odEnsureState();
+    if(!p) return;
+    var cd = Math.max(0, Math.floor(Number(turns) || 0));
+    cd = Math.min(cd, odCurrentCooldown());
+    p.skillTurnLock.openDoor = Math.floor(Number(p.turn) || 0) + cd + 1;
+    p.cd.openDoor = cd;
+  }
+  function odBlockCooldown(){
+    var left = odCooldownLeft();
+    if(left > 0){
+      if(typeof toast === 'function') toast('문열기 재사용 '+left+'턴');
+      try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
+      return true;
+    }
+    return false;
+  }
+  function odAdjacentRoom(){
+    try{ if(typeof adjacentLockedDoor === 'function') return adjacentLockedDoor(); }catch(e){}
+    return null;
+  }
+
+  var oldEnsureRunFields = typeof ensureRunFields === 'function' ? ensureRunFields : null;
+  if(oldEnsureRunFields){
+    ensureRunFields = function(){
+      var ret = oldEnsureRunFields.apply(this, arguments);
+      odEnsureState();
+      odCooldownLeft();
+      return ret;
+    };
+  }
+
+  openDoorCooldownTurns = function(){ return odCurrentCooldown(); };
+  window.openDoorCooldownTurns = openDoorCooldownTurns;
+
+  var oldSkillCooldownByKey = typeof skillCooldownByKey === 'function' ? skillCooldownByKey : null;
+  skillCooldownByKey = function(k){
+    if(k === 'openDoor') return odCooldownLeft();
+    return oldSkillCooldownByKey ? oldSkillCooldownByKey.apply(this, arguments) : 0;
+  };
+
+  var oldCanUseQuickSlotSkillKey = typeof canUseQuickSlotSkillKey === 'function' ? canUseQuickSlotSkillKey : null;
+  canUseQuickSlotSkillKey = function(key){
+    if(key === 'openDoor') return !odBlockCooldown();
+    return oldCanUseQuickSlotSkillKey ? oldCanUseQuickSlotSkillKey.apply(this, arguments) : true;
+  };
+
+  useOpenDoorSkill = function(){
+    if(typeof canAct === 'function' && !canAct()) return;
+    var p = odEnsureState();
+    if(!p) return;
+    if(odBlockCooldown()) return;
+
+    var room = odAdjacentRoom();
+    if(!room || !room.door){
+      if(typeof toast === 'function') toast('사거리 1칸 안에 잠긴 문이 없습니다.');
+      return;
+    }
+    if(Math.abs(p.x - room.door.x) + Math.abs(p.y - room.door.y) !== 1){
+      if(typeof toast === 'function') toast('문열기 사거리는 1칸입니다.');
+      return;
+    }
+
+    if(typeof hideModal === 'function') hideModal();
+    var pct = typeof openDoorChance === 'function' ? openDoorChance() : 0;
+    var ok = typeof rand === 'function' ? rand(100) < pct : Math.random()*100 < pct;
+
+    if(ok){
+      if(typeof revealLockedRoom === 'function') revealLockedRoom(room);
+      if(typeof addFx === 'function') addFx({kind:'ring',x:room.door.x,y:room.door.y,color:'#facc15',dur:380});
+      if(typeof addLog === 'function') addLog('<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. ('+pct+'%)');
+    }else{
+      if(typeof addFx === 'function') addFx({kind:'hit',x:room.door.x,y:room.door.y,color:'#64748b',spark:'#cbd5e1',dur:220});
+      if(typeof addLog === 'function') addLog('문열기 실패. 잠긴 문이 버텼다. ('+pct+'%)');
+    }
+
+    odSetCooldown(odCurrentCooldown());
+    if(typeof afterPlayerAction === 'function') afterPlayerAction();
+    else if(typeof renderAll === 'function') renderAll();
+  };
+  window.useOpenDoorSkill = useOpenDoorSkill;
+
+  var oldSkillFunctionByKey = typeof skillFunctionByKey === 'function' ? skillFunctionByKey : null;
+  skillFunctionByKey = function(k){
+    if(k === 'openDoor') return useOpenDoorSkill;
+    return oldSkillFunctionByKey ? oldSkillFunctionByKey.apply(this, arguments) : null;
+  };
+
+  var oldSkillEnhanceDesc = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
+  skillEnhanceDesc = function(k){
+    if(k === 'openDoor'){
+      var lv = odLevel();
+      var cost = 'MAX 강화 완료';
+      try{
+        if(lv < 20 && typeof skillCostInfo === 'function'){
+          var info = skillCostInfo(lv);
+          cost = '비용 '+formatGold(info.cost)+' · 성공 '+info.s+'% · 유지 '+info.k+'% · 하락 '+info.d+'%';
+        }
+      }catch(e){}
+      var rogueText = odRogueBonus() ? ' · 도적 쿨타임 -5턴' : '';
+      return cost+' · 문 열기 확률 '+(typeof openDoorChance === 'function' ? openDoorChance() : 0)+'% · 사거리 1칸 · 쿨타임 '+odCurrentCooldown()+'턴'+rogueText;
+    }
+    return oldSkillEnhanceDesc ? oldSkillEnhanceDesc.apply(this, arguments) : '';
+  };
+
+  var oldEnhanceSkill = typeof enhanceSkill === 'function' ? enhanceSkill : null;
+  if(oldEnhanceSkill){
+    enhanceSkill = function(k){
+      var beforeLv = k === 'openDoor' ? odLevel() : null;
+      var ret = oldEnhanceSkill.apply(this, arguments);
+      if(k === 'openDoor'){
+        odEnsureState();
+        if(odLevel() !== beforeLv) odCooldownLeft();
+        try{ if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots(); }catch(e){}
+      }
+      return ret;
+    };
+  }
+
+  var oldGrantRandomSkillLevel = typeof grantRandomSkillLevel === 'function' ? grantRandomSkillLevel : null;
+  if(oldGrantRandomSkillLevel){
+    grantRandomSkillLevel = function(){
+      var before = odLevel();
+      var ret = oldGrantRandomSkillLevel.apply(this, arguments);
+      if(odLevel() !== before){ odCooldownLeft(); try{ if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots(); }catch(e){} }
+      return ret;
+    };
+  }
+
+  var oldUpdateUi = typeof updateUi === 'function' ? updateUi : null;
+  if(oldUpdateUi){
+    updateUi = function(){
+      odEnsureState();
+      odCooldownLeft();
+      return oldUpdateUi.apply(this, arguments);
+    };
+  }
+
+  try{ odEnsureState(); odCooldownLeft(); }catch(e){}
+})();
+/* === /OPEN DOOR COOLDOWN EFFECT FINAL FIX === */
 
 </script>
 <script>
@@ -12574,7 +12774,8 @@ function soulUpgradeBonusStatsGridHtml(){
   return `
     <div class="soulStatTitle" style="grid-column:1/-1;margin-top:6px;color:#c084fc;font-weight:900">영혼 강화 보정</div>
     <div>영혼 HP <b>+${b.hp}</b></div><div>영혼 공격 <b>+${b.atk}</b></div>
-    <div>영혼 방어 <b>+${b.def}</b></div><div>영혼 치명 <b>+${b.crit}%</b></div>`;
+    <div>영혼 방어 <b>+${b.def}</b></div><div>영혼 치명 <b>+${b.crit}%</b></div>
+    <div>영혼 경험치 <b>+${Number(b.xp||0)}%</b></div><div>영혼 골드 <b>+${Number(b.gold||0)}%</b></div>`;
 }
 showStatsMenu = function(){
   if(!S) return;
@@ -21471,73 +21672,537 @@ skillCooldownText = function(cls,k){
 
 
 
-/* === FIX: stat window character reward rates - direct final binding === */
-function showCharacterRewardRateStatsMenu(){
-  if(!S) return;
+/* === FIX: stat window category order + soul reward bonus display === */
+function statCategoryTitleHtmlFinal(title){
+  return `<div style="grid-column:1/-1;margin-top:8px;padding:6px 8px;border-radius:9px;background:rgba(96,165,250,.12)!important;border:1px solid rgba(147,197,253,.24)!important;color:#dbeafe;font-weight:900;text-align:left">${title}</div>`;
+}
+function statCellHtmlFinal(label, value){
+  return `<div>${label} <b>${value}</b></div>`;
+}
+function statWideCellHtmlFinal(label, value){
+  return `<div style="grid-column:1/-1">${label} <b>${value}</b></div>`;
+}
+function currentEffectTextForStatsFinal(p){
+  const arr=[];
+  if(p.effects && p.effects.guard>0) arr.push('방어 태세 '+p.effects.guard+'턴');
+  if(p.effects && p.effects.fury>0) arr.push('전투함성 '+p.effects.fury+'턴');
+  if(p.effects && p.effects.smoke>0) arr.push('연막 '+p.effects.smoke+'턴');
+  if(p.effects && p.effects.shadow>0) arr.push('그림자 기습 '+p.effects.shadow+'턴');
+  if(p.effects && p.effects.focus>0) arr.push('집중 '+p.effects.focus+'턴');
+  return arr.length ? arr.join(' · ') : '없음';
+}
+function soulUpgradeBonusStatsGridHtmlFinal(){
+  let b={hp:0,atk:0,def:0,crit:0,xp:0,gold:0};
+  if(typeof soulUpgradeBonusInfo === 'function'){
+    try{ b=soulUpgradeBonusInfo() || b; }catch(e){}
+  }else if(typeof meta !== 'undefined' && meta && meta.upgrades){
+    const u=meta.upgrades || {};
+    b={hp:Number(u.hp||0)*5, atk:Number(u.atk||0), def:Number(u.def||0), crit:Number(u.crit||0)*2, xp:Number(u.xp||0)*4, gold:Number(u.gold||0)*5};
+  }
+  return statCategoryTitleHtmlFinal('영혼 강화 보정') +
+    statCellHtmlFinal('영혼 HP', '+'+Number(b.hp||0)) + statCellHtmlFinal('영혼 공격', '+'+Number(b.atk||0)) +
+    statCellHtmlFinal('영혼 방어', '+'+Number(b.def||0)) + statCellHtmlFinal('영혼 치명', '+'+Number(b.crit||0)+'%') +
+    statCellHtmlFinal('영혼 경험치', '+'+Number(b.xp||0)+'%') + statCellHtmlFinal('영혼 골드', '+'+Number(b.gold||0)+'%');
+}
+function showFinalCategoryStatsMenu(){
+  if(!S || !S.player) return;
   pauseAutoForChoice();
   const p=S.player, st=calcStats();
   const power=typeof currentCombatPower === 'function' ? currentCombatPower() : 0;
   const score=typeof currentRankingScore === 'function' ? currentRankingScore() : 0;
   const nick=typeof playerNickname === 'function' ? playerNickname(p) : (p.name || p.nickname || p.className || '-');
+  const potionMax=5+(st.potionCap||0);
   showModal(`<h2>스탯</h2><div class="stats" style="margin-top:10px">
-    <div>닉네임 <b>${escapeText(nick)}</b></div><div>전투력 <b>${Number(power||0).toLocaleString()}</b></div>
-    <div>점수 <b>${Number(score||0).toLocaleString()}</b></div><div>직업 <b>${escapeText(p.className)}</b></div>
-    <div>층 / 턴 <b>${p.floor} / ${p.turn}</b></div><div>레벨 <b>${p.level}</b></div>
-    <div>경험치 <b>${xpDisplayText(p)}</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}
-    <div>HP <b>${p.hp}/${st.maxHp}</b></div><div>MP <b>${p.mp}/${st.maxMp}</b></div>
-    <div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div>
-    <div>치명타 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>
-    <div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}
-    <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
-    <div>영혼 <b>${p.soulsRun}</b></div>
-    ${typeof soulUpgradeBonusStatsGridHtml === 'function' ? soulUpgradeBonusStatsGridHtml() : ''}
+    ${statCategoryTitleHtmlFinal('기본 정보')}
+    ${statCellHtmlFinal('닉네임', escapeText(nick))}${statCellHtmlFinal('직업', escapeText(p.className))}
+    ${statCellHtmlFinal('레벨', p.level)}${statCellHtmlFinal('경험치', xpDisplayText(p))}
+
+    ${statCategoryTitleHtmlFinal('진행 / 랭킹')}
+    ${statCellHtmlFinal('전투력', Number(power||0).toLocaleString())}${statCellHtmlFinal('점수', Number(score||0).toLocaleString())}
+    ${statCellHtmlFinal('층 / 턴', p.floor+' / '+p.turn)}${statCellHtmlFinal('처치 수', p.kills)}
+
+    ${statCategoryTitleHtmlFinal('생존 / 자원')}
+    ${statCellHtmlFinal('HP', p.hp+'/'+st.maxHp)}${statCellHtmlFinal('MP', p.mp+'/'+st.maxMp)}
+    ${statCellHtmlFinal('물약', Math.min(p.potions,potionMax)+'/'+potionMax)}${statCellHtmlFinal('영혼', p.soulsRun)}
+    ${statCellHtmlFinal('골드', Number(p.gold||0).toLocaleString())}
+
+    ${statCategoryTitleHtmlFinal('전투 능력')}
+    ${statCellHtmlFinal('공격', st.atk)}${statCellHtmlFinal('방어', st.def)}
+    ${statCellHtmlFinal('치명타', st.crit+'%')}${statCellHtmlFinal('회피', st.eva+'%')}
+
+    ${statCategoryTitleHtmlFinal('획득률')}
+    ${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}
+
+    ${soulUpgradeBonusStatsGridHtmlFinal()}
+
+    ${statCategoryTitleHtmlFinal('상태')}
+    ${statWideCellHtmlFinal('효과', currentEffectTextForStatsFinal(p))}
   </div>
-  <p class="muted" style="margin-top:10px">효과: ${p.effects.guard>0?'방어 태세 '+p.effects.guard+'턴 · ':''}${p.effects.fury>0?'전투함성 '+p.effects.fury+'턴 · ':''}${p.effects.smoke>0?'연막 '+p.effects.smoke+'턴 · ':''}${p.effects.shadow>0?'그림자 기습 '+p.effects.shadow+'턴 · ':''}${p.effects.focus>0?'집중 '+p.effects.focus+'턴':''||'없음'}</p>
   ${makeCloseBar()}`, false);
   bindCloseOnly();
 }
-showStatsMenu = showCharacterRewardRateStatsMenu;
-function updateStatsBoxCharacterRewardRates(){
+showStatsMenu = showFinalCategoryStatsMenu;
+function updateStatsBoxFinalCategoryRates(){
   if(!S || !S.player) return;
   const p=S.player, st=calcStats();
   const statsBox=$('statsBox');
   if(!statsBox) return;
   const power=typeof currentCombatPower === 'function' ? currentCombatPower() : 0;
   const score=typeof currentRankingScore === 'function' ? currentRankingScore() : 0;
-  const nick=typeof playerNickname === 'function' ? playerNickname(p) : (p.name || p.nickname || p.className || '-');
-  statsBox.innerHTML = `<div>닉네임 <b>${escapeText(nick)}</b></div><div>전투력 <b>${Number(power||0).toLocaleString()}</b></div><div>점수 <b>${Number(score||0).toLocaleString()}</b></div><div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div><div>치명 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}<div>처치 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div><div>층 효과 <b>${S.floorMod?.name||'없음'}</b></div><div>현상금 <b>${S.bounty?S.bounty.count+'/'+S.bounty.need:'없음'}</b></div>`;
+  statsBox.innerHTML = `${statCategoryTitleHtmlFinal('전투')}${statCellHtmlFinal('전투력', Number(power||0).toLocaleString())}${statCellHtmlFinal('점수', Number(score||0).toLocaleString())}${statCellHtmlFinal('공격', st.atk)}${statCellHtmlFinal('방어', st.def)}${statCellHtmlFinal('치명', st.crit+'%')}${statCellHtmlFinal('회피', st.eva+'%')}${statCategoryTitleHtmlFinal('획득')}${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}${statCategoryTitleHtmlFinal('진행')}${statCellHtmlFinal('처치', p.kills)}${statCellHtmlFinal('영혼', p.soulsRun)}${statCellHtmlFinal('층 효과', S.floorMod?.name||'없음')}${statCellHtmlFinal('현상금', S.bounty?S.bounty.count+'/'+S.bounty.need:'없음')}`;
 }
-const updateUiBeforeCharacterRewardRateStatsFinal = updateUi;
+const updateUiBeforeFinalCategorySoulRates = updateUi;
 updateUi = function(){
-  updateUiBeforeCharacterRewardRateStatsFinal();
-  updateStatsBoxCharacterRewardRates();
+  updateUiBeforeFinalCategorySoulRates();
+  updateStatsBoxFinalCategoryRates();
 };
-function bindCharacterRewardRateStatsButtonFinal(){
+function bindFinalCategoryStatsButton(){
   const btn=$('statMenuBtn');
   if(!btn) return;
-  btn.onclick = showCharacterRewardRateStatsMenu;
-  if(btn.dataset.rewardRateStatsCaptureBound !== '1'){
-    btn.dataset.rewardRateStatsCaptureBound = '1';
+  btn.onclick = showFinalCategoryStatsMenu;
+  if(btn.dataset.finalCategorySoulRatesBound !== '1'){
+    btn.dataset.finalCategorySoulRatesBound = '1';
     btn.addEventListener('click', function(e){
       if(document.body.classList.contains('liveKeymapMode')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if(e.stopImmediatePropagation) e.stopImmediatePropagation();
-      showCharacterRewardRateStatsMenu();
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      showFinalCategoryStatsMenu();
     }, true);
     btn.addEventListener('touchend', function(e){
       if(document.body.classList.contains('liveKeymapMode')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if(e.stopImmediatePropagation) e.stopImmediatePropagation();
-      showCharacterRewardRateStatsMenu();
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      showFinalCategoryStatsMenu();
     }, {capture:true, passive:false});
   }
 }
-bindCharacterRewardRateStatsButtonFinal();
-try{ updateStatsBoxCharacterRewardRates(); }catch(e){}
-/* === /FIX: stat window character reward rates === */
+bindFinalCategoryStatsButton();
+try{ updateStatsBoxFinalCategoryRates(); }catch(e){}
+/* === /FIX: stat window category order + soul reward bonus display === */
 
+
+/* === HARD FIX: visible soul xp/gold in bottom soul stats block === */
+function statHardTitle(title){
+  return `<div style="grid-column:1/-1;margin-top:8px;padding:6px 8px;border-radius:9px;background:rgba(96,165,250,.12)!important;border:1px solid rgba(147,197,253,.24)!important;color:#dbeafe;font-weight:900;text-align:left">${title}</div>`;
+}
+function statHardCell(label, value){
+  return `<div>${label} <b>${value}</b></div>`;
+}
+function statHardWide(label, value){
+  return `<div style="grid-column:1/-1">${label} <b>${value}</b></div>`;
+}
+function statHardRateCell(label, rate){
+  const total = Math.max(0, Math.round((1 + Number(rate || 0)) * 100));
+  return statHardCell(label, total + '%');
+}
+function soulHardBonus(){
+  let b = {hp:0, atk:0, def:0, crit:0, xp:0, gold:0};
+  try{
+    if(typeof soulUpgradeBonusInfo === 'function') b = Object.assign(b, soulUpgradeBonusInfo() || {});
+    else if(typeof meta !== 'undefined' && meta && meta.upgrades){
+      const u = meta.upgrades || {};
+      b = {hp:Number(u.hp||0)*5, atk:Number(u.atk||0), def:Number(u.def||0), crit:Number(u.crit||0)*2, xp:Number(u.xp||0)*4, gold:Number(u.gold||0)*5};
+    }
+  }catch(e){}
+  return {
+    hp:Number(b.hp||0), atk:Number(b.atk||0), def:Number(b.def||0),
+    crit:Number(b.crit||0), xp:Number(b.xp||0), gold:Number(b.gold||0)
+  };
+}
+function soulHardBottomBlock(){
+  const b = soulHardBonus();
+  return statHardTitle('영혼 강화 보정') +
+    statHardCell('영혼 HP', '+' + b.hp) + statHardCell('영혼 공격', '+' + b.atk) +
+    statHardCell('영혼 방어', '+' + b.def) + statHardCell('영혼 치명', '+' + b.crit + '%') +
+    statHardCell('영혼 경험치', '+' + b.xp + '%') + statHardCell('영혼 골드', '+' + b.gold + '%');
+}
+function statHardEffectText(p){
+  const arr=[];
+  if(p && p.effects){
+    if(p.effects.guard>0) arr.push('방어 태세 '+p.effects.guard+'턴');
+    if(p.effects.fury>0) arr.push('전투함성 '+p.effects.fury+'턴');
+    if(p.effects.smoke>0) arr.push('연막 '+p.effects.smoke+'턴');
+    if(p.effects.shadow>0) arr.push('그림자 기습 '+p.effects.shadow+'턴');
+    if(p.effects.focus>0) arr.push('집중 '+p.effects.focus+'턴');
+  }
+  return arr.length ? arr.join(' · ') : '없음';
+}
+function showFinalCategoryStatsMenu(){
+  if(!S || !S.player) return;
+  pauseAutoForChoice();
+  const p=S.player, st=calcStats();
+  const power=typeof currentCombatPower === 'function' ? currentCombatPower() : 0;
+  const score=typeof currentRankingScore === 'function' ? currentRankingScore() : 0;
+  const nick=typeof playerNickname === 'function' ? playerNickname(p) : (p.name || p.nickname || p.className || '-');
+  const potionMax=5+(st.potionCap||0);
+  showModal(`<h2>스탯</h2><div class="stats" style="margin-top:10px">
+    ${statHardTitle('기본 정보')}
+    ${statHardCell('닉네임', escapeText(nick))}${statHardCell('직업', escapeText(p.className))}
+    ${statHardCell('레벨', p.level)}${statHardCell('경험치', xpDisplayText(p))}
+
+    ${statHardTitle('진행 / 랭킹')}
+    ${statHardCell('전투력', Number(power||0).toLocaleString())}${statHardCell('점수', Number(score||0).toLocaleString())}
+    ${statHardCell('층 / 턴', p.floor+' / '+p.turn)}${statHardCell('처치 수', p.kills)}
+
+    ${statHardTitle('생존 / 자원')}
+    ${statHardCell('HP', p.hp+'/'+st.maxHp)}${statHardCell('MP', p.mp+'/'+st.maxMp)}
+    ${statHardCell('물약', Math.min(p.potions,potionMax)+'/'+potionMax)}${statHardCell('영혼', Number(p.soulsRun||0).toLocaleString())}
+    ${statHardCell('골드', Number(p.gold||0).toLocaleString())}
+
+    ${statHardTitle('전투 능력')}
+    ${statHardCell('공격', st.atk)}${statHardCell('방어', st.def)}
+    ${statHardCell('치명타', st.crit+'%')}${statHardCell('회피', st.eva+'%')}
+
+    ${statHardTitle('획득률')}
+    ${statHardRateCell('경험치 획득률', st.xpRate)}${statHardRateCell('골드 획득률', st.goldRate)}
+
+    ${statHardTitle('상태')}
+    ${statHardWide('효과', statHardEffectText(p))}
+
+    ${soulHardBottomBlock()}
+  </div>
+  ${makeCloseBar()}`, false);
+  bindCloseOnly();
+}
+showStatsMenu = showFinalCategoryStatsMenu;
+function updateStatsBoxFinalCategoryRates(){
+  if(!S || !S.player) return;
+  const p=S.player, st=calcStats();
+  const statsBox=$('statsBox');
+  if(!statsBox) return;
+  const power=typeof currentCombatPower === 'function' ? currentCombatPower() : 0;
+  const score=typeof currentRankingScore === 'function' ? currentRankingScore() : 0;
+  statsBox.innerHTML = `${statHardTitle('전투')}${statHardCell('전투력', Number(power||0).toLocaleString())}${statHardCell('점수', Number(score||0).toLocaleString())}${statHardCell('공격', st.atk)}${statHardCell('방어', st.def)}${statHardCell('치명', st.crit+'%')}${statHardCell('회피', st.eva+'%')}${statHardTitle('획득')}${statHardRateCell('경험치 획득률', st.xpRate)}${statHardRateCell('골드 획득률', st.goldRate)}${statHardTitle('진행')}${statHardCell('처치', p.kills)}${statHardCell('영혼', Number(p.soulsRun||0).toLocaleString())}${statHardCell('층 효과', S.floorMod?.name||'없음')}${statHardCell('현상금', S.bounty?S.bounty.count+'/'+S.bounty.need:'없음')}${soulHardBottomBlock()}`;
+}
+function bindHardStatsButton(){
+  const btn=$('statMenuBtn');
+  if(!btn) return;
+  btn.onclick = showFinalCategoryStatsMenu;
+}
+bindHardStatsButton();
+try{ updateStatsBoxFinalCategoryRates(); }catch(e){}
+/* === /HARD FIX: visible soul xp/gold in bottom soul stats block === */
+
+
+/* === TRUE FINAL FIX: show XP/GOLD directly under '영혼 강화 보정' in stats modal === */
+function statSoulBonusFinalInfo(){
+  let b = {hp:0, atk:0, def:0, crit:0, xp:0, gold:0};
+  try{
+    if(typeof soulUpgradeBonusInfo === 'function') b = Object.assign(b, soulUpgradeBonusInfo() || {});
+    else if(typeof meta !== 'undefined' && meta && meta.upgrades){
+      const u = meta.upgrades || {};
+      b = {
+        hp:Number(u.hp||0)*5,
+        atk:Number(u.atk||0),
+        def:Number(u.def||0),
+        crit:Number(u.crit||0)*2,
+        xp:Number(u.xp||0)*4,
+        gold:Number(u.gold||0)*5
+      };
+    }
+  }catch(e){}
+  return {
+    hp:Number(b.hp||0), atk:Number(b.atk||0), def:Number(b.def||0),
+    crit:Number(b.crit||0), xp:Number(b.xp||0), gold:Number(b.gold||0)
+  };
+}
+function statFinalTitleRow(title){
+  return `<div style="grid-column:1/-1;margin-top:8px;padding:6px 8px;border-radius:9px;background:rgba(96,165,250,.12)!important;border:1px solid rgba(147,197,253,.24)!important;color:#dbeafe;font-weight:900;text-align:left">${title}</div>`;
+}
+function statFinalCellRow(label, value){
+  return `<div>${label} <b>${value}</b></div>`;
+}
+function statFinalWideRow(label, value){
+  return `<div style="grid-column:1/-1">${label} <b>${value}</b></div>`;
+}
+function statFinalRateRow(label, rate){
+  const total = Math.max(0, Math.round((1 + Number(rate || 0)) * 100));
+  return statFinalCellRow(label, total + '%');
+}
+function soulUpgradeBonusUnderHeadingHtml(){
+  const b = statSoulBonusFinalInfo();
+  return statFinalTitleRow('영혼 강화 보정') +
+    statFinalCellRow('영혼 HP', '+' + b.hp) +
+    statFinalCellRow('영혼 공격', '+' + b.atk) +
+    statFinalCellRow('영혼 방어', '+' + b.def) +
+    statFinalCellRow('영혼 치명', '+' + b.crit + '%') +
+    statFinalCellRow('경험치 획득', '+' + b.xp + '%') +
+    statFinalCellRow('골드 획득', '+' + b.gold + '%');
+}
+function statFinalEffectLine(p){
+  const arr=[];
+  if(p && p.effects){
+    if(p.effects.guard>0) arr.push('방어 태세 '+p.effects.guard+'턴');
+    if(p.effects.fury>0) arr.push('전투함성 '+p.effects.fury+'턴');
+    if(p.effects.smoke>0) arr.push('연막 '+p.effects.smoke+'턴');
+    if(p.effects.shadow>0) arr.push('그림자 기습 '+p.effects.shadow+'턴');
+    if(p.effects.focus>0) arr.push('집중 '+p.effects.focus+'턴');
+  }
+  return arr.length ? arr.join(' · ') : '없음';
+}
+function showStatsMenuSoulBonusFinal(){
+  if(!S || !S.player) return;
+  pauseAutoForChoice();
+  const p = S.player;
+  const st = calcStats();
+  const power = (typeof currentCombatPower === 'function') ? currentCombatPower() : 0;
+  const score = (typeof currentRankingScore === 'function') ? currentRankingScore() : 0;
+  const nick = (typeof playerNickname === 'function') ? playerNickname(p) : (p.name || p.nickname || p.className || '-');
+  const potionMax = 5 + (st.potionCap || 0);
+  showModal(`<h2>스탯</h2><div class="stats" style="margin-top:10px">
+    ${statFinalTitleRow('기본 정보')}
+    ${statFinalCellRow('닉네임', escapeText(nick))}${statFinalCellRow('직업', escapeText(p.className))}
+    ${statFinalCellRow('레벨', p.level)}${statFinalCellRow('경험치', xpDisplayText(p))}
+
+    ${statFinalTitleRow('진행 / 랭킹')}
+    ${statFinalCellRow('전투력', Number(power||0).toLocaleString())}${statFinalCellRow('점수', Number(score||0).toLocaleString())}
+    ${statFinalCellRow('층 / 턴', p.floor+' / '+p.turn)}${statFinalCellRow('처치 수', p.kills)}
+
+    ${statFinalTitleRow('생존 / 자원')}
+    ${statFinalCellRow('HP', p.hp+'/'+st.maxHp)}${statFinalCellRow('MP', p.mp+'/'+st.maxMp)}
+    ${statFinalCellRow('물약', Math.min(p.potions,potionMax)+'/'+potionMax)}${statFinalCellRow('영혼', Number(p.soulsRun||0).toLocaleString())}
+    ${statFinalCellRow('골드', Number(p.gold||0).toLocaleString())}
+
+    ${statFinalTitleRow('전투 능력')}
+    ${statFinalCellRow('공격', st.atk)}${statFinalCellRow('방어', st.def)}
+    ${statFinalCellRow('치명타', st.crit+'%')}${statFinalCellRow('회피', st.eva+'%')}
+
+    ${statFinalTitleRow('획득률')}
+    ${statFinalRateRow('경험치 획득률', st.xpRate)}${statFinalRateRow('골드 획득률', st.goldRate)}
+
+    ${soulUpgradeBonusUnderHeadingHtml()}
+
+    ${statFinalTitleRow('상태')}
+    ${statFinalWideRow('효과', statFinalEffectLine(p))}
+  </div>
+  ${makeCloseBar()}`, false);
+  bindCloseOnly();
+}
+showStatsMenu = showStatsMenuSoulBonusFinal;
+function updateStatsBoxSoulBonusFinal(){
+  if(!S || !S.player) return;
+  const p = S.player;
+  const st = calcStats();
+  const statsBox = $('statsBox');
+  if(!statsBox) return;
+  const power = (typeof currentCombatPower === 'function') ? currentCombatPower() : 0;
+  const score = (typeof currentRankingScore === 'function') ? currentRankingScore() : 0;
+  statsBox.innerHTML = `${statFinalTitleRow('전투')}${statFinalCellRow('전투력', Number(power||0).toLocaleString())}${statFinalCellRow('점수', Number(score||0).toLocaleString())}${statFinalCellRow('공격', st.atk)}${statFinalCellRow('방어', st.def)}${statFinalCellRow('치명', st.crit+'%')}${statFinalCellRow('회피', st.eva+'%')}${statFinalTitleRow('획득')}${statFinalRateRow('경험치 획득률', st.xpRate)}${statFinalRateRow('골드 획득률', st.goldRate)}${statFinalTitleRow('진행')}${statFinalCellRow('처치', p.kills)}${statFinalCellRow('영혼', Number(p.soulsRun||0).toLocaleString())}${statFinalCellRow('층 효과', S.floorMod?.name||'없음')}${statFinalCellRow('현상금', S.bounty?S.bounty.count+'/'+S.bounty.need:'없음')}${soulUpgradeBonusUnderHeadingHtml()}`;
+}
+function bindStatsButtonSoulBonusFinal(){
+  const btn = $('statMenuBtn');
+  if(!btn) return;
+  btn.onclick = showStatsMenuSoulBonusFinal;
+}
+bindStatsButtonSoulBonusFinal();
+try{ updateStatsBoxSoulBonusFinal(); }catch(e){}
+/* === /TRUE FINAL FIX: show XP/GOLD directly under '영혼 강화 보정' in stats modal === */
+
+
+
+/* === ABSOLUTE FINAL FIX: stats button clone + soul XP/GOLD under soul enhancement heading === */
+(function(){
+  function esc(v){
+    try{ return (typeof escapeText === 'function') ? escapeText(String(v ?? '')) : String(v ?? '').replace(/[&<>"']/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+    catch(e){ return String(v ?? ''); }
+  }
+  function titleRow(t){
+    return '<div style="grid-column:1/-1;margin-top:8px;padding:6px 8px;border-radius:9px;background:rgba(96,165,250,.12)!important;border:1px solid rgba(147,197,253,.24)!important;color:#dbeafe;font-weight:900;text-align:left">'+esc(t)+'</div>';
+  }
+  function cellRow(k,v){ return '<div>'+esc(k)+' <b>'+esc(v)+'</b></div>'; }
+  function wideRow(k,v){ return '<div style="grid-column:1/-1">'+esc(k)+' <b>'+esc(v)+'</b></div>'; }
+  function rateRow(k,rate){
+    var total = Math.max(0, Math.round((1 + Number(rate || 0)) * 100));
+    return cellRow(k, total + '%');
+  }
+  function soulBonusRaw(){
+    var b={hp:0,atk:0,def:0,crit:0,xp:0,gold:0};
+    try{
+      if(typeof soulUpgradeBonusInfo === 'function'){
+        b = Object.assign(b, soulUpgradeBonusInfo() || {});
+      }else if(typeof meta !== 'undefined' && meta && meta.upgrades){
+        var u = meta.upgrades || {};
+        b = {hp:Number(u.hp||0)*5, atk:Number(u.atk||0), def:Number(u.def||0), crit:Number(u.crit||0)*2, xp:Number(u.xp||0)*4, gold:Number(u.gold||0)*5};
+      }
+    }catch(e){}
+    return {hp:Number(b.hp||0), atk:Number(b.atk||0), def:Number(b.def||0), crit:Number(b.crit||0), xp:Number(b.xp||0), gold:Number(b.gold||0)};
+  }
+  function soulEnhanceBlock(){
+    var b=soulBonusRaw();
+    return titleRow('영혼 강화 보정')+
+      cellRow('영혼 HP','+'+b.hp)+cellRow('영혼 공격','+'+b.atk)+
+      cellRow('영혼 방어','+'+b.def)+cellRow('영혼 치명','+'+b.crit+'%')+
+      cellRow('영혼 경험치','+'+b.xp+'%')+cellRow('영혼 골드','+'+b.gold+'%');
+  }
+  function effectText(p){
+    var arr=[];
+    try{
+      if(p && p.effects){
+        if(p.effects.guard>0) arr.push('방어 태세 '+p.effects.guard+'턴');
+        if(p.effects.fury>0) arr.push('전투함성 '+p.effects.fury+'턴');
+        if(p.effects.smoke>0) arr.push('연막 '+p.effects.smoke+'턴');
+        if(p.effects.shadow>0) arr.push('그림자 기습 '+p.effects.shadow+'턴');
+        if(p.effects.focus>0) arr.push('집중 '+p.effects.focus+'턴');
+      }
+    }catch(e){}
+    return arr.length ? arr.join(' · ') : '없음';
+  }
+  function forcedStatsMenu(){
+    if(!S || !S.player) return;
+    if(typeof pauseAutoForChoice === 'function') pauseAutoForChoice();
+    var p=S.player, st=(typeof calcStats==='function'?calcStats():{});
+    var power=(typeof currentCombatPower==='function')?currentCombatPower():0;
+    var score=(typeof currentRankingScore==='function')?currentRankingScore():0;
+    var nick=(typeof playerNickname==='function')?playerNickname(p):(p.name||p.nickname||p.className||'-');
+    var potionMax=5+(Number(st.potionCap||0));
+    var xpText=(typeof xpDisplayText==='function')?xpDisplayText(p):String(p.xp||0);
+    var html='<h2>스탯</h2><div class="stats" style="margin-top:10px">'+
+      titleRow('기본 정보')+
+      cellRow('닉네임', nick)+cellRow('직업', p.className||'-')+
+      cellRow('레벨', p.level||1)+cellRow('경험치', xpText)+
+      titleRow('진행 / 랭킹')+
+      cellRow('전투력', Number(power||0).toLocaleString())+cellRow('점수', Number(score||0).toLocaleString())+
+      cellRow('층 / 턴', (p.floor||1)+' / '+(p.turn||0))+cellRow('처치 수', p.kills||0)+
+      titleRow('생존 / 자원')+
+      cellRow('HP', (p.hp||0)+'/'+(st.maxHp||0))+cellRow('MP', (p.mp||0)+'/'+(st.maxMp||0))+
+      cellRow('물약', Math.min((p.potions||0),potionMax)+'/'+potionMax)+cellRow('영혼', Number(p.soulsRun||0).toLocaleString())+
+      cellRow('골드', Number(p.gold||0).toLocaleString())+
+      titleRow('전투 능력')+
+      cellRow('공격', st.atk||0)+cellRow('방어', st.def||0)+
+      cellRow('치명타', (st.crit||0)+'%')+cellRow('회피', (st.eva||0)+'%')+
+      titleRow('획득률')+
+      rateRow('경험치 획득률', st.xpRate)+rateRow('골드 획득률', st.goldRate)+
+      soulEnhanceBlock()+
+      titleRow('상태')+
+      wideRow('효과', effectText(p))+
+      '</div>'+((typeof makeCloseBar==='function')?makeCloseBar():'');
+    showModal(html, false);
+    if(typeof bindCloseOnly==='function') bindCloseOnly();
+  }
+  function forcedStatsBox(){
+    if(!S || !S.player) return;
+    var box = (typeof $ === 'function') ? $('statsBox') : document.getElementById('statsBox');
+    if(!box) return;
+    var p=S.player, st=(typeof calcStats==='function'?calcStats():{});
+    var power=(typeof currentCombatPower==='function')?currentCombatPower():0;
+    var score=(typeof currentRankingScore==='function')?currentRankingScore():0;
+    box.innerHTML = titleRow('전투')+
+      cellRow('전투력', Number(power||0).toLocaleString())+cellRow('점수', Number(score||0).toLocaleString())+
+      cellRow('공격', st.atk||0)+cellRow('방어', st.def||0)+cellRow('치명', (st.crit||0)+'%')+cellRow('회피', (st.eva||0)+'%')+
+      titleRow('획득')+rateRow('경험치 획득률', st.xpRate)+rateRow('골드 획득률', st.goldRate)+
+      titleRow('진행')+cellRow('처치', p.kills||0)+cellRow('영혼', Number(p.soulsRun||0).toLocaleString())+
+      cellRow('층 효과', (S.floorMod&&S.floorMod.name)||'없음')+cellRow('현상금', S.bounty?(S.bounty.count+'/'+S.bounty.need):'없음')+
+      soulEnhanceBlock();
+  }
+  window.showStatsMenu = forcedStatsMenu;
+  window.showStatsMenuSoulBonusForcedVisible = forcedStatsMenu;
+  var prevUpdateUi = (typeof updateUi === 'function') ? updateUi : null;
+  window.updateUi = function(){
+    if(prevUpdateUi) prevUpdateUi();
+    try{ forcedStatsBox(); }catch(e){}
+    try{ bindForcedStatsButton(); }catch(e){}
+  };
+  function bindForcedStatsButton(){
+    var oldBtn = (typeof $ === 'function') ? $('statMenuBtn') : document.getElementById('statMenuBtn');
+    if(!oldBtn || oldBtn.dataset.soulBonusForcedVisible === '1') return;
+    var newBtn = oldBtn.cloneNode(true); // 이전 익명 capture 이벤트 전부 제거
+    newBtn.dataset.soulBonusForcedVisible = '1';
+    oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+    newBtn.onclick = forcedStatsMenu;
+    newBtn.addEventListener('click', function(e){
+      if(document.body.classList.contains('liveKeymapMode')) return;
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      forcedStatsMenu();
+    }, true);
+    newBtn.addEventListener('touchend', function(e){
+      if(document.body.classList.contains('liveKeymapMode')) return;
+      e.preventDefault(); e.stopPropagation(); if(e.stopImmediatePropagation) e.stopImmediatePropagation();
+      forcedStatsMenu();
+    }, {capture:true, passive:false});
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ bindForcedStatsButton(); try{forcedStatsBox();}catch(e){}; });
+  else { bindForcedStatsButton(); try{forcedStatsBox();}catch(e){}; }
+})();
+/* === /ABSOLUTE FINAL FIX === */
+
+
+
+/* === REAL VISIBLE FIX: inject soul XP/GOLD under the actual visible stats heading === */
+(function(){
+  function soulRatesForVisibleStats(){
+    var b={xp:0,gold:0};
+    try{
+      if(typeof soulUpgradeBonusInfo === 'function'){
+        var info=soulUpgradeBonusInfo()||{};
+        b.xp=Number(info.xp||0); b.gold=Number(info.gold||0);
+      }else if(typeof meta !== 'undefined' && meta && meta.upgrades){
+        b.xp=Number(meta.upgrades.xp||0)*4;
+        b.gold=Number(meta.upgrades.gold||0)*5;
+      }
+    }catch(e){}
+    return b;
+  }
+  function makeCell(label,value){
+    var d=document.createElement('div');
+    d.setAttribute('data-soul-rate-visible-fix','1');
+    d.innerHTML=label+' <b>'+value+'</b>';
+    return d;
+  }
+  function ensureSoulRatesVisible(){
+    var card=document.getElementById('modalCard');
+    if(!card) return;
+    var text=card.textContent||'';
+    if(text.indexOf('스탯')<0 || text.indexOf('영혼 강화 보정')<0) return;
+    if(text.indexOf('영혼 경험치')>=0 && text.indexOf('영혼 골드')>=0) return;
+    var b=soulRatesForVisibleStats();
+    var title=null;
+    var all=card.querySelectorAll('h3,div');
+    for(var i=0;i<all.length;i++){
+      if((all[i].textContent||'').trim()==='영혼 강화 보정'){
+        title=all[i];
+      }
+    }
+    var statsGrid=null;
+    if(title){
+      statsGrid=title.closest('.stats') || (title.nextElementSibling && title.nextElementSibling.classList && title.nextElementSibling.classList.contains('stats') ? title.nextElementSibling : null);
+    }
+    if(!statsGrid){
+      var grids=card.querySelectorAll('.stats');
+      statsGrid=grids.length ? grids[grids.length-1] : null;
+    }
+    if(!statsGrid) return;
+    statsGrid.appendChild(makeCell('영혼 경험치','+'+b.xp+'%'));
+    statsGrid.appendChild(makeCell('영혼 골드','+'+b.gold+'%'));
+  }
+  var oldShowStats=(typeof showStatsMenu==='function') ? showStatsMenu : null;
+  showStatsMenu=function(){
+    if(oldShowStats) oldShowStats.apply(this, arguments);
+    setTimeout(ensureSoulRatesVisible,0);
+  };
+  window.showStatsMenu=showStatsMenu;
+  document.addEventListener('click',function(e){
+    var t=e.target && e.target.closest && e.target.closest('#statMenuBtn');
+    if(t) setTimeout(ensureSoulRatesVisible,0);
+  },true);
+  document.addEventListener('touchend',function(e){
+    var t=e.target && e.target.closest && e.target.closest('#statMenuBtn');
+    if(t) setTimeout(ensureSoulRatesVisible,0);
+  },true);
+  try{
+    new MutationObserver(function(){ ensureSoulRatesVisible(); }).observe(document.getElementById('modalCard'),{childList:true,subtree:true,characterData:true});
+  }catch(e){}
+  setTimeout(ensureSoulRatesVisible,0);
+})();
+/* === /REAL VISIBLE FIX === */
+
+(function(){
+ const prev=updateUi;
+ updateUi=function(){
+  if(S&&S.player){
+   const cap=5+((calcStats().potionCap)||0);
+   if(Number(S.player.potions||0)>cap) S.player.potions=cap;
+  }
+  return prev.apply(this,arguments);
+ };
+})();
 </script>
 </body>
 </html>
