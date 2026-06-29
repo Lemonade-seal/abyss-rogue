@@ -23219,6 +23219,210 @@ try{ updateStatsBoxSoulBonusFinal(); }catch(e){}
 })();
 /* === /FINAL PATCH: 문열기 쿨타임 최종 적용 === */
 
+
+/* === FINAL PATCH 2: 문열기 퀵슬롯 버튼 쿨턴 카운트 강제 표시 === */
+(function installOpenDoorButtonCooldownVisualPatch(){
+  const KEY = 'openDoor';
+  const LABEL_RE = /문\s*열기|문열기/;
+  const BTN_IDS = ['skill1','skill2','skill3'];
+
+  function odBtnN(v){ return Math.max(0, Math.floor(Number(v) || 0)); }
+  function odBtnPlayer(){ return (typeof S !== 'undefined' && S && S.player) ? S.player : null; }
+  function odBtnEl(id){
+    try{ return (typeof $ === 'function') ? $(id) : document.getElementById(id); }catch(e){ return document.getElementById(id); }
+  }
+  function odBtnEnsureState(){
+    const p = odBtnPlayer();
+    if(!p) return null;
+    p.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0,breakWall:0}, p.cd || {});
+    p.skillTurnLock = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillTurnLock || {});
+    p.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillEnhance || {});
+    if(!Array.isArray(p.skillQuickSlots)){
+      p.skillQuickSlots = ['smash','dash','heal'];
+    }
+    while(p.skillQuickSlots.length < 3) p.skillQuickSlots.push(['smash','dash','heal'][p.skillQuickSlots.length] || 'smash');
+    return p;
+  }
+  function odBtnMaxCd(){
+    try{
+      if(typeof openDoorCooldownTurns === 'function') return odBtnN(openDoorCooldownTurns());
+    }catch(e){}
+    try{
+      const p = odBtnPlayer();
+      const lv = Math.max(0, Math.min(20, odBtnN(p && p.skillEnhance && p.skillEnhance.openDoor)));
+      let cd = Math.max(4, 10 - Math.floor(lv / 3));
+      if(p && p.classId === 'rogue') cd = Math.max(1, cd - 5);
+      return cd;
+    }catch(e){ return 1; }
+  }
+  function odBtnLeft(){
+    const p = odBtnEnsureState();
+    if(!p) return 0;
+    const turn = odBtnN(p.turn);
+    const raw = odBtnN(p.cd && p.cd[KEY]);
+    const lock = odBtnN(p.skillTurnLock && p.skillTurnLock[KEY]);
+    const lockLeft = lock > turn ? lock - turn : 0;
+    const maxCd = odBtnMaxCd();
+    let left = Math.max(raw, lockLeft);
+    if(maxCd > 0) left = Math.min(left, maxCd);
+    if(left > 0){
+      p.cd[KEY] = left;
+    }else{
+      p.cd[KEY] = 0;
+      if(lock <= turn) p.skillTurnLock[KEY] = 0;
+    }
+    return left;
+  }
+  function odBtnKeyAt(idx){
+    const p = odBtnEnsureState();
+    if(!p) return '';
+    try{
+      const direct = p.skillQuickSlots && p.skillQuickSlots[idx];
+      if(direct) return String(direct);
+    }catch(e){}
+    try{
+      if(typeof quickSlotSkillKey === 'function') return String(quickSlotSkillKey(idx) || '');
+    }catch(e){}
+    return '';
+  }
+  function odBtnIsOpenDoor(id, idx){
+    const el = odBtnEl(id);
+    if(!el) return false;
+    if(odBtnKeyAt(idx) === KEY) return true;
+    const title = el.querySelector('b');
+    return !!(title && LABEL_RE.test(title.textContent || ''));
+  }
+  function odBtnCdSpan(el){
+    if(!el) return null;
+    let cd = el.querySelector('.cd');
+    if(!cd){
+      cd = document.createElement('span');
+      cd.className = 'cd';
+      el.appendChild(cd);
+    }
+    return cd;
+  }
+  function odBtnPaintOne(el, left){
+    const cd = odBtnCdSpan(el);
+    if(!cd) return;
+    if(left > 0){
+      el.classList.add('cool');
+      cd.textContent = String(left);
+      cd.style.display = 'flex';
+      cd.style.alignItems = 'center';
+      cd.style.justifyContent = 'center';
+      cd.style.pointerEvents = 'none';
+      cd.setAttribute('aria-hidden','true');
+      el.setAttribute('data-open-door-cd-left', String(left));
+    }else{
+      el.classList.remove('cool');
+      cd.textContent = '';
+      cd.style.display = '';
+      el.removeAttribute('data-open-door-cd-left');
+    }
+  }
+  function odBtnApply(){
+    if(!odBtnPlayer()) return;
+    const left = odBtnLeft();
+    BTN_IDS.forEach(function(id,idx){
+      const el = odBtnEl(id);
+      if(!el) return;
+      if(odBtnIsOpenDoor(id, idx)) odBtnPaintOne(el, left);
+    });
+  }
+  function odBtnApplySoon(){
+    try{ odBtnApply(); }catch(e){}
+    try{ requestAnimationFrame(function(){ try{ odBtnApply(); }catch(e){} }); }catch(e){}
+    setTimeout(function(){ try{ odBtnApply(); }catch(e){} }, 0);
+    setTimeout(function(){ try{ odBtnApply(); }catch(e){} }, 80);
+    setTimeout(function(){ try{ odBtnApply(); }catch(e){} }, 180);
+  }
+
+  const beforeUpdateCooldownOpenDoorBtn = typeof updateCooldown === 'function' ? updateCooldown : null;
+  if(beforeUpdateCooldownOpenDoorBtn){
+    updateCooldown = function(id, cd){
+      const ret = beforeUpdateCooldownOpenDoorBtn.apply(this, arguments);
+      try{
+        const idx = BTN_IDS.indexOf(String(id));
+        if(idx >= 0 && odBtnIsOpenDoor(String(id), idx)){
+          odBtnPaintOne(odBtnEl(id), odBtnLeft());
+        }
+      }catch(e){}
+      return ret;
+    };
+    try{ window.updateCooldown = updateCooldown; }catch(e){}
+  }
+
+  const beforeUpdateSkillButtonsFromQuickSlotsOpenDoorBtn = typeof updateSkillButtonsFromQuickSlots === 'function' ? updateSkillButtonsFromQuickSlots : null;
+  if(beforeUpdateSkillButtonsFromQuickSlotsOpenDoorBtn){
+    updateSkillButtonsFromQuickSlots = function(){
+      const ret = beforeUpdateSkillButtonsFromQuickSlotsOpenDoorBtn.apply(this, arguments);
+      odBtnApplySoon();
+      return ret;
+    };
+    try{ window.updateSkillButtonsFromQuickSlots = updateSkillButtonsFromQuickSlots; }catch(e){}
+  }
+
+  const beforeUpdateSkillButtonsOpenDoorBtn = typeof updateSkillButtons === 'function' ? updateSkillButtons : null;
+  if(beforeUpdateSkillButtonsOpenDoorBtn){
+    updateSkillButtons = function(){
+      const ret = beforeUpdateSkillButtonsOpenDoorBtn.apply(this, arguments);
+      odBtnApplySoon();
+      return ret;
+    };
+    try{ window.updateSkillButtons = updateSkillButtons; }catch(e){}
+  }
+
+  const beforeUpdateUiOpenDoorBtn = typeof updateUi === 'function' ? updateUi : null;
+  if(beforeUpdateUiOpenDoorBtn){
+    updateUi = function(){
+      const ret = beforeUpdateUiOpenDoorBtn.apply(this, arguments);
+      odBtnApplySoon();
+      return ret;
+    };
+    try{ window.updateUi = updateUi; }catch(e){}
+  }
+
+  const beforeRenderAllOpenDoorBtn = typeof renderAll === 'function' ? renderAll : null;
+  if(beforeRenderAllOpenDoorBtn){
+    renderAll = function(){
+      const ret = beforeRenderAllOpenDoorBtn.apply(this, arguments);
+      odBtnApplySoon();
+      return ret;
+    };
+    try{ window.renderAll = renderAll; }catch(e){}
+  }
+
+  const beforeUseOpenDoorSkillButtonCd = typeof useOpenDoorSkill === 'function' ? useOpenDoorSkill : null;
+  if(beforeUseOpenDoorSkillButtonCd){
+    useOpenDoorSkill = function(){
+      const ret = beforeUseOpenDoorSkillButtonCd.apply(this, arguments);
+      odBtnApplySoon();
+      return ret;
+    };
+    try{ window.useOpenDoorSkill = useOpenDoorSkill; }catch(e){}
+  }
+
+  document.addEventListener('click', function(ev){
+    const btn = ev.target && ev.target.closest && ev.target.closest('#skill1,#skill2,#skill3');
+    if(!btn) return;
+    const idx = BTN_IDS.indexOf(btn.id);
+    if(idx >= 0 && odBtnIsOpenDoor(btn.id, idx)) odBtnApplySoon();
+  }, true);
+
+  try{
+    const bar = document.querySelector('.skillbar');
+    if(bar && typeof MutationObserver !== 'undefined'){
+      new MutationObserver(function(){ odBtnApplySoon(); }).observe(bar, {childList:true, subtree:true, characterData:true, attributes:true});
+    }
+  }catch(e){}
+
+  setInterval(function(){ try{ odBtnApply(); }catch(e){} }, 250);
+  try{ odBtnApplySoon(); }catch(e){}
+  try{ window.__openDoorButtonCooldownDebug = {left:odBtnLeft, apply:odBtnApplySoon}; }catch(e){}
+})();
+/* === /FINAL PATCH 2: 문열기 퀵슬롯 버튼 쿨턴 카운트 강제 표시 === */
+
 })();
 /* === /REAL FINAL FIX === */
 
