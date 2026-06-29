@@ -6076,7 +6076,8 @@ html body #modal.startPage[data-start-mode="menu"] button#guestLoginBtn.codeLogi
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script type="application/x-abyss-rogue-disabled-patch" data-note="Original inline code inside external Supabase script tag was not executable; kept inert to preserve runtime behavior.">
 
 /* === FIX: stat window category ordering === */
 function statCategoryTitleHtml(title){
@@ -9550,6 +9551,8 @@ function render(){
     ctx.fillStyle=e.boss?'#ef4444':'#f97316'; ctx.fillRect(px+4,py+27,Math.max(1,24*e.hp/e.maxHp),3);
   }
   const ppx=(p.x-ox)*TILE, ppy=(p.y-oy)*TILE;
+  try{ if(window.queueStableOnlineHeartbeat) window.queueStableOnlineHeartbeat('render'); }catch(e){}
+  try{ if(window.drawStableRemotePlayers) window.drawStableRemotePlayers(ox,oy); }catch(e){}
   // 캐릭터 주변 네모 박스/타일 경계 제거: 캐릭터 도트만 표시
   drawSprite(p.classId,ppx,ppy);
   renderEffects(ox,oy);
@@ -16993,7 +16996,7 @@ function autoFullExplore(){
   const SERVER_ONLINE_CHANNEL = 'life-rpg-server-online-v2';
   const SERVER_CHAT_FETCH_MS = 3000;
   const SERVER_ONLINE_FETCH_MS = 8000;
-  const SERVER_ONLINE_STALE_MS = 45000;
+  const SERVER_ONLINE_STALE_MS = 60000;
 
   /* 1) 모바일 키보드와 가로모드 차단 안내 분리 */
   function activeEditableElement(){
@@ -17258,6 +17261,7 @@ function autoFullExplore(){
 
   /* 2) 서버 온라인 목록: presence + DB heartbeat 병행 */
   let serverOnlineRows = [];
+  let serverOnlineLastGoodAt = 0;
   let serverOnlineLastFetch = 0;
   let serverOnlineBusy = false;
   let serverOnlineChannel = null;
@@ -17319,7 +17323,18 @@ function autoFullExplore(){
         .order('updated_at', {ascending:false})
         .limit(200);
       if(error) throw error;
-      serverOnlineRows = Array.isArray(data) ? data : [];
+      const nextRows = Array.isArray(data) ? data : [];
+      if(nextRows.length){
+        serverOnlineRows = nextRows;
+        serverOnlineLastGoodAt = Date.now();
+      }else if(!serverOnlineRows.length || Date.now() - serverOnlineLastGoodAt > SERVER_ONLINE_STALE_MS){
+        serverOnlineRows = nextRows;
+      }else{
+        serverOnlineRows = serverOnlineRows.filter(row=>{
+          const t = new Date(row && row.updated_at || 0).getTime();
+          return !t || Date.now() - t <= SERVER_ONLINE_STALE_MS * 2;
+        });
+      }
       if(typeof updateOnlineBadge === 'function') updateOnlineBadge();
       return true;
     }catch(e){
@@ -20453,29 +20468,51 @@ skillCooldownText = function(cls,k){
     if(nick) keys.push(`n:${nick}`);
     return keys;
   }
+  const RANKING_ONLINE_STALE_MS_FINAL = 60000;
+  const RANKING_ONLINE_CACHE_MS_FINAL = 90000;
+  let rankingOnlineKeysCacheFinal = new Set();
+  let rankingOnlineKeysCacheAtFinal = 0;
+  function rememberRankingOnlineKeysFinal(keys){
+    if(keys && keys.size){
+      rankingOnlineKeysCacheFinal = new Set(keys);
+      rankingOnlineKeysCacheAtFinal = Date.now();
+    }
+    return keys;
+  }
+  function cachedRankingOnlineKeysFinal(){
+    return Date.now() - rankingOnlineKeysCacheAtFinal <= RANKING_ONLINE_CACHE_MS_FINAL
+      ? new Set(rankingOnlineKeysCacheFinal)
+      : new Set();
+  }
   async function fetchOnlineKeys(){
     const keys = new Set();
     try{
-      if(typeof normalizeOnlineList === 'function'){
+      const client = (typeof getCloudClient === 'function') ? getCloudClient() : null;
+      if(client && typeof client.from === 'function'){
+        const since = new Date(Date.now() - RANKING_ONLINE_STALE_MS_FINAL).toISOString();
+        const {data,error} = await client
+          .from(ONLINE_TABLE)
+          .select('user_id,provider,nickname,slot_index,updated_at')
+          .gte('updated_at', since)
+          .limit(300);
+        if(error) throw error;
+        if(Array.isArray(data)) data.forEach(row=>onlineKeyCandidates(row).forEach(k=>keys.add(k)));
+      }
+    }catch(e){
+      const cached = cachedRankingOnlineKeysFinal();
+      if(cached.size) return cached;
+    }
+    try{
+      if(!keys.size && typeof normalizeOnlineList === 'function'){
         (normalizeOnlineList() || []).forEach(u=>{
           const slotNum = u.slot == null || u.slot === '-' ? null : Math.max(0, Number(u.slot)-1);
           onlineKeyCandidates({userId:u.userId, provider:u.mode, slotIndex:slotNum, nickname:u.nickname}).forEach(k=>keys.add(k));
         });
       }
     }catch(e){}
-    try{
-      const client = getCloudClient && getCloudClient();
-      if(client && typeof client.from === 'function'){
-        const since = new Date(Date.now() - 45000).toISOString();
-        const {data,error} = await client
-          .from(ONLINE_TABLE)
-          .select('user_id,provider,nickname,slot_index,updated_at')
-          .gte('updated_at', since)
-          .limit(300);
-        if(!error && Array.isArray(data)) data.forEach(row=>onlineKeyCandidates(row).forEach(k=>keys.add(k)));
-      }
-    }catch(e){}
-    return keys;
+    if(keys.size) return rememberRankingOnlineKeysFinal(keys);
+    const cached = cachedRankingOnlineKeysFinal();
+    return cached.size ? cached : keys;
   }
   function recordIsOnline(r, onlineKeys){
     return onlineKeyCandidates(r).some(k=>onlineKeys.has(k));
@@ -22421,6 +22458,519 @@ try{ updateStatsBoxSoulBonusFinal(); }catch(e){}
   }
 
   try{ ensurePotionSource(); ensureOpenDoorStateFinal(); openDoorCooldownLeftFinal(); syncPotionButton(); }catch(e){}
+
+/* === STABLE DEV PATCH 1-5: online/db-only, supabase helper, ranking/save guard, developer role, remote position === */
+(function installStableDevPatch1to5(){
+  const STABLE_ONLINE_TABLE = 'game_online_users';
+  const STABLE_ROLE_TABLE = 'user_roles';
+  const STABLE_ONLINE_SELECT_FULL = 'online_id,user_id,provider,client_id,nickname,class_name,class_id,level,floor,slot_index,x,y,dir,updated_at';
+  const STABLE_ONLINE_SELECT_BASIC = 'online_id,user_id,provider,client_id,nickname,class_name,level,floor,slot_index,updated_at';
+  const STABLE_ONLINE_STALE_MS = 60000;
+  const STABLE_ONLINE_CACHE_MS = 90000;
+  const STABLE_ONLINE_FETCH_MS = 1200;
+  const STABLE_HEARTBEAT_MIN_MS = 350;
+  const STABLE_RANK_SYNC_MIN_MS = 900;
+  const STABLE_DEV_ROLE_CACHE_MS = 45000;
+
+  let stableOnlineRows = [];
+  let stableOnlineLastGoodAt = 0;
+  let stableOnlineLastFetchAt = 0;
+  let stableOnlineFetchPromise = null;
+  let stableOnlineColumnMode = 'full';
+  let stableRemoteChannel = null;
+  let stableRemoteChannelSig = '';
+  let stableHeartbeatTimer = null;
+  let stableHeartbeatInFlight = null;
+  let stableHeartbeatLastAt = 0;
+  let stableHeartbeatLastSig = '';
+  let stableRankingSyncInFlight = null;
+  let stableRankingLastSyncAt = 0;
+  let stableDevRoleCache = {userId:'', at:0, value:false};
+
+  function stableWarn(label, e){
+    try{ console.warn('[stable-1-5] ' + label, e && e.message ? e.message : e); }catch(_e){}
+  }
+  function stableClient(){
+    try{ return (typeof getCloudClient === 'function') ? getCloudClient() : null; }catch(e){ return null; }
+  }
+  async function stableUser(){
+    try{ return (typeof currentCloudUser === 'function') ? await currentCloudUser() : null; }catch(e){ return null; }
+  }
+  function stableModeKey(){
+    try{
+      if(typeof cloudProviderModeKey === 'function') return cloudProviderModeKey(activeLoginMode || (S && S.loginMode) || 'kakao');
+    }catch(e){}
+    return (activeLoginMode === 'naver' || (S && S.loginMode === 'naver')) ? 'naver' : 'kakao';
+  }
+  function stableIsCloudLogin(){
+    try{ return typeof isCloudLoginMode === 'function' && isCloudLoginMode(activeLoginMode || (S && S.loginMode)); }catch(e){ return false; }
+  }
+  function stableCurrentSlotIndex(){
+    return activeCharacterSlot == null ? null : Number(activeCharacterSlot || 0);
+  }
+  function stableCurrentNick(){
+    try{
+      const p = S && S.player ? S.player : null;
+      if(p && typeof playerNickname === 'function') return playerNickname(p);
+      if(typeof chatNickname === 'function') return chatNickname();
+      return p ? (p.name || p.nickname || p.className || '이름 없음') : '이름 없음';
+    }catch(e){ return '이름 없음'; }
+  }
+  function stableInferClassId(rowOrName){
+    const raw = typeof rowOrName === 'object' && rowOrName ? (rowOrName.class_id || rowOrName.classId || rowOrName.class_name || rowOrName.className) : rowOrName;
+    const s = String(raw || '').trim();
+    if(classes && classes[s]) return s;
+    for(const [id, info] of Object.entries(classes || {})){
+      if(info && info.name === s) return id;
+    }
+    if(/도적/.test(s)) return 'rogue';
+    if(/마도|마법|법사/.test(s)) return 'mage';
+    if(/사냥|궁수|활/.test(s)) return 'hunter';
+    if(/전사|검사|방패/.test(s)) return 'warrior';
+    return 'warrior';
+  }
+  function stablePlayerPayloadBase(user){
+    const p = S && S.player ? S.player : null;
+    return {
+      online_id: ONLINE_CLIENT_ID,
+      user_id: user && user.id ? user.id : null,
+      provider: stableModeKey(),
+      client_id: ONLINE_CLIENT_ID,
+      nickname: String(stableCurrentNick() || '이름 없음').slice(0,32),
+      class_name: String(p ? (p.className || (classes[p.classId] && classes[p.classId].name) || '-') : '-').slice(0,32),
+      level: p ? Number(p.level || 1) : 0,
+      floor: p ? Number(p.floor || 1) : 0,
+      slot_index: stableCurrentSlotIndex(),
+      updated_at: new Date().toISOString()
+    };
+  }
+  function stablePlayerPayloadFull(user){
+    const p = S && S.player ? S.player : null;
+    const payload = stablePlayerPayloadBase(user);
+    payload.class_id = p ? String(p.classId || stableInferClassId(payload.class_name)).slice(0,24) : null;
+    payload.x = p ? Number(p.x || 0) : null;
+    payload.y = p ? Number(p.y || 0) : null;
+    payload.dir = p ? String(p.dir || 'down').slice(0,8) : 'down';
+    return payload;
+  }
+  function stableMissingColumn(e){
+    const msg = String((e && (e.message || e.details || e.hint || e.code)) || e || '').toLowerCase();
+    return msg.includes('column') || msg.includes('schema cache') || msg.includes('pgrst204') || msg.includes('42703');
+  }
+  function stableOnlineRowToUser(row){
+    if(!row) return null;
+    const updatedAt = new Date(row.updated_at || row.updatedAt || Date.now()).getTime();
+    return {
+      id: row.online_id || row.client_id || row.user_id || '',
+      onlineId: row.online_id || '',
+      userId: row.user_id || row.userId || '',
+      clientId: row.client_id || row.clientId || '',
+      nickname: row.nickname || '이름 없음',
+      className: row.class_name || row.className || '-',
+      classId: stableInferClassId(row),
+      level: Number(row.level || 0),
+      floor: Number(row.floor || 0),
+      mode: row.provider || row.mode || 'local',
+      slot: row.slot_index == null ? '-' : String(Number(row.slot_index) + 1),
+      slotIndex: row.slot_index == null ? null : Number(row.slot_index),
+      x: Number(row.x),
+      y: Number(row.y),
+      dir: row.dir || 'down',
+      updatedAt
+    };
+  }
+  function stableFreshRows(){
+    const now = Date.now();
+    const rows = (Array.isArray(stableOnlineRows) ? stableOnlineRows : []).filter(row=>{
+      const t = new Date(row && (row.updated_at || row.updatedAt) || 0).getTime();
+      return !t || now - t <= STABLE_ONLINE_STALE_MS;
+    });
+    if(rows.length) return rows;
+    if(now - stableOnlineLastGoodAt <= STABLE_ONLINE_CACHE_MS) return stableOnlineRows || [];
+    return [];
+  }
+  async function stableFetchOnlineRows(force=false){
+    if(!stableIsCloudLogin()) return [];
+    const now = Date.now();
+    if(stableOnlineFetchPromise) return stableOnlineFetchPromise;
+    if(!force && now - stableOnlineLastFetchAt < STABLE_ONLINE_FETCH_MS) return stableFreshRows();
+    stableOnlineLastFetchAt = now;
+    stableOnlineFetchPromise = (async()=>{
+      const client = stableClient();
+      if(!client || typeof client.from !== 'function') return stableFreshRows();
+      const since = new Date(Date.now() - STABLE_ONLINE_STALE_MS).toISOString();
+      let rows = [];
+      try{
+        const select = stableOnlineColumnMode === 'basic' ? STABLE_ONLINE_SELECT_BASIC : STABLE_ONLINE_SELECT_FULL;
+        const {data,error} = await client
+          .from(STABLE_ONLINE_TABLE)
+          .select(select)
+          .gte('updated_at', since)
+          .order('updated_at', {ascending:false})
+          .limit(300);
+        if(error) throw error;
+        rows = Array.isArray(data) ? data : [];
+        if(stableOnlineColumnMode !== 'basic') stableOnlineColumnMode = 'full';
+      }catch(e){
+        if(stableOnlineColumnMode !== 'basic' && stableMissingColumn(e)){
+          stableOnlineColumnMode = 'basic';
+          try{
+            const {data,error} = await client
+              .from(STABLE_ONLINE_TABLE)
+              .select(STABLE_ONLINE_SELECT_BASIC)
+              .gte('updated_at', since)
+              .order('updated_at', {ascending:false})
+              .limit(300);
+            if(error) throw error;
+            rows = Array.isArray(data) ? data : [];
+          }catch(e2){
+            stableWarn('online fetch fallback failed', e2);
+            return stableFreshRows();
+          }
+        }else{
+          stableWarn('online fetch failed', e);
+          return stableFreshRows();
+        }
+      }
+      if(rows.length){
+        stableOnlineRows = rows;
+        stableOnlineLastGoodAt = Date.now();
+      }else if(Date.now() - stableOnlineLastGoodAt > STABLE_ONLINE_CACHE_MS){
+        stableOnlineRows = [];
+      }
+      try{ if(typeof updateOnlineBadge === 'function') updateOnlineBadge(); }catch(e){}
+      return stableFreshRows();
+    })().finally(()=>{ stableOnlineFetchPromise = null; });
+    return stableOnlineFetchPromise;
+  }
+  async function stableUpsertOnlineHeartbeat(force=false){
+    if(!stableIsCloudLogin()) return false;
+    const now = Date.now();
+    const p = S && S.player ? S.player : null;
+    const sig = p ? [p.x,p.y,p.dir,p.floor,p.level,p.classId,activeCharacterSlot,stableModeKey()].join('|') : 'no-player';
+    if(!force && sig === stableHeartbeatLastSig && now - stableHeartbeatLastAt < STABLE_HEARTBEAT_MIN_MS) return true;
+    if(stableHeartbeatInFlight && !force) return stableHeartbeatInFlight;
+    stableHeartbeatLastSig = sig;
+    stableHeartbeatLastAt = now;
+    stableHeartbeatInFlight = (async()=>{
+      const client = stableClient();
+      const user = await stableUser();
+      if(!client || !user || typeof client.from !== 'function') return false;
+      try{
+        const payload = stableOnlineColumnMode === 'basic' ? stablePlayerPayloadBase(user) : stablePlayerPayloadFull(user);
+        const {error} = await client.from(STABLE_ONLINE_TABLE).upsert(payload, {onConflict:'online_id'});
+        if(error) throw error;
+        const existing = stableOnlineRows.filter(r=>String(r.online_id || r.client_id || '') !== String(ONLINE_CLIENT_ID));
+        stableOnlineRows = [payload].concat(existing).slice(0,300);
+        stableOnlineLastGoodAt = Date.now();
+        return true;
+      }catch(e){
+        if(stableOnlineColumnMode !== 'basic' && stableMissingColumn(e)){
+          stableOnlineColumnMode = 'basic';
+          try{
+            const {error} = await client.from(STABLE_ONLINE_TABLE).upsert(stablePlayerPayloadBase(user), {onConflict:'online_id'});
+            if(error) throw error;
+            return true;
+          }catch(e2){
+            stableWarn('online heartbeat fallback failed', e2);
+            return false;
+          }
+        }
+        stableWarn('online heartbeat failed', e);
+        return false;
+      }finally{
+        try{ if(typeof updateOnlineBadge === 'function') updateOnlineBadge(); }catch(_e){}
+      }
+    })().finally(()=>{ stableHeartbeatInFlight = null; });
+    return stableHeartbeatInFlight;
+  }
+  function queueStableOnlineHeartbeat(reason){
+    if(!stableIsCloudLogin()) return;
+    clearTimeout(stableHeartbeatTimer);
+    stableHeartbeatTimer = setTimeout(()=>{
+      stableUpsertOnlineHeartbeat(false).then(()=>stableFetchOnlineRows(false)).catch(e=>stableWarn('queued online sync failed', e));
+    }, reason === 'render' ? 80 : 0);
+  }
+  async function stableEnsureOnlineSubscription(){
+    if(!stableIsCloudLogin()) return;
+    const client = stableClient();
+    if(!client || typeof client.channel !== 'function') return;
+    const sig = String(cloudClientSignature || '') + '|stable-online-v3';
+    if(stableRemoteChannel && stableRemoteChannelSig === sig) return;
+    try{
+      if(stableRemoteChannel && typeof client.removeChannel === 'function') await client.removeChannel(stableRemoteChannel);
+    }catch(e){}
+    stableRemoteChannelSig = sig;
+    try{
+      stableRemoteChannel = client.channel('life-rpg-stable-online-v3')
+        .on('postgres_changes', {event:'*', schema:'public', table:STABLE_ONLINE_TABLE}, payload=>{
+          const row = payload && payload.new;
+          if(row){
+            const key = String(row.online_id || row.client_id || row.user_id || '');
+            stableOnlineRows = [row].concat((stableOnlineRows || []).filter(r=>String(r.online_id || r.client_id || r.user_id || '') !== key)).slice(0,300);
+            stableOnlineLastGoodAt = Date.now();
+          }else{
+            stableFetchOnlineRows(true);
+          }
+          try{ if(typeof updateOnlineBadge === 'function') updateOnlineBadge(); }catch(e){}
+          try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
+        })
+        .subscribe(status=>{
+          if(status === 'SUBSCRIBED') stableFetchOnlineRows(true);
+        });
+    }catch(e){
+      stableWarn('online realtime subscribe failed', e);
+    }
+  }
+
+  const oldNormalizeOnlineListStable = typeof normalizeOnlineList === 'function' ? normalizeOnlineList : null;
+  normalizeOnlineList = function(){
+    const byId = new Map();
+    stableFreshRows().map(stableOnlineRowToUser).filter(Boolean).forEach(u=>{
+      const id = String(u.onlineId || u.clientId || u.userId || u.nickname || Math.random());
+      const old = byId.get(id);
+      if(!old || Number(u.updatedAt || 0) >= Number(old.updatedAt || 0)) byId.set(id, u);
+    });
+    if(!byId.size && typeof onlineSelfInfo === 'function'){
+      try{
+        const self = onlineSelfInfo();
+        byId.set(String(self.id || ONLINE_CLIENT_ID), self);
+      }catch(e){
+        if(oldNormalizeOnlineListStable){
+          try{ return oldNormalizeOnlineListStable.apply(this, arguments); }catch(_e){}
+        }
+      }
+    }
+    return Array.from(byId.values()).sort((a,b)=>String(a.nickname||'').localeCompare(String(b.nickname||''),'ko'));
+  };
+  try{ window.normalizeOnlineList = normalizeOnlineList; }catch(e){}
+
+  syncOnlinePresence = async function(force=false){
+    try{ if(typeof bindOnlineBadge === 'function') bindOnlineBadge(); }catch(e){}
+    await stableEnsureOnlineSubscription();
+    await stableUpsertOnlineHeartbeat(force);
+    await stableFetchOnlineRows(force);
+    try{ if(typeof updateOnlineBadge === 'function') updateOnlineBadge(); }catch(e){}
+    return true;
+  };
+  try{ window.syncOnlinePresence = syncOnlinePresence; }catch(e){}
+
+  showOnlineListModal = function(){
+    stableFetchOnlineRows(true).finally(()=>{
+      const list = normalizeOnlineList();
+      const rows = list.map(u=>{
+        const nick = escapeText(u.nickname || '이름 없음');
+        const cls = escapeText(u.className || '-');
+        const lv = Number(u.level || 0) ? `Lv.${Number(u.level||1)}` : '-';
+        const floor = Number(u.floor || 0) ? `${Number(u.floor||1)}층` : '-';
+        const mode = escapeText(u.mode || 'local');
+        const slot = escapeText(u.slot == null ? '-' : String(u.slot));
+        return `<div class="onlineUserCard"><h4>${nick}</h4><p>${lv} / ${floor} · ${cls}</p><p>접속: ${mode} · 슬롯 ${slot}</p></div>`;
+      }).join('') || '<p class="muted">현재 표시할 접속자가 없습니다.</p>';
+      showModal(`<h2>온라인 접속 인원</h2><p class="muted">현재 온라인 ${list.length}명</p><div class="onlineListBox">${rows}</div>${makeCloseBar()}`, false);
+      try{ if(typeof bindCloseOnly === 'function') bindCloseOnly(); }catch(e){}
+    });
+  };
+  try{ window.showOnlineListModal = showOnlineListModal; }catch(e){}
+
+  function stableOnlineKeyCandidates(obj){
+    const keys=[];
+    const userId = String(obj && (obj.userId || obj.user_id) || '').trim();
+    const provider = String(obj && (obj.provider || obj.mode) || '').trim();
+    const slotRaw = obj && (obj.slotIndex != null ? obj.slotIndex : obj.slot_index);
+    const slot = slotRaw == null || slotRaw === '' || slotRaw === '-' ? '' : String(Math.max(0, Number(slotRaw || 0)));
+    const nick = String(obj && obj.nickname || '').trim().toLowerCase();
+    if(userId && provider && slot !== '') keys.push(`u:${userId}|p:${provider}|s:${slot}`);
+    if(userId) keys.push(`u:${userId}`);
+    if(nick) keys.push(`n:${nick}`);
+    return keys;
+  }
+  async function stableFetchOnlineKeys(force=false){
+    const rows = await stableFetchOnlineRows(force);
+    const keys = new Set();
+    (rows || []).forEach(row=>stableOnlineKeyCandidates(row).forEach(k=>keys.add(k)));
+    return keys;
+  }
+  function stableRecordIsOnline(r, onlineKeys){
+    return stableOnlineKeyCandidates(r).some(k=>onlineKeys.has(k));
+  }
+  function stableRankInt(v,d=0){
+    try{ return typeof rankInt === 'function' ? rankInt(v,d) : (Number.isFinite(Number(v)) ? Math.floor(Number(v)) : d); }catch(e){ return d; }
+  }
+  function stableRankRowsHtml(records, onlineKeys){
+    return (records || []).map((r,i)=>{
+      const online = stableRecordIsOnline(r, onlineKeys);
+      const rowClass = online ? 'rankingOnline' : 'rankingOffline';
+      return `<tr class="${rowClass}" data-ranking-online="${online?1:0}">
+        <td class="${i<3?'rankTop':''}">${i+1}</td>
+        <td>${escapeText(r.nickname || '이름 없음')}</td>
+        <td>${escapeText(r.className || '-')}</td>
+        <td>${stableRankInt(r.level,1)}</td>
+        <td>${stableRankInt(r.floor,1)}</td>
+        <td>${stableRankInt(r.combatPower,0).toLocaleString()}</td>
+        <td>${stableRankInt(r.score,0).toLocaleString()}</td>
+        <td class="rankingState">${online?'온라인':'오프라인'}</td>
+      </tr>`;
+    }).join('');
+  }
+  showRankingMenu = async function(){
+    try{ if(S && typeof pauseAutoForChoice === 'function') pauseAutoForChoice(); }catch(e){}
+    showModal(`<h2>랭킹</h2><p class="muted">랭킹 정보를 불러오는 중입니다.</p>`, false);
+    try{
+      if(S && S.player){
+        try{ if(typeof syncActiveCharacterFromRun === 'function') syncActiveCharacterFromRun(); if(typeof saveRun === 'function') saveRun(); }catch(e){}
+      }
+      if(stableIsCloudLogin() && typeof saveCloudCharacterProfile === 'function'){
+        try{ await saveCloudCharacterProfile(); }catch(e){ stableWarn('ranking cloud save fallback', e); }
+      }
+      if(stableIsCloudLogin() && typeof syncPublicRankingRowsForCurrentUser === 'function'){
+        try{ await syncPublicRankingRowsForCurrentUser(); }catch(e){ stableWarn('ranking sync fallback', e); }
+      }
+      const records = (typeof collectRankingRecords === 'function') ? await collectRankingRecords() : [];
+      const onlineKeys = await stableFetchOnlineKeys(true);
+      const note = stableIsCloudLogin()
+        ? '서버 랭킹과 저장 슬롯의 최고기록을 병합해 표시합니다. 온라인 상태는 game_online_users의 최근 갱신값만 기준으로 판정합니다.'
+        : '게스트는 서버 등록 대상이 아니며, 현재 기기의 기록만 표시합니다.';
+      const rows = stableRankRowsHtml(records, onlineKeys);
+      showModal(`<h2>랭킹</h2>
+        <p class="muted">${escapeText(note)}</p>
+        <p class="muted">기준: <b>층 → 레벨 → 전투력 → 점수 → 최근 갱신</b></p>
+        <div class="grid2" style="margin:8px 0 4px">
+          <button class="btn smallbtn" id="rankingRefreshBtn">랭킹 새로고침</button>
+          <span class="muted" style="display:flex;align-items:center;justify-content:flex-end;font-size:11px">최고기록 기준</span>
+        </div>
+        <table class="rankingTable">
+          <thead><tr><th>순위</th><th>닉네임</th><th>직업</th><th>Lv</th><th>층</th><th>전투력</th><th>점수</th><th>상태</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="8" style="text-align:center" class="muted">등록된 랭킹이 없습니다.</td></tr>'}</tbody>
+        </table>
+        ${makeCloseBar()}`, false);
+      const btn = $('rankingRefreshBtn');
+      if(btn){
+        btn.onclick = async ()=>{
+          btn.disabled = true;
+          btn.textContent = '새로고침 중...';
+          await showRankingMenu();
+        };
+      }
+      try{ if(typeof bindCloseOnly === 'function') bindCloseOnly(); }catch(e){}
+      try{ if(typeof wrapRankingTableIfNeeded === 'function') wrapRankingTableIfNeeded(); }catch(e){}
+    }catch(e){
+      showModal(`<h2>랭킹</h2>
+        <p class="muted badtxt">랭킹을 불러오지 못했습니다: ${escapeText(e && e.message ? e.message : String(e))}</p>
+        <p class="muted">서버 권한 또는 테이블 구조를 확인해 주세요.</p>
+        ${makeCloseBar()}`, false);
+      try{ if(typeof bindCloseOnly === 'function') bindCloseOnly(); }catch(_e){}
+    }
+  };
+  try{ window.showRankingMenu = showRankingMenu; }catch(e){}
+  try{ const rankBtn = document.getElementById('rankingMenuBtn'); if(rankBtn) rankBtn.onclick = showRankingMenu; }catch(e){}
+
+  if(typeof syncPublicRankingRowsForCurrentUser === 'function'){
+    const stableOriginalRankSync = syncPublicRankingRowsForCurrentUser;
+    syncPublicRankingRowsForCurrentUser = async function(){
+      const now = Date.now();
+      if(stableRankingSyncInFlight) return stableRankingSyncInFlight;
+      if(now - stableRankingLastSyncAt < STABLE_RANK_SYNC_MIN_MS) return true;
+      stableRankingLastSyncAt = now;
+      stableRankingSyncInFlight = Promise.resolve(stableOriginalRankSync.apply(this, arguments))
+        .catch(e=>{ stableWarn('ranking sync failed', e); return false; })
+        .finally(()=>{ stableRankingSyncInFlight = null; });
+      return stableRankingSyncInFlight;
+    };
+    try{ window.syncPublicRankingRowsForCurrentUser = syncPublicRankingRowsForCurrentUser; }catch(e){}
+  }
+
+  async function isDeveloperUser(force=false){
+    const client = stableClient();
+    const user = await stableUser();
+    if(!client || !user || typeof client.from !== 'function') return false;
+    if(!force && stableDevRoleCache.userId === user.id && Date.now() - stableDevRoleCache.at < STABLE_DEV_ROLE_CACHE_MS){
+      return !!stableDevRoleCache.value;
+    }
+    try{
+      const {data,error} = await client
+        .from(STABLE_ROLE_TABLE)
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'developer')
+        .maybeSingle();
+      if(error) throw error;
+      stableDevRoleCache = {userId:user.id, at:Date.now(), value:!!data};
+      return !!data;
+    }catch(e){
+      stableWarn('developer role check failed', e);
+      stableDevRoleCache = {userId:user.id, at:Date.now(), value:false};
+      return false;
+    }
+  }
+
+  function stableDrawHeroByDir(classId, dir, px, py){
+    const id = stableInferClassId(classId);
+    const row = HERO_CLASS_ROW[id];
+    if(row === undefined) { drawSprite(id, px, py); return; }
+    const col = HERO_DIR_COL[dir || 'down'] ?? 0;
+    const img = (HERO_SPRITES[row] && (HERO_SPRITES[row][col] || HERO_SPRITES[row][0])) || null;
+    if(img && img.complete && img.naturalWidth){
+      ctx.drawImage(img, px+3, py+3, TILE-6, TILE-6);
+    }else{
+      drawSprite(id, px, py);
+    }
+  }
+  function drawStableRemotePlayers(ox,oy){
+    if(!S || !S.player || !Array.isArray(stableOnlineRows) || !stableOnlineRows.length) return;
+    const p = S.player;
+    const now = Date.now();
+    const drawn = new Set();
+    stableFreshRows().map(stableOnlineRowToUser).filter(Boolean).forEach(u=>{
+      if(!u) return;
+      if(String(u.onlineId || u.clientId || '') === String(ONLINE_CLIENT_ID)) return;
+      if(u.userId && p.userId && String(u.userId) === String(p.userId) && u.slotIndex === activeCharacterSlot) return;
+      if(!Number.isFinite(u.x) || !Number.isFinite(u.y)) return;
+      if(Number(u.floor || 0) !== Number(p.floor || 0)) return;
+      if(now - Number(u.updatedAt || 0) > STABLE_ONLINE_STALE_MS) return;
+      const x = Math.round(u.x), y = Math.round(u.y);
+      if(x === p.x && y === p.y) return;
+      if(!inView(x,y,ox,oy)) return;
+      if(S.visible && S.visible[y] && !S.visible[y][x]) return;
+      const key = x + ',' + y + '|' + (u.classId || 'warrior');
+      if(drawn.has(key)) return;
+      drawn.add(key);
+      ctx.save();
+      ctx.globalAlpha = .72;
+      stableDrawHeroByDir(u.classId || u.className, u.dir || 'down', (x-ox)*TILE, (y-oy)*TILE);
+      ctx.restore();
+    });
+  }
+
+  window.AbyssStableNet = {
+    fetchOnlineRows: stableFetchOnlineRows,
+    syncOnlinePresence,
+    queueOnlineHeartbeat: queueStableOnlineHeartbeat,
+    getOnlineRows: ()=>stableFreshRows().slice(),
+    isDeveloperUser,
+    mode: stableModeKey,
+    table: STABLE_ONLINE_TABLE,
+    roleTable: STABLE_ROLE_TABLE
+  };
+  window.isDeveloperUser = isDeveloperUser;
+  window.drawStableRemotePlayers = drawStableRemotePlayers;
+  window.queueStableOnlineHeartbeat = queueStableOnlineHeartbeat;
+
+  try{
+    window.addEventListener('beforeunload', ()=>{
+      const client = stableClient();
+      if(client && stableIsCloudLogin()){
+        try{ client.from(STABLE_ONLINE_TABLE).delete().eq('online_id', ONLINE_CLIENT_ID).then(()=>{}); }catch(e){}
+      }
+    });
+    setInterval(()=>{
+      syncOnlinePresence(false).catch(e=>stableWarn('interval online sync failed', e));
+    }, 1500);
+  }catch(e){}
+  try{ queueStableOnlineHeartbeat('init'); syncOnlinePresence(true); }catch(e){}
+})();
+/* === /STABLE DEV PATCH 1-5 === */
+
 })();
 /* === /REAL FINAL FIX === */
 
