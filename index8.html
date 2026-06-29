@@ -22971,6 +22971,254 @@ try{ updateStatsBoxSoulBonusFinal(); }catch(e){}
 })();
 /* === /STABLE DEV PATCH 1-5 === */
 
+/* === FINAL PATCH: 문열기 쿨타임 최종 적용 === */
+(function installOpenDoorCooldownAuthoritativePatch(){
+  const KEY = 'openDoor';
+  const LABEL = '문열기';
+
+  function odN(v){ return Math.max(0, Math.floor(Number(v) || 0)); }
+  function odClamp(v,min,max){
+    if(typeof clamp === 'function') return clamp(v,min,max);
+    return Math.max(min, Math.min(max, v));
+  }
+  function odPlayer(){ return S && S.player ? S.player : null; }
+  function odEnsure(){
+    const p = odPlayer();
+    if(!p) return null;
+    p.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0,breakWall:0}, p.cd || {});
+    p.skillTurnLock = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillTurnLock || {});
+    p.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillEnhance || {});
+    try{
+      if(Array.isArray(SKILL_TURN_CD_KEYS) && !SKILL_TURN_CD_KEYS.includes(KEY)) SKILL_TURN_CD_KEYS.push(KEY);
+    }catch(e){}
+    return p;
+  }
+  function odLv(){
+    try{ if(typeof skillLv === 'function') return odClamp(odN(skillLv(KEY)),0,20); }catch(e){}
+    const p = odEnsure();
+    return p ? odClamp(odN(p.skillEnhance && p.skillEnhance[KEY]),0,20) : 0;
+  }
+  function odMaxCd(){
+    const p = odPlayer();
+    const rogueBonus = p && p.classId === 'rogue' ? 5 : 0;
+    return Math.max(5, 30 - odLv() - rogueBonus);
+  }
+  function odLeft(){
+    const p = odEnsure();
+    if(!p) return 0;
+    const turn = odN(p.turn);
+    const maxCd = odMaxCd();
+    const lock = odN(p.skillTurnLock && p.skillTurnLock[KEY]);
+    const lockLeft = lock > turn ? lock - turn : 0;
+    const rawLeft = odN(p.cd && p.cd[KEY]);
+    let left = Math.max(lockLeft, rawLeft);
+    left = Math.min(left, maxCd);
+
+    if(left > 0){
+      p.skillTurnLock[KEY] = turn + left;
+      p.cd[KEY] = left;
+    }else{
+      p.skillTurnLock[KEY] = 0;
+      p.cd[KEY] = 0;
+    }
+    return left;
+  }
+  function odSetCd(){
+    const p = odEnsure();
+    if(!p) return 0;
+    const cd = odMaxCd();
+    // afterPlayerAction()에서 같은 행동 턴이 바로 진행되므로 +1로 보정한다.
+    p.skillTurnLock[KEY] = odN(p.turn) + cd + 1;
+    p.cd[KEY] = cd;
+    return cd;
+  }
+  function odBlock(){
+    const left = odLeft();
+    if(left > 0){
+      if(typeof clearSkillPreviewNow === 'function') clearSkillPreviewNow();
+      if(typeof toast === 'function') toast(LABEL + ' 재사용 ' + left + '턴');
+      try{ odRefreshButtons(); }catch(e){}
+      return true;
+    }
+    return false;
+  }
+  function odRefreshButtons(){
+    if(!S || !S.player || typeof updateCooldown !== 'function' || typeof quickSlotSkillKey !== 'function') return;
+    ['skill1','skill2','skill3'].forEach(function(id,idx){
+      try{
+        if(quickSlotSkillKey(idx) === KEY) updateCooldown(id, odLeft());
+      }catch(e){}
+    });
+  }
+
+  openDoorCooldownTurns = function(){ return odMaxCd(); };
+  try{ window.openDoorCooldownTurns = openDoorCooldownTurns; }catch(e){}
+
+  const beforeSkillCooldownByKey = typeof skillCooldownByKey === 'function' ? skillCooldownByKey : null;
+  skillCooldownByKey = function(k){
+    if(k === KEY) return odLeft();
+    return beforeSkillCooldownByKey ? beforeSkillCooldownByKey.apply(this, arguments) : 0;
+  };
+  try{ window.skillCooldownByKey = skillCooldownByKey; }catch(e){}
+
+  const beforeCanUseQuickSlotSkillKey = typeof canUseQuickSlotSkillKey === 'function' ? canUseQuickSlotSkillKey : null;
+  canUseQuickSlotSkillKey = function(k){
+    if(k === KEY) return !odBlock();
+    return beforeCanUseQuickSlotSkillKey ? beforeCanUseQuickSlotSkillKey.apply(this, arguments) : true;
+  };
+  try{ window.canUseQuickSlotSkillKey = canUseQuickSlotSkillKey; }catch(e){}
+
+  useOpenDoorSkill = function(){
+    if(!S || !S.player) return;
+    if(typeof canAct === 'function' && !canAct()) return;
+    const p = odEnsure();
+    if(!p) return;
+    if(odBlock()) return;
+
+    const room = (typeof adjacentLockedDoor === 'function') ? adjacentLockedDoor() : null;
+    if(!room || !room.door){
+      if(typeof toast === 'function') toast('사거리 1칸 안에 잠긴 문이 없습니다.');
+      return;
+    }
+    if(Math.abs(p.x - room.door.x) + Math.abs(p.y - room.door.y) !== 1){
+      if(typeof toast === 'function') toast('문열기 사거리는 1칸입니다.');
+      return;
+    }
+
+    if(typeof hideModal === 'function') hideModal();
+    const pct = typeof openDoorChance === 'function' ? openDoorChance() : 0;
+    const ok = typeof rand === 'function' ? rand(100) < pct : Math.random() * 100 < pct;
+
+    if(ok){
+      if(typeof revealLockedRoom === 'function') revealLockedRoom(room);
+      if(typeof addFx === 'function') addFx({kind:'ring',x:room.door.x,y:room.door.y,color:'#facc15',dur:380});
+      if(typeof addLog === 'function') addLog('<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. (' + pct + '%)');
+    }else{
+      if(typeof addFx === 'function') addFx({kind:'hit',x:room.door.x,y:room.door.y,color:'#64748b',spark:'#cbd5e1',dur:220});
+      if(typeof addLog === 'function') addLog('문열기 실패. 잠긴 문이 버텼다. (' + pct + '%)');
+    }
+
+    odSetCd();
+    if(typeof afterPlayerAction === 'function') afterPlayerAction();
+    else if(typeof renderAll === 'function') renderAll();
+    odRefreshButtons();
+  };
+  try{ window.useOpenDoorSkill = useOpenDoorSkill; }catch(e){}
+
+  const beforeSkillFunctionByKey = typeof skillFunctionByKey === 'function' ? skillFunctionByKey : null;
+  skillFunctionByKey = function(k){
+    if(k === KEY) return useOpenDoorSkill;
+    return beforeSkillFunctionByKey ? beforeSkillFunctionByKey.apply(this, arguments) : null;
+  };
+  try{ window.skillFunctionByKey = skillFunctionByKey; }catch(e){}
+
+  const beforeAdvanceCooldownsAfterPlayerTurn = typeof advanceCooldownsAfterPlayerTurn === 'function' ? advanceCooldownsAfterPlayerTurn : null;
+  if(beforeAdvanceCooldownsAfterPlayerTurn){
+    advanceCooldownsAfterPlayerTurn = function(p){
+      odEnsure();
+      const ret = beforeAdvanceCooldownsAfterPlayerTurn.apply(this, arguments);
+      odLeft();
+      return ret;
+    };
+    try{ window.advanceCooldownsAfterPlayerTurn = advanceCooldownsAfterPlayerTurn; }catch(e){}
+  }
+
+  const beforeSkillEnhanceDesc = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
+  skillEnhanceDesc = function(k){
+    if(k === KEY){
+      const lv = odLv();
+      let cost = 'MAX 강화 완료';
+      try{
+        if(lv < 20 && typeof skillCostInfo === 'function'){
+          const info = skillCostInfo(lv);
+          cost = '비용 ' + formatGold(info.cost) + ' · 성공 ' + info.s + '% · 유지 ' + info.k + '% · 하락 ' + info.d + '%';
+        }
+      }catch(e){}
+      const rogueText = odPlayer() && odPlayer().classId === 'rogue' ? ' · 도적 쿨타임 -5턴' : '';
+      const chanceText = typeof openDoorChance === 'function' ? openDoorChance() : 0;
+      return cost + ' · 문열기 확률 ' + chanceText + '% · 사거리 1칸 · 쿨타임 ' + odMaxCd() + '턴' + rogueText;
+    }
+    return beforeSkillEnhanceDesc ? beforeSkillEnhanceDesc.apply(this, arguments) : '';
+  };
+  try{ window.skillEnhanceDesc = skillEnhanceDesc; }catch(e){}
+
+  const beforeCleanSkillMenuEnhanceDesc = typeof cleanSkillMenuEnhanceDesc === 'function' ? cleanSkillMenuEnhanceDesc : null;
+  cleanSkillMenuEnhanceDesc = function(k){
+    let txt = beforeCleanSkillMenuEnhanceDesc ? String(beforeCleanSkillMenuEnhanceDesc.apply(this, arguments) || '') : String(skillEnhanceDesc(k) || '');
+    if(k === KEY && !/쿨타임\s*\d+턴/.test(txt)) txt += ' · 쿨타임 ' + odMaxCd() + '턴';
+    const matches = txt.match(/쿨타임\s*\d+턴/g) || [];
+    if(matches.length > 1){
+      const last = matches[matches.length - 1];
+      txt = txt.replace(/\s*·?\s*쿨타임\s*\d+턴/g, '');
+      txt = (txt ? txt + ' · ' : '') + last;
+    }
+    return txt.replace(/\s*·\s*·\s*/g,' · ').replace(/^\s*·\s*/,'').replace(/\s*·\s*$/,'').trim();
+  };
+  try{ window.cleanSkillMenuEnhanceDesc = cleanSkillMenuEnhanceDesc; }catch(e){}
+
+  const beforeEnhanceSkill = typeof enhanceSkill === 'function' ? enhanceSkill : null;
+  if(beforeEnhanceSkill){
+    enhanceSkill = function(k){
+      const ret = beforeEnhanceSkill.apply(this, arguments);
+      if(k === KEY){ odEnsure(); odLeft(); odRefreshButtons(); }
+      return ret;
+    };
+    try{ window.enhanceSkill = enhanceSkill; }catch(e){}
+  }
+
+  const beforeUpdateSkillButtonsFromQuickSlots = typeof updateSkillButtonsFromQuickSlots === 'function' ? updateSkillButtonsFromQuickSlots : null;
+  if(beforeUpdateSkillButtonsFromQuickSlots){
+    updateSkillButtonsFromQuickSlots = function(){
+      const ret = beforeUpdateSkillButtonsFromQuickSlots.apply(this, arguments);
+      odRefreshButtons();
+      return ret;
+    };
+    try{ window.updateSkillButtonsFromQuickSlots = updateSkillButtonsFromQuickSlots; }catch(e){}
+  }
+
+  const beforeUpdateSkillButtons = typeof updateSkillButtons === 'function' ? updateSkillButtons : null;
+  if(beforeUpdateSkillButtons){
+    updateSkillButtons = function(){
+      const ret = beforeUpdateSkillButtons.apply(this, arguments);
+      odRefreshButtons();
+      return ret;
+    };
+    try{ window.updateSkillButtons = updateSkillButtons; }catch(e){}
+  }
+
+  const beforeUpdateUiOpenDoorCd = typeof updateUi === 'function' ? updateUi : null;
+  if(beforeUpdateUiOpenDoorCd){
+    updateUi = function(){
+      odEnsure();
+      odLeft();
+      const ret = beforeUpdateUiOpenDoorCd.apply(this, arguments);
+      odRefreshButtons();
+      return ret;
+    };
+    try{ window.updateUi = updateUi; }catch(e){}
+  }
+
+  const beforeRenderAllOpenDoorCd = typeof renderAll === 'function' ? renderAll : null;
+  if(beforeRenderAllOpenDoorCd){
+    renderAll = function(){
+      odEnsure();
+      odLeft();
+      const ret = beforeRenderAllOpenDoorCd.apply(this, arguments);
+      odRefreshButtons();
+      return ret;
+    };
+    try{ window.renderAll = renderAll; }catch(e){}
+  }
+
+  try{
+    odEnsure();
+    odLeft();
+    odRefreshButtons();
+    window.__openDoorCooldownDebug = {left:odLeft, max:odMaxCd, set:odSetCd};
+  }catch(e){}
+})();
+/* === /FINAL PATCH: 문열기 쿨타임 최종 적용 === */
+
 })();
 /* === /REAL FINAL FIX === */
 
