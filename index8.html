@@ -6124,7 +6124,7 @@ function showCategoryOrderedStatsMenu(){
 
     ${statCategoryTitleHtml('생존 / 자원')}
     ${statCellHtml('HP', p.hp+'/'+st.maxHp)}${statCellHtml('MP', p.mp+'/'+st.maxMp)}
-    ${statCellHtml('물약', Math.min(p.potions,hpMax)+'/'+hpMax)}${statCellHtml('영혼', p.soulsRun)}
+    ${statCellHtml('물약', potionCountTextRealFixed(p, st))}${statCellHtml('영혼', p.soulsRun)}
     ${statCellHtml('골드', Number(p.gold||0).toLocaleString())}
 
     ${statCategoryTitleHtml('전투 능력')}
@@ -8396,9 +8396,10 @@ function pickupCheck(){
   S.items = S.items.filter(x=>x!==it);
   if(it.type==='gold'){ p.gold += it.amount; recordInventory('gold','골드',it.amount,`${it.amount}G`, {source:'dungeon', amount:it.amount}); addLog(`골드 ${it.amount} 획득.`); }
   if(it.type==='potion'){
-    const cap = 5 + (calcStats().potionCap||0);
+    const stNow = calcStats();
+    const cap = normalizePotionCountRealFixed(p, stNow);
     if(p.potions>=cap){ p.gold += 8; recordInventory('gold','물약 전환 골드',8,'물약 한도 초과', {source:'potion_over_cap', amount:8}); addLog('물약 보유 한도 초과. 8골드로 전환.'); }
-    else { p.potions++; recordInventory('potion','물약',1,'던전 습득', {source:'dungeon'}); addLog(`물약 획득. (${p.potions}/${cap})`); }
+    else { p.potions++; normalizePotionCountRealFixed(p, stNow); recordInventory('potion','물약',1,'던전 습득', {source:'dungeon'}); addLog(`물약 획득. (${potionCountTextRealFixed(p, stNow)})`); }
   }
   if(it.type==='chest'){ const chestSource=normalizeEquipDropSource(it.source||it.dropSource||'normal'); p.opened++; recordInventory('chest','장비 상자',1,`${equipDropSourceName(chestSource)} 개봉`, {reward:'equipment_choice', choices:3, source:chestSource}); showEquipmentChoice(chestSource); }
   if(it.type==='relic'){ recordInventory('relic','유물 선택권',1,'발견', {reward:'relic_choice', choices:3}); showRelicChoice(); }
@@ -8973,7 +8974,7 @@ function showStatsMenu(){
     <div>HP <b>${p.hp}/${st.maxHp}</b></div><div>MP <b>${p.mp}/${st.maxMp}</b></div>
     <div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div>
     <div>치명타 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>
-    <div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}<div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div>
+    <div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}<div>물약 <b>${potionCountTextRealFixed(p, st)}</b></div>
     <div>처치 수 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div>
   </div>
   <p class="muted" style="margin-top:10px">효과: ${p.effects.guard>0?'방어 태세 '+p.effects.guard+'턴 · ':''}${p.effects.fury>0?'전투함성 '+p.effects.fury+'턴 · ':''}${p.effects.smoke>0?'연막 '+p.effects.smoke+'턴 · ':''}${p.effects.shadow>0?'그림자 기습 '+p.effects.shadow+'턴 · ':''}${p.effects.focus>0?'집중 '+p.effects.focus+'턴':''||'없음'}</p>
@@ -8997,7 +8998,7 @@ function showBagMenu(){
   const tabs=`<div class="grid3" style="grid-template-columns:repeat(5,1fr);gap:6px;margin:10px 0">${types.map(t=>`<button class="btn smallbtn bagFilterBtn" data-bag-filter="${t}">${typeNames[t]}</button>`).join('')}</div>`;
   const recent=(p.inventory.recent||[]).filter(isCurrentRecentItem).slice(0,8).map(x=>`<p><span class="muted">${x.floor}층</span> ${escHtml(x.name)} x${x.qty}${x.detail?' · '+escHtml(x.detail):''}</p>`).join('') || '<p class="muted">최근 표시할 보유 아이템 없음</p>';
   showModal(`<h2>가방</h2>
-  <div class="stats" style="margin-top:10px"><div>골드 <b>${p.gold}</b></div><div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>상자 개봉 <b>${p.opened}</b></div><div>유물 수 <b>${p.relics.length}</b></div></div>
+  <div class="stats" style="margin-top:10px"><div>골드 <b>${p.gold}</b></div><div>물약 <b>${potionCountTextRealFixed(p, st)}</b></div><div>상자 개봉 <b>${p.opened}</b></div><div>유물 수 <b>${p.relics.length}</b></div></div>
   ${tabs}
   <h3 style="margin:10px 0 6px">습득한 아이템</h3><div id="bagItemList">${inventoryRows('all')}</div>
   <h3 style="margin:14px 0 8px">최근 습득</h3><div class="log" style="max-height:110px">${recent}</div>
@@ -9140,7 +9141,7 @@ function enhanceSkill(k){
 function showMerchant(){
   pauseAutoForChoice(); ensureRunFields();
   const p=S.player; const st=calcStats(); const cap=5+(st.potionCap||0); const price=60+S.player.floor*12;
-  showModal(`<h2>떠돌이 상인</h2><p class="muted">상인은 물약만 판매한다. 스킬 강화는 하단 스킬 메뉴에서 직접 할 수 있다.</p><div class="stats" style="margin:10px 0"><div>골드 <b>${p.gold}</b></div><div>물약 <b>${p.potions}/${cap}</b></div></div><div class="grid2"><button class="btn good" id="buyPotionBtn">물약 구매 ${formatGold(price)}</button><button class="btn" id="merchantCloseHintBtn">나가기</button></div>`, false);
+  showModal(`<h2>떠돌이 상인</h2><p class="muted">상인은 물약만 판매한다. 스킬 강화는 하단 스킬 메뉴에서 직접 할 수 있다.</p><div class="stats" style="margin:10px 0"><div>골드 <b>${p.gold}</b></div><div>물약 <b>${potionCountTextRealFixed(p, st)}</b></div></div><div class="grid2"><button class="btn good" id="buyPotionBtn">물약 구매 ${formatGold(price)}</button><button class="btn" id="merchantCloseHintBtn">나가기</button></div>`, false);
   $('buyPotionBtn').onclick=()=>{ if(p.gold<price){toast('골드가 부족하다.');return;} if(p.potions>=cap){toast('물약 보유 한도다.');return;} p.gold-=price; p.potions++; recordInventory('potion','물약',1,`상인 구매 ${formatGold(price)}`, {source:'merchant', price}); addLog(`상인에게서 물약 구매. -${price}G`); renderAll(); saveRun(); showMerchant(); };
   const out=$('merchantCloseHintBtn'); if(out) out.onclick=()=>{ hideModal(); renderAll(); };
 }
@@ -10016,6 +10017,28 @@ function updateSkillButtons(){
   [['skill1',0],['skill2',1],['skill3',2]].forEach(([id,idx])=>{ const el=$(id); if(!el) return; el.querySelector('b').textContent=defs[idx][0]; el.querySelector('small').textContent=defs[idx][1]; });
 }
 
+
+/* === REAL FIX: potion count normalization helpers === */
+function potionCapRealFixed(st){
+  try{
+    const cap = 5 + Math.floor(Number(st && st.potionCap || 0));
+    return Math.max(0, cap);
+  }catch(e){ return 5; }
+}
+function normalizePotionCountRealFixed(p, st){
+  if(!p) return 0;
+  const cap = potionCapRealFixed(st || (typeof calcStats === 'function' ? calcStats() : null));
+  const n = Math.max(0, Math.floor(Number(p.potions || 0)));
+  p.potions = Math.min(n, cap);
+  return cap;
+}
+function potionCountTextRealFixed(p, st){
+  const cap = normalizePotionCountRealFixed(p, st);
+  const n = Math.max(0, Math.floor(Number(p && p.potions || 0)));
+  return n + '/' + cap;
+}
+/* === /REAL FIX: potion count normalization helpers === */
+
 function updateUi(){
   if(!S){ return; }
   const p=S.player; const st=calcStats();
@@ -10028,7 +10051,8 @@ function updateUi(){
   $('mpFill').style.width = clamp(p.mp/st.maxMp*100,0,100)+'%'; $('mpText').textContent = `MP ${p.mp}/${st.maxMp}`;
   $('xpFill').style.width = xpDisplayRatio(p)+'%'; $('xpText').textContent = isMaxLevel(p) ? 'XP MAX' : `XP ${xpDisplayText(p)}`;
   $('turnText').textContent = `${p.turn}턴`;
-  $('potionText').textContent = `${p.potions}/${5+(st.potionCap||0)}개`;
+  normalizePotionCountRealFixed(p, st);
+  $('potionText').textContent = potionCountTextRealFixed(p, st) + '개';
   const danger = S.enemies.filter(e=>e.hp>0&&dist(e,p)<=5).length;
   $('dangerText').innerHTML = danger?`<span class="badtxt">위험 ${danger}</span>`:'';
   $('statsBox').innerHTML = `<div>공격 <b>${st.atk}</b></div><div>방어 <b>${st.def}</b></div><div>치명 <b>${st.crit}%</b></div><div>회피 <b>${st.eva}%</b></div>${rewardRateCellHtml('경험치 획득률', st.xpRate)}${rewardRateCellHtml('골드 획득률', st.goldRate)}<div>처치 <b>${p.kills}</b></div><div>영혼 <b>${p.soulsRun}</b></div><div>층 효과 <b>${S.floorMod?.name||'없음'}</b></div><div>현상금 <b>${S.bounty?S.bounty.count+'/'+S.bounty.need:'없음'}</b></div>`;
@@ -11755,7 +11779,7 @@ showStatsMenu = function(){
     <div>MP <b>${p.mp}/${st.maxMp}</b></div><div>공격 <b>${st.atk}</b></div>
     <div>방어 <b>${st.def}</b></div><div>치명타 <b>${st.crit}%</b></div>
     <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}
-    <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
+    <div>물약 <b>${potionCountTextRealFixed(p, st)}</b></div><div>처치 수 <b>${p.kills}</b></div>
     <div>영혼 <b>${p.soulsRun}</b></div>
   </div>
   <p class="muted" style="margin-top:10px">효과: ${p.effects.guard>0?'방어 태세 '+p.effects.guard+'턴 · ':''}${p.effects.fury>0?'전투함성 '+p.effects.fury+'턴 · ':''}${p.effects.smoke>0?'연막 '+p.effects.smoke+'턴 · ':''}${p.effects.shadow>0?'그림자 기습 '+p.effects.shadow+'턴 · ':''}${p.effects.focus>0?'집중 '+p.effects.focus+'턴':''||'없음'}</p>
@@ -12744,7 +12768,7 @@ showStatsMenu = function(){
     <div>MP <b>${p.mp}/${st.maxMp}</b></div><div>공격 <b>${st.atk}</b></div>
     <div>방어 <b>${st.def}</b></div><div>치명타 <b>${st.crit}%</b></div>
     <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}
-    <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
+    <div>물약 <b>${potionCountTextRealFixed(p, st)}</b></div><div>처치 수 <b>${p.kills}</b></div>
     <div>영혼 <b>${p.soulsRun}</b></div>
   </div>
   ${soulUpgradeBonusStatsHtml()}
@@ -12791,7 +12815,7 @@ showStatsMenu = function(){
     <div>MP <b>${p.mp}/${st.maxMp}</b></div><div>공격 <b>${st.atk}</b></div>
     <div>방어 <b>${st.def}</b></div><div>치명타 <b>${st.crit}%</b></div>
     <div>회피 <b>${st.eva}%</b></div><div>골드 <b>${p.gold}</b></div>${rewardRateCellHtml('골드 획득률', st.goldRate)}
-    <div>물약 <b>${p.potions}/${5+(st.potionCap||0)}</b></div><div>처치 수 <b>${p.kills}</b></div>
+    <div>물약 <b>${potionCountTextRealFixed(p, st)}</b></div><div>처치 수 <b>${p.kills}</b></div>
     <div>영혼 <b>${p.soulsRun}</b></div>
     ${soulUpgradeBonusStatsGridHtml()}
   </div>
@@ -21723,7 +21747,7 @@ function showFinalCategoryStatsMenu(){
 
     ${statCategoryTitleHtmlFinal('생존 / 자원')}
     ${statCellHtmlFinal('HP', p.hp+'/'+st.maxHp)}${statCellHtmlFinal('MP', p.mp+'/'+st.maxMp)}
-    ${statCellHtmlFinal('물약', Math.min(p.potions,potionMax)+'/'+potionMax)}${statCellHtmlFinal('영혼', p.soulsRun)}
+    ${statCellHtmlFinal('물약', potionCountTextRealFixed(p, st))}${statCellHtmlFinal('영혼', p.soulsRun)}
     ${statCellHtmlFinal('골드', Number(p.gold||0).toLocaleString())}
 
     ${statCategoryTitleHtmlFinal('전투 능력')}
@@ -21844,7 +21868,7 @@ function showFinalCategoryStatsMenu(){
 
     ${statHardTitle('생존 / 자원')}
     ${statHardCell('HP', p.hp+'/'+st.maxHp)}${statHardCell('MP', p.mp+'/'+st.maxMp)}
-    ${statHardCell('물약', Math.min(p.potions,potionMax)+'/'+potionMax)}${statHardCell('영혼', Number(p.soulsRun||0).toLocaleString())}
+    ${statHardCell('물약', potionCountTextRealFixed(p, st))}${statHardCell('영혼', Number(p.soulsRun||0).toLocaleString())}
     ${statHardCell('골드', Number(p.gold||0).toLocaleString())}
 
     ${statHardTitle('전투 능력')}
@@ -21958,7 +21982,7 @@ function showStatsMenuSoulBonusFinal(){
 
     ${statFinalTitleRow('생존 / 자원')}
     ${statFinalCellRow('HP', p.hp+'/'+st.maxHp)}${statFinalCellRow('MP', p.mp+'/'+st.maxMp)}
-    ${statFinalCellRow('물약', Math.min(p.potions,potionMax)+'/'+potionMax)}${statFinalCellRow('영혼', Number(p.soulsRun||0).toLocaleString())}
+    ${statFinalCellRow('물약', potionCountTextRealFixed(p, st))}${statFinalCellRow('영혼', Number(p.soulsRun||0).toLocaleString())}
     ${statFinalCellRow('골드', Number(p.gold||0).toLocaleString())}
 
     ${statFinalTitleRow('전투 능력')}
@@ -22063,7 +22087,7 @@ try{ updateStatsBoxSoulBonusFinal(); }catch(e){}
       cellRow('층 / 턴', (p.floor||1)+' / '+(p.turn||0))+cellRow('처치 수', p.kills||0)+
       titleRow('생존 / 자원')+
       cellRow('HP', (p.hp||0)+'/'+(st.maxHp||0))+cellRow('MP', (p.mp||0)+'/'+(st.maxMp||0))+
-      cellRow('물약', Math.min((p.potions||0),potionMax)+'/'+potionMax)+cellRow('영혼', Number(p.soulsRun||0).toLocaleString())+
+      cellRow('물약', potionCountTextRealFixed(p, st))+cellRow('영혼', Number(p.soulsRun||0).toLocaleString())+
       cellRow('골드', Number(p.gold||0).toLocaleString())+
       titleRow('전투 능력')+
       cellRow('공격', st.atk||0)+cellRow('방어', st.def||0)+
@@ -22203,6 +22227,203 @@ try{ updateStatsBoxSoulBonusFinal(); }catch(e){}
   return prev.apply(this,arguments);
  };
 })();
+
+/* === REAL FINAL FIX: open-door cooldown effect + potion display source of truth === */
+(function installOpenDoorCooldownPotionSourceFix(){
+  function q(id){ return (typeof $ === 'function') ? $(id) : document.getElementById(id); }
+  function n(v){ return Math.max(0, Math.floor(Number(v) || 0)); }
+  function clampLocal(v,min,max){
+    if(typeof clamp === 'function') return clamp(v,min,max);
+    return Math.max(min, Math.min(max, v));
+  }
+  function player(){ return S && S.player ? S.player : null; }
+  function ensurePotionSource(){
+    const p = player();
+    if(!p) return 0;
+    const st = (typeof calcStats === 'function') ? calcStats() : null;
+    if(typeof normalizePotionCountRealFixed === 'function') return normalizePotionCountRealFixed(p, st);
+    const cap = Math.max(0, 5 + Math.floor(Number(st && st.potionCap || 0)));
+    p.potions = Math.min(Math.max(0, Math.floor(Number(p.potions || 0))), cap);
+    return cap;
+  }
+  function potionTextSource(){
+    const p = player();
+    if(!p) return '0/0';
+    const st = (typeof calcStats === 'function') ? calcStats() : null;
+    if(typeof potionCountTextRealFixed === 'function') return potionCountTextRealFixed(p, st);
+    const cap = ensurePotionSource();
+    return n(p.potions) + '/' + cap;
+  }
+  function syncPotionButton(){
+    ensurePotionSource();
+    const el = q('potionText');
+    if(el) el.textContent = potionTextSource() + '개';
+  }
+
+  function ensureOpenDoorStateFinal(){
+    const p = player();
+    if(!p) return null;
+    p.cd = Object.assign({smash:0,dash:0,heal:0,potion:0,openDoor:0,breakWall:0}, p.cd || {});
+    p.skillTurnLock = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillTurnLock || {});
+    p.skillEnhance = Object.assign({smash:0,dash:0,heal:0,openDoor:0,breakWall:0}, p.skillEnhance || {});
+    try{
+      if(Array.isArray(SKILL_TURN_CD_KEYS)) ['openDoor','breakWall'].forEach(function(k){ if(!SKILL_TURN_CD_KEYS.includes(k)) SKILL_TURN_CD_KEYS.push(k); });
+    }catch(e){}
+    return p;
+  }
+  function openDoorLevelFinal(){
+    try{ if(typeof skillLv === 'function') return clampLocal(n(skillLv('openDoor')), 0, 20); }catch(e){}
+    const p = ensureOpenDoorStateFinal();
+    return p ? clampLocal(n(p.skillEnhance && p.skillEnhance.openDoor), 0, 20) : 0;
+  }
+  function openDoorCooldownMaxFinal(){
+    const p = player();
+    const rogue = p && p.classId === 'rogue' ? 5 : 0;
+    return Math.max(5, 30 - openDoorLevelFinal() - rogue);
+  }
+  openDoorCooldownTurns = function(){ return openDoorCooldownMaxFinal(); };
+  try{ window.openDoorCooldownTurns = openDoorCooldownTurns; }catch(e){}
+
+  function openDoorCooldownLeftFinal(){
+    const p = ensureOpenDoorStateFinal();
+    if(!p) return 0;
+    const turn = n(p.turn);
+    const maxNow = openDoorCooldownMaxFinal();
+    const lock = n(p.skillTurnLock && p.skillTurnLock.openDoor);
+    const raw = n(p.cd && p.cd.openDoor);
+    let left = lock > turn ? (lock - turn) : raw;
+    left = Math.min(Math.max(0, left), maxNow);
+    if(left > 0){
+      p.skillTurnLock.openDoor = turn + left;
+      p.cd.openDoor = left;
+    }else{
+      p.skillTurnLock.openDoor = 0;
+      p.cd.openDoor = 0;
+    }
+    return left;
+  }
+  function setOpenDoorCooldownFinal(){
+    const p = ensureOpenDoorStateFinal();
+    if(!p) return;
+    const cd = openDoorCooldownMaxFinal();
+    p.skillTurnLock.openDoor = n(p.turn) + cd + 1;
+    p.cd.openDoor = cd;
+  }
+  function blockOpenDoorCooldownFinal(){
+    const left = openDoorCooldownLeftFinal();
+    if(left > 0){
+      if(typeof toast === 'function') toast('문열기 재사용 ' + left + '턴');
+      try{ if(typeof renderAll === 'function') renderAll(); }catch(e){}
+      return true;
+    }
+    return false;
+  }
+
+  const oldSkillCooldownByKeyFinal = typeof skillCooldownByKey === 'function' ? skillCooldownByKey : null;
+  skillCooldownByKey = function(k){
+    if(k === 'openDoor') return openDoorCooldownLeftFinal();
+    return oldSkillCooldownByKeyFinal ? oldSkillCooldownByKeyFinal.apply(this, arguments) : 0;
+  };
+  try{ window.skillCooldownByKey = skillCooldownByKey; }catch(e){}
+
+  const oldCanUseQuickSlotSkillKeyFinal = typeof canUseQuickSlotSkillKey === 'function' ? canUseQuickSlotSkillKey : null;
+  canUseQuickSlotSkillKey = function(k){
+    if(k === 'openDoor') return !blockOpenDoorCooldownFinal();
+    return oldCanUseQuickSlotSkillKeyFinal ? oldCanUseQuickSlotSkillKeyFinal.apply(this, arguments) : true;
+  };
+  try{ window.canUseQuickSlotSkillKey = canUseQuickSlotSkillKey; }catch(e){}
+
+  useOpenDoorSkill = function(){
+    if(!S || !S.player) return;
+    if(typeof canAct === 'function' && !canAct()) return;
+    ensureOpenDoorStateFinal();
+    if(blockOpenDoorCooldownFinal()) return;
+
+    const room = (typeof adjacentLockedDoor === 'function') ? adjacentLockedDoor() : null;
+    if(!room || !room.door){
+      if(typeof toast === 'function') toast('사거리 1칸 안에 잠긴 문이 없습니다.');
+      return;
+    }
+    const p = S.player;
+    if(Math.abs(p.x - room.door.x) + Math.abs(p.y - room.door.y) !== 1){
+      if(typeof toast === 'function') toast('문열기 사거리는 1칸입니다.');
+      return;
+    }
+
+    if(typeof hideModal === 'function') hideModal();
+    const pct = (typeof openDoorChance === 'function') ? openDoorChance() : 0;
+    const ok = (typeof rand === 'function') ? rand(100) < pct : Math.random() * 100 < pct;
+    if(ok){
+      if(typeof revealLockedRoom === 'function') revealLockedRoom(room);
+      if(typeof addFx === 'function') addFx({kind:'ring',x:room.door.x,y:room.door.y,color:'#facc15',dur:380});
+      if(typeof addLog === 'function') addLog('<span class="legend">문열기 성공</span>. 잠긴 방의 어둠장막이 걷혔다. ('+pct+'%)');
+    }else{
+      if(typeof addFx === 'function') addFx({kind:'hit',x:room.door.x,y:room.door.y,color:'#64748b',spark:'#cbd5e1',dur:220});
+      if(typeof addLog === 'function') addLog('문열기 실패. 잠긴 문이 버텼다. ('+pct+'%)');
+    }
+    setOpenDoorCooldownFinal();
+    if(typeof afterPlayerAction === 'function') afterPlayerAction();
+    else if(typeof renderAll === 'function') renderAll();
+  };
+  try{ window.useOpenDoorSkill = useOpenDoorSkill; }catch(e){}
+
+  const oldSkillFunctionByKeyFinal = typeof skillFunctionByKey === 'function' ? skillFunctionByKey : null;
+  skillFunctionByKey = function(k){
+    if(k === 'openDoor') return useOpenDoorSkill;
+    return oldSkillFunctionByKeyFinal ? oldSkillFunctionByKeyFinal.apply(this, arguments) : null;
+  };
+  try{ window.skillFunctionByKey = skillFunctionByKey; }catch(e){}
+
+  const oldSkillEnhanceDescFinal = typeof skillEnhanceDesc === 'function' ? skillEnhanceDesc : null;
+  skillEnhanceDesc = function(k){
+    if(k === 'openDoor'){
+      const lv = openDoorLevelFinal();
+      let cost = 'MAX 강화 완료';
+      try{
+        const info = typeof skillCostInfo === 'function' ? skillCostInfo(lv) : null;
+        if(lv < 20 && info) cost = '비용 ' + formatGold(info.cost) + ' · 성공 ' + info.s + '% · 유지 ' + info.k + '% · 하락 ' + info.d + '%';
+      }catch(e){}
+      const rogueText = player() && player().classId === 'rogue' ? ' · 도적 쿨타임 -5턴' : '';
+      return cost + ' · 문열기 확률 ' + ((typeof openDoorChance === 'function') ? openDoorChance() : 0) + '% · 사거리 1칸 · 쿨타임 ' + openDoorCooldownMaxFinal() + '턴' + rogueText;
+    }
+    return oldSkillEnhanceDescFinal ? oldSkillEnhanceDescFinal.apply(this, arguments) : '';
+  };
+  try{ window.skillEnhanceDesc = skillEnhanceDesc; }catch(e){}
+
+  const oldUpdateUiFinal = typeof updateUi === 'function' ? updateUi : null;
+  updateUi = function(){
+    ensurePotionSource();
+    ensureOpenDoorStateFinal();
+    openDoorCooldownLeftFinal();
+    const ret = oldUpdateUiFinal ? oldUpdateUiFinal.apply(this, arguments) : undefined;
+    syncPotionButton();
+    try{ if(typeof updateSkillButtonsFromQuickSlots === 'function') updateSkillButtonsFromQuickSlots(); }catch(e){}
+    return ret;
+  };
+  try{ window.updateUi = updateUi; }catch(e){}
+
+  const oldRenderAllFinal = typeof renderAll === 'function' ? renderAll : null;
+  if(oldRenderAllFinal){
+    renderAll = function(){
+      ensurePotionSource();
+      ensureOpenDoorStateFinal();
+      const ret = oldRenderAllFinal.apply(this, arguments);
+      syncPotionButton();
+      return ret;
+    };
+    try{ window.renderAll = renderAll; }catch(e){}
+  }
+
+  const oldSaveRunFinal = typeof saveRun === 'function' ? saveRun : null;
+  if(oldSaveRunFinal){
+    saveRun = function(){ ensurePotionSource(); return oldSaveRunFinal.apply(this, arguments); };
+    try{ window.saveRun = saveRun; }catch(e){}
+  }
+
+  try{ ensurePotionSource(); ensureOpenDoorStateFinal(); openDoorCooldownLeftFinal(); syncPotionButton(); }catch(e){}
+})();
+/* === /REAL FINAL FIX === */
+
 </script>
 </body>
 </html>
